@@ -413,7 +413,7 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
                                 pointerEvents: status === 'ready' ? 'none' : 'auto',
                             }}
                         >
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#0ea5e9', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Đề thi AI — THPT 2025</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#0ea5e9', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Đề thi AI — THPT 2026</div>
                             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', marginBottom: 4 }}>{aiExam.title}</h2>
                             {aiExam.source && <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16, fontStyle: 'italic' }}>Ngữ liệu: {aiExam.source}</p>}
                             {aiExam.passage && (

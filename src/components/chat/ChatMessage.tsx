@@ -121,7 +121,7 @@ function AIExamCard({ exam, onStart }: { exam: AIExamData; onStart: () => void }
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <BookOpen size={13} color="#4ade80" />
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                    Đề thi AI — THPT 2025
+                    Đề thi AI — THPT 2026
                 </span>
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#f0fdf4', marginBottom: 4 }}>{exam.title}</div>

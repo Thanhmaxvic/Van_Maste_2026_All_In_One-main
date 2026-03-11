@@ -185,7 +185,6 @@ export const TTS_VOICE_MAP = {
   male: 'vi-VN-Wavenet-D',
 } as const;
 
-/** Pronoun based on voice gender */
 export const PRONOUN_MAP = {
   female: 'cô',
   male: 'thầy',
