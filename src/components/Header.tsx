@@ -37,6 +37,18 @@ export default function Header({ onOpenSettings, onOpenSidebar }: HeaderProps) {
 
             <div style={{ flex: 1 }} />
 
+            {/* User Stats */}
+            <div className="header-stats">
+                <div className="stat-line">
+                    <span className="stat-label">Đăng ký:</span>
+                    <span className="stat-value">1,250</span>
+                </div>
+                <div className="stat-line">
+                    <span className="stat-label">Truy cập:</span>
+                    <span className="stat-value">42</span>
+                </div>
+            </div>
+
             {/* Notification (future feature placeholder) */}
             <button className="hdr-icon-btn hdr-bell-btn" title="Thông báo" style={{ position: 'relative' }}>
                 <Bell size={17} />

@@ -244,6 +244,41 @@ body,
   color: #FCD34D;
 }
 
+.header-stats {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 2px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.stat-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+}
+
+.stat-label {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.stat-value {
+  font-weight: 700;
+  color: #FCD34D;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  min-width: 44px;
+  text-align: right;
+  display: inline-block;
+}
+
 .hdr-icon-btn {
   width: 34px;
   height: 34px;
@@ -307,6 +342,10 @@ body,
   }
 
   .countdown-chip {
+    display: none;
+  }
+
+  .header-stats {
     display: none;
   }
 
