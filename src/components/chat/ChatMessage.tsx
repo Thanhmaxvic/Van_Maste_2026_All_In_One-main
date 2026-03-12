@@ -8,6 +8,7 @@ interface ChatMessageProps {
     message: Message & { examGrade?: ExamGrade };
     onPlayTTS: (text: string) => void;
     onStartAIExam?: (exam: AIExamData) => void;
+    onQuizAnswer?: (answer: string) => void;
 }
 
 function clean(raw: string): string {
@@ -103,9 +104,36 @@ function GradeBubble({ grade }: { grade: ExamGrade }) {
     );
 }
 
-/** Card hiển thị câu hỏi luyện tập theo ngữ cảnh */
+/** Card hiển thị câu hỏi lựa chọn A/B/C/D dạng nút bấm */
+function QuizButtons({ options, onAnswer }: { options: { a: string; b: string; c: string; d: string }; onAnswer?: (answer: string) => void }) {
+    const [selected, setSelected] = useState<string | null>(null);
+    const letters = ['a', 'b', 'c', 'd'] as const;
+    const labels = { a: 'A', b: 'B', c: 'C', d: 'D' };
 
-/** Card hiển thị đề thi do AI tạo với nút Làm bài */
+    const handleClick = (letter: string) => {
+        if (selected) return;
+        setSelected(letter);
+        onAnswer?.(letter);
+    };
+
+    return (
+        <div className="quiz-options-grid">
+            {letters.map(l => (
+                <button
+                    key={l}
+                    className={`quiz-option-btn ${selected === l ? 'selected' : ''} ${selected && selected !== l ? 'dimmed' : ''}`}
+                    onClick={() => handleClick(l)}
+                    disabled={!!selected}
+                >
+                    <span className="quiz-option-badge">{labels[l]}</span>
+                    <span className="quiz-option-text">{options[l]}</span>
+                </button>
+            ))}
+        </div>
+    );
+}
+
+/** Card hiển thị câu hỏi luyện tập theo ngữ cảnh */
 function AIExamCard({ exam, onStart }: { exam: AIExamData; onStart: () => void }) {
     const typeLabel = exam.type === 'reading' ? 'Đọc hiểu' : exam.type === 'writing' ? 'Phần Viết' : 'Tổng hợp';
     const durationLabel = `${exam.durationMinutes} phút`;
@@ -152,7 +180,7 @@ function AIExamCard({ exam, onStart }: { exam: AIExamData; onStart: () => void }
     );
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAIExam }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAIExam, onQuizAnswer }) => {
     const isUser = message.role === 'user';
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const { userProfile } = useAuth();
@@ -220,6 +248,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAI
                             </button>
                         )}
                     </div>
+                    {/* Quiz option buttons */}
+                    {message.quizOptions && (
+                        <QuizButtons options={message.quizOptions} onAnswer={onQuizAnswer} />
+                    )}
                     {message.aiExam && onStartAIExam && (
                         <AIExamCard exam={message.aiExam} onStart={() => onStartAIExam(message.aiExam!)} />
                     )}

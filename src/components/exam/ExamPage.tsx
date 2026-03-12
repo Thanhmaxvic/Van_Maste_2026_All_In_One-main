@@ -261,10 +261,26 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
         try {
             const submissionId = await saveExamSubmission(user.uid, examId, cheating ? '[GIAN LẬN] ' + answer : answer);
 
-            const [examText, answerKeyText] = await Promise.all([
-                fetchDocxAsText(`/dethi/${examId}.docx`).catch(() => 'Không thể đọc đề thi'),
-                fetchDocxAsText(`/huongdancham/${examId}.docx`).catch(() => 'Không có hướng dẫn chấm'),
-            ]);
+            let examText: string;
+            let answerKeyText: string;
+
+            if (aiExam) {
+                // AI exam: build exam text from questions, use embedded answerKey
+                const parts: string[] = [];
+                if (aiExam.passage) parts.push(aiExam.passage);
+                if (aiExam.source) parts.push(`Nguồn: ${aiExam.source}`);
+                aiExam.questions.forEach(q => {
+                    parts.push(`Câu ${q.id} (${q.points}đ): ${q.prompt}`);
+                });
+                examText = parts.join('\n\n');
+                answerKeyText = aiExam.answerKey || 'Không có hướng dẫn chấm cụ thể. Hãy chấm điểm dựa trên nội dung đề thi và kiến thức Ngữ văn THPT.';
+            } else {
+                // Regular docx exam: fetch both exam and answer key from files
+                [examText, answerKeyText] = await Promise.all([
+                    fetchDocxAsText(`/dethi/${examId}.docx`).catch(() => 'Không thể đọc đề thi'),
+                    fetchDocxAsText(`/huongdancham/${examId}.docx`).catch(() => 'Không có hướng dẫn chấm'),
+                ]);
+            }
 
             const grade = await gradeWithAI(examText, answerKeyText, answer || '(Bo trang)');
             await updateSubmissionGrade(user.uid, submissionId, grade);

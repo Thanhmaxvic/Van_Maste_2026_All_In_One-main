@@ -34,7 +34,7 @@ function AppContent() {
     messages, input, setInput, isLoading,
     previewImage, setPreviewImage, chatEndRef, fileInputRef,
     handleSend, addGradeMsg, startGraphicFlow, startExamFlow,
-    startLesson,
+    startLesson, startCitationFlow, startQuizFlow, handleQuizAnswer,
   } = useChat(onStartDiagnosticExam);
 
   // ── Select lesson from timeline ──────────────────────────────────────
@@ -131,6 +131,7 @@ function AppContent() {
                     message={msg as Parameters<typeof ChatMessage>[0]['message']}
                     onPlayTTS={() => { }}
                     onStartAIExam={handleStartAIExam}
+                    onQuizAnswer={handleQuizAnswer}
                   />
                 ))}
                 {isLoading && (
@@ -153,7 +154,9 @@ function AppContent() {
                       onClick={
                         label === 'Đồ hoạ' ? startGraphicFlow
                           : label === 'Đề thi' ? startExamFlow
-                            : undefined
+                            : label === 'Dẫn chứng' ? startCitationFlow
+                              : label === 'Quiz' ? startQuizFlow
+                                : undefined
                       }
                     >
                       {label}

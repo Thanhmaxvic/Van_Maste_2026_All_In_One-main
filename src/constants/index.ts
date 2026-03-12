@@ -213,3 +213,26 @@ Mỗi câu có 4 đáp án A, B, C, D. Sau khi người dùng trả lời, bạn
    - 60-79%: Lộ trình chuẩn (ôn lý thuyết, làm bài tập)
    - 40-59%: Lộ trình cơ bản (học lại kiến thức nền tảng)
    - Dưới 40%: Lộ trình căn bản (học từ đầu, làm quen với các tác phẩm)`;
+
+/** Prompt tìm dẫn chứng cho nghị luận — {{TOPIC}} được thay ở runtime */
+export const CITATION_GENERATION_PROMPT = `Bạn là gia sư Ngữ văn THPT. Nhiệm vụ: tìm và cung cấp DẪN CHỨNG CỤ THỂ cho chủ đề nghị luận mà học sinh yêu cầu.
+
+CHỦ ĐỀ: {{TOPIC}}
+
+YÊU CẦU:
+1. Cung cấp 3-5 dẫn chứng cụ thể, chia thành 2 nhóm:
+   a) Dẫn chứng đời thực (người thật, sự kiện thật, số liệu thật)
+   b) Dẫn chứng văn học (tác phẩm, nhân vật, chi tiết cụ thể)
+
+2. Mỗi dẫn chứng phải có:
+   - Tên nhân vật / sự kiện / tác phẩm cụ thể
+   - Mô tả ngắn gọn (2-3 câu) nêu rõ nội dung dẫn chứng
+   - Gợi ý cách đưa vào bài nghị luận (1 câu)
+
+3. Ưu tiên dẫn chứng:
+   - Chính xác, có thể kiểm chứng
+   - Phù hợp với đề thi THPT
+   - Dễ nhớ, gây ấn tượng với giám khảo
+
+4. Tối đa 250 từ. Dùng gạch đầu dòng "-" để liệt kê. KHÔNG dùng ký tự * hoặc **.`;
+

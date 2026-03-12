@@ -11,9 +11,7 @@ import {
     PROACTIVE_PROMPT,
     PROACTIVE_DELAY_MS,
     QUIZ_GENERATION_PROMPT,
-    AI_EXAM_PROMPT_READING,
-    AI_EXAM_PROMPT_WRITING,
-    AI_EXAM_PROMPT_FULL,
+    CITATION_GENERATION_PROMPT,
     LESSON_TEACH_PROMPT,
     USER_TRAITS_PROMPT,
 } from '../constants';
@@ -26,7 +24,6 @@ import {
     generateDiagnosticMCQ,
     generateInfographic,
     generateImage,
-    generateAIExam,
     sendGradingRequest,
 } from '../services/geminiApi';
 import type { DiagnosticQuizData } from '../services/geminiApi';
@@ -81,6 +78,7 @@ export function useChat(onStartDiagnosticExam?: () => void) {
     const [awaitingExamTypeChoice, setAwaitingExamTypeChoice] = useState(false);
     const [quizState, setQuizState] = useState<QuizState>(QUIZ_INIT);
     const [pendingGraphicPrompt, setPendingGraphicPrompt] = useState(false);
+    const [pendingCitationPrompt, setPendingCitationPrompt] = useState(false);
     const [awaitingResumeChoice, setAwaitingResumeChoice] = useState(false);
 
     // ── Lesson mode state ─────────────────────────────────────────────────────────
@@ -301,12 +299,23 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
         addAssistant(msg);
     }, [addAssistant]);
 
-    // ── Quiz: ask next question ───────────────────────────────────────────────
+    // ── Quiz: ask next question (with clickable options) ──────────────────────
     const askQuizQuestion = useCallback((data: DiagnosticQuizData, qIndex: number) => {
         const q = data.questions[qIndex];
-        const msg = `**Câu ${qIndex + 1}/10:** ${q.q}\n\nA. ${q.a}\nB. ${q.b}\nC. ${q.c}\nD. ${q.d}`;
-        addAssistant(msg);
-    }, [addAssistant]);
+        const questionText = `Câu ${qIndex + 1}/10: ${q.q}`;
+        setMessages(p => {
+            const next = [...p, {
+                role: 'assistant' as const,
+                content: questionText,
+                quizOptions: { a: q.a, b: q.b, c: q.c, d: q.d },
+                quizQuestionIndex: qIndex,
+            }];
+            resetProactiveTimer(next);
+            return next;
+        });
+        playNotification();
+        autoSpeak(questionText);
+    }, [resetProactiveTimer, playNotification, autoSpeak]);
 
     // ── Quiz: show final result ───────────────────────────────────────────────
     const finishQuiz = useCallback(async (data: DiagnosticQuizData, answers: string[]) => {
@@ -357,6 +366,35 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
 
         // Reset proactive timer on user activity
         if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
+
+        // ── Đang chờ mô tả chủ đề dẫn chứng ────────────────────────────────────
+        if (pendingCitationPrompt) {
+            setPendingCitationPrompt(false);
+            const topic = val;
+            if (!topic) {
+                addAssistant('Em mô tả rõ hơn chủ đề cần dẫn chứng nhé.');
+                setPendingCitationPrompt(true);
+                return;
+            }
+
+            if (!isApiKeyConfigured()) {
+                addAssistant('API Key chưa được cấu hình. Thêm VITE_GOOGLE_API_KEY vào file .env.');
+                return;
+            }
+
+            addAssistant(`Thầy đang tìm dẫn chứng cho chủ đề: "${topic}"...`, false);
+            setIsLoading(true);
+            try {
+                const citationPrompt = CITATION_GENERATION_PROMPT.replace('{{TOPIC}}', topic);
+                const { text: citationResult } = await sendChatMessage(messages, citationPrompt, null);
+                addAssistant(citationResult || 'Không tìm được dẫn chứng phù hợp. Em thử chủ đề khác nhé.');
+            } catch {
+                addAssistant('Có lỗi khi tìm dẫn chứng. Em thử lại sau nhé.');
+            } finally {
+                setIsLoading(false);
+            }
+            return;
+        }
 
         // ── Đang chờ mô tả chủ đề đồ hoạ ─────────────────────────────────────
         if (pendingGraphicPrompt) {
@@ -530,24 +568,15 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
             return;
         }
 
-        if (quizState.phase === 'questioning' && quizState.data) {
-            const ans = val.trim().toLowerCase().slice(0, 1);
-            if (!['a', 'b', 'c', 'd'].includes(ans)) {
-                addAssistant('Em chọn A, B, C hoặc D nhé.');
-                return;
-            }
-            const newAnswers = [...quizState.userAnswers, ans];
-            const nextQ = quizState.currentQ + 1;
-
-            if (nextQ >= 10) {
-                setQuizState(p => ({ ...p, userAnswers: newAnswers, phase: 'done' }));
-                await finishQuiz(quizState.data, newAnswers);
-            } else {
-                setQuizState(p => ({ ...p, userAnswers: newAnswers, currentQ: nextQ }));
-                askQuizQuestion(quizState.data, nextQ);
-            }
+        // ── Detect citation request ─────────────────────────────────────────
+        const wantsCitation = /(dẫn chứng|tìm dẫn chứng|cho em dẫn chứng|dẫn chứng cho)/i.test(lower);
+        if (wantsCitation) {
+            askCitationTopic();
             return;
         }
+
+        // Quiz answers are now handled via handleQuizAnswer (clickable buttons)
+        // No need to handle quiz answers from text input
 
         // ── Normal chat ───────────────────────────────────────────────────────
         if (!isApiKeyConfigured()) {
@@ -565,13 +594,13 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
                 const currentSectionIndex = lp?.currentSectionIndex ?? 0;
                 const sectionsDone = lp?.sectionsDone ?? 0;
                 const sectionsTotal = lp?.sectionsTotal ?? 10;
-                
+
                 // Add resume context if continuing from a previous session
                 let resumeContext = '';
                 if (sectionsDone > 0 && currentSectionIndex > 0) {
                     resumeContext = `\n\n[TIẾP TỤC BÀI HỌC]: Em đã học xong ${sectionsDone}/${sectionsTotal} phần. Hiện tại đang học phần thứ ${currentSectionIndex + 1}. Hãy tiếp tục từ phần tiếp theo, nhắc lại ngắn gọn (1-2 câu) nội dung phần trước đó rồi tiếp tục giảng phần mới.\n`;
                 }
-                
+
                 effectiveInput = `${LESSON_TEACH_PROMPT}${resumeContext}\n\n[NỘI DUNG LÝ THUYẾT]:\n${activeLesson.docxContent}\n\n[CÂU TRẢ LỜI CỦA HỌC SINH]: ${val}`;
             }
             // Inject user memory/traits for personalization
@@ -782,32 +811,39 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
 
     const handleExamTypeChoice = useCallback(async (choice: string) => {
         setAwaitingExamTypeChoice(false);
-        let prompt: string;
+        let examType: 'reading' | 'writing' | 'full';
         let label: string;
-        if (choice === 'b') { prompt = AI_EXAM_PROMPT_WRITING; label = 'Đề viết'; }
-        else if (choice === 'c') { prompt = AI_EXAM_PROMPT_FULL; label = 'Đề tổng hợp'; }
-        else { prompt = AI_EXAM_PROMPT_READING; label = 'Đề đọc hiểu'; }
+        if (choice === 'b') { examType = 'writing'; label = 'Đề viết'; }
+        else if (choice === 'c') { examType = 'full'; label = 'Đề tổng hợp'; }
+        else { examType = 'reading'; label = 'Đề đọc hiểu'; }
 
-        addAssistant(`Thầy đang tạo ${label} chuẩn THPT 2025 cho em, chờ xíu...`, false);
+        addAssistant(`Thầy đang tạo ${label} từ ngân hàng đề thi THPT cho em, chờ xíu...`, false);
         setIsLoading(true);
-        const exam = await generateAIExam(prompt);
-        setIsLoading(false);
-        if (!exam) {
+        try {
+            const { buildExamFromPool } = await import('../services/examPoolService');
+            const exam = await buildExamFromPool(examType);
+            setIsLoading(false);
+            if (!exam) {
+                addAssistant('Lỗi tạo đề thi, em thử lại sau nhé.');
+                return;
+            }
+            const durationLabel = exam.durationMinutes === 30 ? '30 phút' : exam.durationMinutes === 90 ? '90 phút' : '120 phút';
+            const msg = `Đề đã sẵn sàng! Thời gian làm bài: ${durationLabel}. Nhấn "Làm bài" để bắt đầu em nhé.`;
+            setMessages(p => {
+                const next = [
+                    ...p,
+                    { role: 'assistant' as const, content: msg, aiExam: exam },
+                ];
+                resetProactiveTimer(next);
+                return next;
+            });
+            playNotification();
+            autoSpeak(msg);
+        } catch (err) {
+            console.error('Exam pool error:', err);
+            setIsLoading(false);
             addAssistant('Lỗi tạo đề thi, em thử lại sau nhé.');
-            return;
         }
-        const durationLabel = exam.durationMinutes === 30 ? '30 phút' : exam.durationMinutes === 90 ? '90 phút' : '120 phút';
-        const msg = `Đề đã sẵn sàng! Thời gian làm bài: ${durationLabel}. Nhấn "Làm bài" để bắt đầu em nhé.`;
-        setMessages(p => {
-            const next = [
-                ...p,
-                { role: 'assistant' as const, content: msg, aiExam: exam },
-            ];
-            resetProactiveTimer(next);
-            return next;
-        });
-        playNotification();
-        autoSpeak(msg);
     }, [addAssistant, autoSpeak, resetProactiveTimer, playNotification]);
 
     const startGraphicFlow = () => {
@@ -816,6 +852,50 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
         setMessages(prev => [...prev, syntheticUser]);
         askGraphicTopic();
     };
+
+    // ── Citation flow ───────────────────────────────────────────────────────
+    const askCitationTopic = useCallback(() => {
+        const suggestion = [
+            'nghị luận về lòng biết ơn',
+            'nghị luận về ý chí vượt khó',
+            'phân tích một tác phẩm văn học',
+        ].join('\n- ');
+        const msg = `Em muốn tìm dẫn chứng cho chủ đề gì?\n\nMột vài gợi ý:\n- ${suggestion}\n\nEm gõ ngắn gọn chủ đề cần dẫn chứng nhé.`;
+        setPendingCitationPrompt(true);
+        addAssistant(msg);
+    }, [addAssistant]);
+
+    const startCitationFlow = useCallback(() => {
+        const syntheticUser: Message = { role: 'user', content: 'Em muốn tìm dẫn chứng ạ' };
+        setMessages(prev => [...prev, syntheticUser]);
+        askCitationTopic();
+    }, [askCitationTopic]);
+
+    // ── Quiz flow (clickable buttons) ────────────────────────────────────────
+    const startQuizFlow = useCallback(() => {
+        const syntheticUser: Message = { role: 'user', content: 'Em muốn làm quiz trắc nghiệm ạ' };
+        setMessages(prev => [...prev, syntheticUser]);
+        startInlineQuiz();
+    }, [startInlineQuiz]);
+
+    // ── Handle quiz answer from clickable buttons ────────────────────────────
+    const handleQuizAnswer = useCallback(async (answer: string) => {
+        if (quizState.phase !== 'questioning' || !quizState.data) return;
+        // Add user answer as message
+        const labelMap: Record<string, string> = { a: 'A', b: 'B', c: 'C', d: 'D' };
+        setMessages(p => [...p, { role: 'user' as const, content: labelMap[answer] || answer }]);
+
+        const newAnswers = [...quizState.userAnswers, answer];
+        const nextQ = quizState.currentQ + 1;
+
+        if (nextQ >= 10) {
+            setQuizState(p => ({ ...p, userAnswers: newAnswers, phase: 'done' }));
+            await finishQuiz(quizState.data!, newAnswers);
+        } else {
+            setQuizState(p => ({ ...p, userAnswers: newAnswers, currentQ: nextQ }));
+            askQuizQuestion(quizState.data!, nextQ);
+        }
+    }, [quizState, finishQuiz, askQuizQuestion]);
 
     // ── Start lesson flow ───────────────────────────────────────────────────
     const startLesson = useCallback(async (sectionId: string, lessonId: string, resumeMode = false) => {
@@ -841,13 +921,13 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
                     await clearActiveLesson(user.uid);
                 }
                 await saveActiveLesson(user.uid, sectionId, lessonId);
-                
+
                 const key = getLessonKey(sectionId, lessonId);
                 const existing = userProfile?.lessonProgress?.[key];
-                
+
                 // Estimate sectionsTotal from content
                 const estimatedSections = estimateSectionCount(docxContent);
-                
+
                 if (!existing || existing.status === 'not_started') {
                     const lp = {
                         status: 'in_progress' as const,
@@ -899,6 +979,7 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
         setInput, setPreviewImage,
         handleSend, handleMagicRewrite, handlePlayTTS, startDiagnosis, handleFileSelect,
         startGraphicFlow, startExamFlow, handleExamTypeChoice, startLesson,
+        startCitationFlow, startQuizFlow, handleQuizAnswer,
         addGradeMsg: (grade: ExamGrade, resolvedWeaknesses?: string[]) => {
             const scoreOutOf10 = +(grade.score / grade.maxScore * 10).toFixed(1);
             const label = scoreOutOf10 >= 8 ? 'Xuất sắc' : scoreOutOf10 >= 6.5 ? 'Khá' : scoreOutOf10 >= 5 ? 'Trung bình' : 'Cần cố gắng';

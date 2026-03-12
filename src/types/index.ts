@@ -5,6 +5,10 @@ export interface Message {
   generatedImage?: string | null;
   /** Attached AI-generated exam — rendered as a special card with a "Làm bài" button */
   aiExam?: AIExamData | null;
+  /** If present, render clickable A/B/C/D quiz buttons instead of text */
+  quizOptions?: { a: string; b: string; c: string; d: string };
+  /** 0-based index of the quiz question this message represents */
+  quizQuestionIndex?: number;
 }
 
 export interface AIExamQuestion {
@@ -22,6 +26,8 @@ export interface AIExamData {
   passage?: string | null;
   source?: string | null;
   questions: AIExamQuestion[];
+  /** Answer key text extracted from docx, used for grading */
+  answerKey?: string;
 }
 
 // Legacy compatibility alias
