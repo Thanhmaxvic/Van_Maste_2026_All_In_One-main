@@ -36,7 +36,7 @@ const firebaseConfig = {
     messagingSenderId: "574744377166",
     appId: "1:574744377166:web:1a0677e6d163bab27a101f",
     measurementId: "G-PZCF297MCQ",
-    databaseURL: "https://van-master-default-rtdb.firebaseio.com"
+    databaseURL: "https://van-master-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
 
 const app = initializeApp(firebaseConfig);
