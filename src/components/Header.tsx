@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { Settings, Bell } from 'lucide-react';
 import { EXAM_DATE } from '../constants';
 import { useAuth } from '../context/AuthContext';
+import { listenToStats, listenToOnlineUsers } from '../services/firebaseService';
 
 interface HeaderProps {
     onOpenSettings: () => void;
@@ -18,6 +20,22 @@ export default function Header({ onOpenSettings, onOpenSidebar }: HeaderProps) {
     const diff = daysLeft();
     const pct = Math.min(100, Math.round(100 - (diff / 365) * 100));
 
+    const [stats, setStats] = useState({ totalRegistered: 0, totalVisits: 0 });
+    const [onlineUsers, setOnlineUsers] = useState(0);
+
+    useEffect(() => {
+        const unsubscribeStats = listenToStats((data) => {
+            setStats(data);
+        });
+        const unsubscribeOnline = listenToOnlineUsers((count) => {
+            setOnlineUsers(count);
+        });
+        return () => {
+            unsubscribeStats();
+            unsubscribeOnline();
+        };
+    }, []);
+
     const initial = userProfile?.name?.charAt(0)?.toUpperCase() || 'U';
 
     return (
@@ -30,7 +48,7 @@ export default function Header({ onOpenSettings, onOpenSidebar }: HeaderProps) {
             {/* Countdown chip */}
             <div className="countdown-chip">
                 <div className="countdown-bar-wrap">
-                    <div className="countdown-bar" style={{ width: `${pct}%` }} />
+                    <div className="countdown-bar" style={{ width: `${pct}% ` }} />
                 </div>
                 <span>Còn <strong>{diff}</strong> ngày</span>
             </div>
@@ -41,11 +59,14 @@ export default function Header({ onOpenSettings, onOpenSidebar }: HeaderProps) {
             <div className="header-stats">
                 <div className="stat-line">
                     <span className="stat-label">Đăng ký:</span>
-                    <span className="stat-value">1,250</span>
+                    <span className="stat-value">{stats.totalRegistered.toLocaleString('en-US')}</span>
                 </div>
-                <div className="stat-line">
+                <div className="stat-line" title={`Số lượt truy cập: ${stats.totalVisits.toLocaleString('en-US')} `}>
                     <span className="stat-label">Truy cập:</span>
-                    <span className="stat-value">42</span>
+                    <span className="stat-value" style={{ color: '#10b981' }}>
+                        <span style={{ display: 'inline-block', width: 6, height: 6, background: '#10b981', borderRadius: '50%', marginRight: 4, marginBottom: 1 }} />
+                        {onlineUsers.toLocaleString('en-US')}
+                    </span>
                 </div>
             </div>
 

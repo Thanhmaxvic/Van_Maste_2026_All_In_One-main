@@ -11,6 +11,7 @@ import ChatMessage from './components/chat/ChatMessage';
 import SettingsPanel from './components/settings/SettingsPanel';
 import ExamPage from './components/exam/ExamPage';
 import LearningTimeline from './components/learn/LearningTimeline';
+import { incrementTotalVisits, trackOnlinePresence } from './services/firebaseService';
 import type { ExamGrade, AIExamData } from './types';
 import './index.css';
 
@@ -258,5 +259,15 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    trackOnlinePresence();
+
+    const hasVisited = sessionStorage.getItem('hasVisited');
+    if (!hasVisited) {
+      incrementTotalVisits();
+      sessionStorage.setItem('hasVisited', 'true');
+    }
+  }, []);
+
   return <AppContent />;
 }

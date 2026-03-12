@@ -21,7 +21,10 @@ import {
     query,
     orderBy,
     serverTimestamp,
+    increment,
+    onSnapshot
 } from 'firebase/firestore';
+import { getDatabase, ref as rtdbRef, onValue, onDisconnect, set, push } from 'firebase/database';
 import type { UserProfile, ExamSubmission, ExamGrade, LessonProgress } from '../types';
 
 const firebaseConfig = {
@@ -31,12 +34,14 @@ const firebaseConfig = {
     storageBucket: "van-master.firebasestorage.app",
     messagingSenderId: "574744377166",
     appId: "1:574744377166:web:1a0677e6d163bab27a101f",
-    measurementId: "G-PZCF297MCQ"
+    measurementId: "G-PZCF297MCQ",
+    databaseURL: "https://van-master-default-rtdb.asia-southeast1.firebasedatabase.app" // Add fallback or correct URL if needed, Firebase often requires it if not in default us-central1
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const rtdb = getDatabase(app);
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -325,6 +330,52 @@ export async function loadChatMemory(uid: string): Promise<{ role: 'user' | 'ass
         console.error('loadChatMemory error:', e);
     }
     return [];
+}
+
+export async function incrementTotalVisits() {
+    try {
+        const statsRef = doc(db, 'system', 'stats');
+        await updateDoc(statsRef, {
+            totalVisits: increment(1)
+        });
+    } catch (e) {
+        console.error("Could not update totalVisits:", e);
+    }
+}
+
+export function listenToStats(callback: (data: { totalRegistered: number, totalVisits: number }) => void) {
+    const statsRef = doc(db, 'system', 'stats');
+    return onSnapshot(statsRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            callback({
+                totalRegistered: data.totalRegistered || 0,
+                totalVisits: data.totalVisits || 0
+            });
+        }
+    });
+}
+
+// ─── Realtime Database (Online Presence) ──────────────────────────────────────
+
+export function trackOnlinePresence() {
+    const connectedRef = rtdbRef(rtdb, ".info/connected");
+    onValue(connectedRef, (snap) => {
+        if (snap.val() === true) {
+            const myPresenceRef = push(rtdbRef(rtdb, 'system/online_users'));
+            // Cài đặt xóa khi ngắt kết nối
+            onDisconnect(myPresenceRef).remove().catch(console.error);
+            // Đánh dấu là đang online
+            set(myPresenceRef, true).catch(console.error);
+        }
+    });
+}
+
+export function listenToOnlineUsers(callback: (count: number) => void) {
+    const onlineUsersRef = rtdbRef(rtdb, 'system/online_users');
+    return onValue(onlineUsersRef, (snap) => {
+        callback(snap.size);
+    });
 }
 
 /** Save user personality traits extracted by AI */
