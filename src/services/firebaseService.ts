@@ -22,7 +22,8 @@ import {
     orderBy,
     serverTimestamp,
     increment,
-    onSnapshot
+    onSnapshot,
+    getCountFromServer
 } from 'firebase/firestore';
 import { getDatabase, ref as rtdbRef, onValue, onDisconnect, set, push } from 'firebase/database';
 import type { UserProfile, ExamSubmission, ExamGrade, LessonProgress } from '../types';
@@ -35,7 +36,7 @@ const firebaseConfig = {
     messagingSenderId: "574744377166",
     appId: "1:574744377166:web:1a0677e6d163bab27a101f",
     measurementId: "G-PZCF297MCQ",
-    databaseURL: "https://van-master-default-rtdb.asia-southeast1.firebasedatabase.app" // Add fallback or correct URL if needed, Firebase often requires it if not in default us-central1
+    databaseURL: "https://van-master-default-rtdb.firebaseio.com"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -335,9 +336,9 @@ export async function loadChatMemory(uid: string): Promise<{ role: 'user' | 'ass
 export async function incrementTotalVisits() {
     try {
         const statsRef = doc(db, 'system', 'stats');
-        await updateDoc(statsRef, {
+        await setDoc(statsRef, {
             totalVisits: increment(1)
-        });
+        }, { merge: true });
     } catch (e) {
         console.error("Could not update totalVisits:", e);
     }
@@ -354,6 +355,19 @@ export function listenToStats(callback: (data: { totalRegistered: number, totalV
             });
         }
     });
+}
+
+// ─── Registered Users Count (from actual users collection) ────────────────────
+
+export async function getRegisteredUsersCount(): Promise<number> {
+    try {
+        const usersCol = collection(db, 'users');
+        const snapshot = await getCountFromServer(usersCol);
+        return snapshot.data().count;
+    } catch (e) {
+        console.error('getRegisteredUsersCount error:', e);
+        return 0;
+    }
 }
 
 // ─── Realtime Database (Online Presence) ──────────────────────────────────────

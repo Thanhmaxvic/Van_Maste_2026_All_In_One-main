@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Settings, Bell } from 'lucide-react';
 import { EXAM_DATE } from '../constants';
 import { useAuth } from '../context/AuthContext';
-import { listenToStats, listenToOnlineUsers } from '../services/firebaseService';
+import { listenToStats, listenToOnlineUsers, getRegisteredUsersCount } from '../services/firebaseService';
 
 interface HeaderProps {
     onOpenSettings: () => void;
@@ -22,10 +22,16 @@ export default function Header({ onOpenSettings, onOpenSidebar }: HeaderProps) {
 
     const [stats, setStats] = useState({ totalRegistered: 0, totalVisits: 0 });
     const [onlineUsers, setOnlineUsers] = useState(0);
+    const [registeredCount, setRegisteredCount] = useState(0);
 
     useEffect(() => {
+        // Lấy số tài khoản thực tế từ collection users
+        getRegisteredUsersCount().then(setRegisteredCount);
+
         const unsubscribeStats = listenToStats((data) => {
             setStats(data);
+            // Khi có thay đổi trong system/stats, cập nhật lại số đăng ký thực
+            getRegisteredUsersCount().then(setRegisteredCount);
         });
         const unsubscribeOnline = listenToOnlineUsers((count) => {
             setOnlineUsers(count);
@@ -59,7 +65,7 @@ export default function Header({ onOpenSettings, onOpenSidebar }: HeaderProps) {
             <div className="header-stats">
                 <div className="stat-line">
                     <span className="stat-label">Đăng ký:</span>
-                    <span className="stat-value">{stats.totalRegistered.toLocaleString('en-US')}</span>
+                    <span className="stat-value">{registeredCount.toLocaleString('en-US')}</span>
                 </div>
                 <div className="stat-line" title={`Số lượt truy cập: ${stats.totalVisits.toLocaleString('en-US')} `}>
                     <span className="stat-label">Truy cập:</span>
