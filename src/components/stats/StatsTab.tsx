@@ -44,7 +44,7 @@ const StatsTab: React.FC<StatsTabProps> = ({ currentUid }) => {
     const sorted = [...entries].sort((a, b) =>
         subTab === 'score'
             ? b.avgScore - a.avgScore
-            : b.submissionCount - a.submissionCount
+            : (b.bestScore - a.bestScore) || (b.submissionCount - a.submissionCount)
     );
 
     if (loading) {
@@ -89,7 +89,7 @@ const StatsTab: React.FC<StatsTabProps> = ({ currentUid }) => {
                     className={`lb-toggle-btn ${subTab === 'exams' ? 'active' : ''}`}
                     onClick={() => setSubTab('exams')}
                 >
-                    <BookOpen size={14} /> Số đề luyện
+                    <BookOpen size={14} /> Kết quả luyện đề
                 </button>
             </div>
 
@@ -114,7 +114,7 @@ const StatsTab: React.FC<StatsTabProps> = ({ currentUid }) => {
                                 <span className="lb-podium-stat">
                                     {subTab === 'score'
                                         ? `${entry.avgScore.toFixed(1)} đ`
-                                        : `${entry.submissionCount} đề`
+                                        : `${entry.bestScore.toFixed(1)} đ`
                                     }
                                 </span>
                                 {subTab === 'score' && (
@@ -122,9 +122,9 @@ const StatsTab: React.FC<StatsTabProps> = ({ currentUid }) => {
                                         {getMotivationLabel(entry.avgScore)}
                                     </span>
                                 )}
-                                {subTab === 'exams' && entry.bestScore > 0 && (
+                                {subTab === 'exams' && (
                                     <span className="lb-podium-best">
-                                        ⭐ Cao nhất: {entry.bestScore.toFixed(1)}
+                                        📝 {entry.submissionCount} đề
                                     </span>
                                 )}
                             </div>
@@ -147,8 +147,8 @@ const StatsTab: React.FC<StatsTabProps> = ({ currentUid }) => {
                                 </>
                             ) : (
                                 <>
-                                    <th className="lb-th-val">Số đề</th>
                                     <th className="lb-th-val">Điểm cao nhất</th>
+                                    <th className="lb-th-val">Số đề</th>
                                 </>
                             )}
                         </tr>
@@ -192,16 +192,16 @@ const StatsTab: React.FC<StatsTabProps> = ({ currentUid }) => {
                                     ) : (
                                         <>
                                             <td className="lb-td-score">
-                                                <span className="lb-count-pill">
-                                                    {entry.submissionCount}
+                                                <span className="lb-score-pill">
+                                                    {entry.bestScore > 0
+                                                        ? entry.bestScore.toFixed(1)
+                                                        : '—'
+                                                    }
                                                 </span>
                                             </td>
                                             <td className="lb-td-score">
-                                                <span className="lb-best-pill">
-                                                    {entry.bestScore > 0
-                                                        ? `⭐ ${entry.bestScore.toFixed(1)}`
-                                                        : '—'
-                                                    }
+                                                <span className="lb-count-pill">
+                                                    {entry.submissionCount} đề
                                                 </span>
                                             </td>
                                         </>
