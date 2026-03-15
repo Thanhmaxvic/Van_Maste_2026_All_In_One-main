@@ -113,6 +113,7 @@ export async function completeAssessment(uid: string, diagnosticScore: number) {
         assessmentDone: true,
         diagnosticScore,
         avgScore: diagnosticScore,
+        bestScore: diagnosticScore,
         submissionCount: 1,
     });
 }
@@ -456,12 +457,14 @@ export function listenToLeaderboard(
                 const email: string = data.email || '';
                 displayName = email.split('@')[0] || `User ${d.id.slice(-4)}`;
             }
+            const avgScore = data.avgScore ?? 0;
+            const bestScore = data.bestScore ?? 0;
             entries.push({
                 uid: d.id,
                 name: displayName,
-                avgScore: data.avgScore ?? 0,
+                avgScore,
                 submissionCount: data.submissionCount ?? 0,
-                bestScore: data.bestScore ?? 0,
+                bestScore: bestScore > 0 ? bestScore : avgScore,
             });
         });
         entries.sort((a, b) => b.avgScore - a.avgScore);
