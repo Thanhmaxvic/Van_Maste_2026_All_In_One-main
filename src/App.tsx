@@ -11,6 +11,7 @@ import ChatMessage from './components/chat/ChatMessage';
 import SettingsPanel from './components/settings/SettingsPanel';
 import ExamPage from './components/exam/ExamPage';
 import LearningTimeline from './components/learn/LearningTimeline';
+import StatsTab from './components/stats/StatsTab';
 import { incrementTotalVisits, trackOnlinePresence } from './services/firebaseService';
 import type { ExamGrade, AIExamData } from './types';
 import './index.css';
@@ -248,10 +249,8 @@ function AppContent() {
           )}
 
           {/* Stats Tab */}
-          {activeTab === 'stats' && (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 14 }}>
-              Tính năng đang được phát triển...
-            </div>
+          {activeTab === 'stats' && user && (
+            <StatsTab currentUid={user.uid} />
           )}
         </div>
       </div>

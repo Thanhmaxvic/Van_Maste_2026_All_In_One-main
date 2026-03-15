@@ -20,6 +20,7 @@ import {
     getDocs,
     query,
     orderBy,
+    where,
     serverTimestamp,
     increment,
     onSnapshot,
@@ -251,12 +252,15 @@ export async function saveExamInsights(
     const newCount = prevCount + 1;
     const newAvg = +((prevAvg * prevCount + scoreOutOf10) / newCount).toFixed(2);
 
+    const newBest = Math.max(currentProfile.bestScore || 0, scoreOutOf10);
+
     await updateDoc(doc(db, 'users', uid), {
         weaknesses: mergedWeaknesses,
         weaknessCleanStreak: cleanStreak,
         strengths: mergedStrengths,
         avgScore: newAvg,
         submissionCount: newCount,
+        bestScore: newBest,
         xp: (currentProfile.xp || 0) + Math.round(grade.score * 20),
     });
 
@@ -417,5 +421,53 @@ export async function saveActiveLesson(uid: string, sectionId: string, lessonId:
 export async function clearActiveLesson(uid: string) {
     await updateDoc(doc(db, 'users', uid), {
         activeLesson: null,
+    });
+}
+
+// ─── Leaderboard ──────────────────────────────────────────────────────────────
+
+export interface LeaderboardEntry {
+    uid: string;
+    name: string;
+    avgScore: number;
+    submissionCount: number;
+    bestScore: number;
+}
+
+/**
+ * Real-time leaderboard listener.
+ * Each user has a unique UID in Firestore so no deduplication is needed.
+ * Users with the default name 'Bạn' get their email username displayed instead.
+ */
+export function listenToLeaderboard(
+    callback: (entries: LeaderboardEntry[]) => void,
+): () => void {
+    const q = query(
+        collection(db, 'users'),
+        where('submissionCount', '>', 0),
+    );
+    return onSnapshot(q, (snap) => {
+        const entries: LeaderboardEntry[] = [];
+        snap.forEach(d => {
+            const data = d.data();
+            let displayName = (data.name || '').trim();
+            // If user still has the default name 'Bạn', show email username instead
+            if (!displayName || displayName === 'Bạn') {
+                const email: string = data.email || '';
+                displayName = email.split('@')[0] || `User ${d.id.slice(-4)}`;
+            }
+            entries.push({
+                uid: d.id,
+                name: displayName,
+                avgScore: data.avgScore ?? 0,
+                submissionCount: data.submissionCount ?? 0,
+                bestScore: data.bestScore ?? 0,
+            });
+        });
+        entries.sort((a, b) => b.avgScore - a.avgScore);
+        callback(entries);
+    }, (err) => {
+        console.error('listenToLeaderboard error:', err);
+        callback([]);
     });
 }

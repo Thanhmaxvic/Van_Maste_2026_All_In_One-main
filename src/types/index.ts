@@ -54,6 +54,8 @@ export interface UserProfile {
   avgScore: number | null;
   /** Number of exams submitted (for computing running average) */
   submissionCount: number;
+  /** Highest single-exam score (out of 10) achieved across all submissions */
+  bestScore?: number | null;
   /** Recurring weaknesses detected by AI, sorted by frequency */
   weaknesses: string[];
   /** Strengths detected by AI */
