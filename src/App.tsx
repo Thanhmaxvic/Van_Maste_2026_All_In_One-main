@@ -34,7 +34,7 @@ function AppContent() {
   const {
     messages, input, setInput, isLoading,
     previewImage, setPreviewImage, chatEndRef, fileInputRef,
-    handleSend, addGradeMsg, startGraphicFlow, startExamFlow,
+    handleSend, handlePlayTTS, addGradeMsg, startGraphicFlow, startExamFlow,
     startLesson, startCitationFlow, startQuizFlow, handleQuizAnswer,
   } = useChat(onStartDiagnosticExam);
 
@@ -130,7 +130,7 @@ function AppContent() {
                   <ChatMessage
                     key={i}
                     message={msg as Parameters<typeof ChatMessage>[0]['message']}
-                    onPlayTTS={() => { }}
+                    onPlayTTS={handlePlayTTS}
                     onStartAIExam={handleStartAIExam}
                     onQuizAnswer={handleQuizAnswer}
                   />

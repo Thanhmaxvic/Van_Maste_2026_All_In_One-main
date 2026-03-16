@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { UserProfile } from '../types';
+import { PRONOUN_MAP } from '../constants';
 import { generateWeaknessAdvice, isApiKeyConfigured } from '../services/geminiApi';
 
 interface SidebarProps {
@@ -33,12 +34,14 @@ export default function Sidebar({ profile }: SidebarProps) {
 
     const weaknesses = profile.weaknesses || [];
     const strengths = profile.strengths || [];
+    const pronoun = PRONOUN_MAP[profile.voiceGender || 'male'];
+    const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
     const [aiTip, setAiTip] = useState<string>('');
 
     useEffect(() => {
         const baseTip = () => {
             if (avg >= target) {
-                return `Xuất sắc! Em đã đạt mục tiêu ${target}/10. Thầy sẽ nâng khó để em tiến xa hơn.`;
+                return `Xuất sắc! Em đã đạt mục tiêu ${target}/10. ${Pronoun} sẽ nâng khó để em tiến xa hơn.`;
             }
             if (avg >= target * 0.85) {
                 return `Em đang tiến sát mục tiêu. Chỉ cần cố gắng thêm là đạt ${target}/10.`;
@@ -58,11 +61,11 @@ export default function Sidebar({ profile }: SidebarProps) {
         let cancelled = false;
 
         // Gợi ý tạm thời trong lúc chờ AI
-        setAiTip(`Điểm yếu chính: ${weaknesses.slice(0, 2).join(', ')}. Thầy đang chuẩn bị gợi ý khắc phục cho em...`);
+        setAiTip(`Điểm yếu chính: ${weaknesses.slice(0, 2).join(', ')}. ${Pronoun} đang chuẩn bị gợi ý khắc phục cho em...`);
 
         const run = async () => {
             try {
-                const tip = await generateWeaknessAdvice(weaknesses);
+                const tip = await generateWeaknessAdvice(weaknesses, pronoun);
                 if (!cancelled) {
                     setAiTip(tip || baseTip());
                 }

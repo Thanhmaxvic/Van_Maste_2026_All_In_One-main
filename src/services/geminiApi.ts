@@ -26,7 +26,9 @@ export async function sendChatMessage(
         const target = userProfile.targetScore ?? 8;
         const weaknesses = (userProfile.weaknesses || []).slice(0, 3).join(', ') || 'chua xac dinh';
         const strengths = (userProfile.strengths || []).slice(0, 3).join(', ') || 'chua xac dinh';
-        profileBlock = `\n[PROFILE HOC SINH]\n- Ten: ${userProfile.name}\n- Diem TB: ${avg}/10 | Muc tieu: ${target}/10\n- Diem yeu: ${weaknesses}\n- Diem manh: ${strengths}\n- Bai da nop: ${userProfile.submissionCount ?? 0}\n[/PROFILE]\n\nDua vao profile tren, tu dong dieu chinh lo trinh goi y.`;
+        const vg = userProfile.voiceGender || 'male';
+        const xungHo = vg === 'female' ? 'cô' : 'thầy';
+        profileBlock = `\n[PROFILE HOC SINH]\n- Ten: ${userProfile.name}\n- Diem TB: ${avg}/10 | Muc tieu: ${target}/10\n- Diem yeu: ${weaknesses}\n- Diem manh: ${strengths}\n- Bai da nop: ${userProfile.submissionCount ?? 0}\n- Xung ho: "${xungHo}" - "em"\n[/PROFILE]\n\nDua vao profile tren, tu dong dieu chinh lo trinh goi y. LUON xung ho la "${xungHo}" khi noi voi hoc sinh.`;
     }
 
     const parts: unknown[] = [{ text: SYSTEM_PROMPT + profileBlock }];
@@ -133,15 +135,14 @@ export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
 /**
  * Generate short, concrete advice to fix current weaknesses.
  */
-export async function generateWeaknessAdvice(weaknesses: string[]): Promise<string | null> {
+export async function generateWeaknessAdvice(weaknesses: string[], pronoun = 'thầy'): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey || weaknesses.length === 0) return null;
-
     const list = weaknesses.slice(0, 3).join('; ');
     const prompt = `Học sinh Ngữ văn đang có các điểm yếu sau: ${list}.
 Trong tối đa 2 câu ngắn gọn, hãy gợi ý CỤ THỂ cách em có thể khắc phục các điểm yếu này khi ôn thi tốt nghiệp THPT môn Văn.
 Yêu cầu:
-- Xưng hô "thầy" - "em"
+- Xưng hô "${pronoun}" - "em"
 - Không mở đầu rào trước đón sau, đi thẳng vào hành động cần làm
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
@@ -204,13 +205,15 @@ export async function generateDiagnosticMCQ(prompt: string): Promise<DiagnosticQ
 export async function sendProactiveMessage(
     messages: { role: string; content: string }[],
     proactivePrompt: string,
+    pronoun = 'thầy',
 ): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
+    const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
     try {
         const historyText = messages
             .slice(-6)
-            .map(m => `${m.role === 'user' ? 'Học sinh' : 'Thầy'}: ${m.content}`)
+            .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
         const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {

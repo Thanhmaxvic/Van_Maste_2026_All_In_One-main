@@ -181,8 +181,8 @@ export const EXAM_COUNT = 5;
 
 /** TTS voice names */
 export const TTS_VOICE_MAP = {
-  female: 'vi-VN-Wavenet-C',
-  male: 'vi-VN-Wavenet-D',
+  female: 'vi-VN-Neural2-A',
+  male: 'vi-VN-Neural2-D',
 } as const;
 
 export const PRONOUN_MAP = {

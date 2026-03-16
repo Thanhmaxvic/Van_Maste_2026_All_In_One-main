@@ -27,7 +27,7 @@ import {
     sendGradingRequest,
 } from '../services/geminiApi';
 import type { DiagnosticQuizData } from '../services/geminiApi';
-import { playTTS } from '../services/ttsService';
+import { playTTS, queueTTS, stopCurrentAudio } from '../services/ttsService';
 import { useAuth } from '../context/AuthContext';
 import { saveTargetScore, completeAssessment, saveChatMemory, loadChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson } from '../services/firebaseService';
 import { findLesson, getLessonKey } from '../constants/curriculum';
@@ -80,6 +80,26 @@ export function useChat(onStartDiagnosticExam?: () => void) {
     const [pendingGraphicPrompt, setPendingGraphicPrompt] = useState(false);
     const [pendingCitationPrompt, setPendingCitationPrompt] = useState(false);
     const [awaitingResumeChoice, setAwaitingResumeChoice] = useState(false);
+    const [awaitingTaskInterrupt, setAwaitingTaskInterrupt] = useState(false);
+    const pendingInterruptMsgRef = useRef<string>('');
+
+    // Synchronous "busy" tracking — refs update immediately, unlike React state
+    const busyRef = useRef(false);
+    const lastTaskEndRef = useRef(0); // timestamp of last task completion
+    const TASK_COOLDOWN_MS = 3000; // cooldown window to catch rapid requests
+
+    /** Call instead of setIsLoading(true) — updates both state and synchronous ref */
+    const startBusy = useCallback(() => {
+        busyRef.current = true;
+        setIsLoading(true);
+    }, []);
+
+    /** Call instead of setIsLoading(false) — updates state, ref, and records timestamp */
+    const endBusy = useCallback(() => {
+        busyRef.current = false;
+        lastTaskEndRef.current = Date.now();
+        setIsLoading(false);
+    }, []);
 
     // ── Lesson mode state ─────────────────────────────────────────────────────────
     const [activeLesson, setActiveLesson] = useState<{
@@ -101,6 +121,27 @@ export function useChat(onStartDiagnosticExam?: () => void) {
     const voiceGender = userProfile?.voiceGender || 'male';
     const pronoun = PRONOUN_MAP[voiceGender];
 
+    // ── Swap pronouns in existing messages when voice gender changes ────────
+    const prevGenderRef = useRef(voiceGender);
+    useEffect(() => {
+        if (prevGenderRef.current === voiceGender) return;
+        const oldPronoun = PRONOUN_MAP[prevGenderRef.current];
+        const newPronoun = PRONOUN_MAP[voiceGender];
+        const OldPronoun = oldPronoun.charAt(0).toUpperCase() + oldPronoun.slice(1);
+        const NewPronoun = newPronoun.charAt(0).toUpperCase() + newPronoun.slice(1);
+        prevGenderRef.current = voiceGender;
+
+        setMessages(prev => prev.map(msg => {
+            if (msg.role !== 'assistant') return msg;
+            let c = msg.content;
+            // Replace lowercase (thầy → cô or vice versa)
+            c = c.split(oldPronoun).join(newPronoun);
+            // Replace capitalized (Thầy → Cô or vice versa)
+            c = c.split(OldPronoun).join(NewPronoun);
+            return c === msg.content ? msg : { ...msg, content: c };
+        }));
+    }, [voiceGender]);
+
     const playNotification = useCallback(() => {
         try {
             const audio = new Audio('/audio/chat.mp3');
@@ -113,7 +154,7 @@ export function useChat(onStartDiagnosticExam?: () => void) {
     }, []);
 
     const autoSpeak = useCallback((text: string) => {
-        playTTS(text, voiceGenderRef.current, () => setIsPlayingAudio(true), () => setIsPlayingAudio(false));
+        queueTTS(text, voiceGenderRef.current, () => setIsPlayingAudio(true), () => setIsPlayingAudio(false));
     }, []);
 
     // ── Greeting (text + TTS on every page load) ─────────────────────────────
@@ -145,7 +186,7 @@ export function useChat(onStartDiagnosticExam?: () => void) {
             // Resume: target saved but assessment not yet done
             setAwaitingTestChoice(true);
             const resumeMsg = `Chào ${userProfile.name}! Em đã đặt mục tiêu ${userProfile.targetScore}/10 rồi.
-Thầy cần đánh giá năng lực của em trước khi bắt đầu. Em chọn:
+${pr} cần đánh giá năng lực của em trước khi bắt đầu. Em chọn:
 
 A. Làm bài kiểm tra đề thi thật (120 phút)
 B. Trả lời 10 câu trắc nghiệm nhanh`;
@@ -244,7 +285,7 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
         proactiveTimerRef.current = setTimeout(async () => {
             if (proactiveBlockedRef.current) return;
             proactiveBlockedRef.current = true;
-            const question = await sendProactiveMessage(currentMessages, PROACTIVE_PROMPT);
+            const question = await sendProactiveMessage(currentMessages, PROACTIVE_PROMPT, PRONOUN_MAP[voiceGenderRef.current]);
             proactiveBlockedRef.current = false;
             if (question) {
                 setMessages(p => [...p, { role: 'assistant', content: question }]);
@@ -259,7 +300,7 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
     }, []);
 
     const handlePlayTTS = (text: string) => {
-        autoSpeak(text);
+        playTTS(text, voiceGenderRef.current, () => setIsPlayingAudio(true), () => setIsPlayingAudio(false));
     };
 
     // ── addAssistantMsg helper ────────────────────────────────────────────────
@@ -286,16 +327,16 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
 
     // ── Quiz: show passage and reading prompt ─────────────────────────────────
     const startInlineQuiz = useCallback(async () => {
-        setIsLoading(true);
-        addAssistant('Đợi thầy chọn một đoạn trích nhé...');
+        startBusy();
+        addAssistant(`Đợi ${pronoun} chọn một đoạn trích nhé...`);
         const data = await generateDiagnosticMCQ(QUIZ_GENERATION_PROMPT);
-        setIsLoading(false);
+        endBusy();
         if (!data) {
             addAssistant('Lỗi tạo câu hỏi. Em thử lại sau nhé.');
             return;
         }
         setQuizState({ phase: 'reading', data, currentQ: 0, userAnswers: [] });
-        const msg = `📖 **${data.source}**\n\n${data.passage}\n\n---\nSau khi đọc kĩ văn bản, thầy sẽ bắt đầu hỏi. Hãy đọc thật kĩ nhé. Nếu em đã sẵn sàng hãy gõ **"Bắt đầu"**.`;
+        const msg = `📖 **${data.source}**\n\n${data.passage}\n\n---\nSau khi đọc kĩ văn bản, ${pronoun} sẽ bắt đầu hỏi. Hãy đọc thật kĩ nhé. Nếu em đã sẵn sàng hãy gõ **"Bắt đầu"**.`;
         addAssistant(msg);
     }, [addAssistant]);
 
@@ -331,9 +372,9 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
         const pct = Math.round((correct / 10) * 100);
         const score = +(correct / 10 * 10).toFixed(1);
         lines.push(`\nTổng: ${correct}/10 (${pct}%)`);
-        if (pct >= 80) lines.push('Năng lực đọc hiểu tốt — thầy sẽ đặt lộ trình nâng cao.');
+        if (pct >= 80) lines.push(`Năng lực đọc hiểu tốt — ${pronoun} sẽ đặt lộ trình nâng cao.`);
         else if (pct >= 60) lines.push('Năng lực ở mức trung bình — lộ trình chuẩn sẽ phù hợp.');
-        else lines.push('Em cần củng cố kiến thức nền — thầy sẽ đồng hành từ đầu.');
+        else lines.push(`Em cần củng cố kiến thức nền — ${pronoun} sẽ đồng hành từ đầu.`);
 
 
         setQuizState(QUIZ_INIT);
@@ -357,12 +398,65 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
     const handleSend = async (override?: string) => {
         const val = (override || input).trim();
         if (!val && !previewImage) return;
+
+        // ── If AI is busy or just finished a task, ask user before starting a new one ───
+        const isBusy = busyRef.current || isLoading;
+        const justFinished = (Date.now() - lastTaskEndRef.current) < TASK_COOLDOWN_MS;
+        if ((isBusy || justFinished) && !awaitingTaskInterrupt) {
+            pendingInterruptMsgRef.current = val;
+            setAwaitingTaskInterrupt(true);
+            const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
+            const statusText = isBusy
+                ? `${Pronoun} đang xử lý yêu cầu trước đó`
+                : `${Pronoun} vừa xử lý xong yêu cầu trước`;
+            setMessages(p => [
+                ...p,
+                { role: 'user' as const, content: val },
+                {
+                    role: 'assistant' as const,
+                    content: `${statusText}. Em có muốn ${pronoun} tiếp tục không hay xử lý yêu cầu mới của em?\n\n**A.** Có, tiếp tục\n**B.** Không, xử lý yêu cầu mới`,
+                },
+            ]);
+            setInput('');
+            stopCurrentAudio();
+            return;
+        }
+
+        // ── Handle task interrupt choice ───────────────────────────────────
+        if (awaitingTaskInterrupt) {
+            const choice = val.trim().toUpperCase().slice(0, 1);
+            setAwaitingTaskInterrupt(false);
+            if (choice === 'A' || /có|chờ|đợi|tiếp/i.test(val)) {
+                // User wants to continue current task
+                addAssistant(`Được rồi, em đợi ${pronoun} xử lý xong nhé!`);
+                setInput('');
+                return;
+            }
+            // User wants to switch — cancel current task
+            busyRef.current = false;
+            lastTaskEndRef.current = 0;
+            setIsLoading(false); // This one should remain setIsLoading(false)
+            const savedMsg = pendingInterruptMsgRef.current;
+            pendingInterruptMsgRef.current = '';
+            // Process the pending message as a new request
+            if (savedMsg) {
+                setInput('');
+                // Use setTimeout to ensure state is settled before re-processing
+                setTimeout(() => handleSend(savedMsg), 50);
+                return;
+            }
+        }
+
         if (isLoading) return;
 
         const userMsg: Message = { role: 'user', content: val, image: previewImage };
         setMessages(p => [...p, userMsg]);
         setInput('');
         setPreviewImage(null);
+
+        // Stop any playing TTS when user sends a message
+        stopCurrentAudio();
+        setIsPlayingAudio(false);
 
         // Reset proactive timer on user activity
         if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
@@ -382,8 +476,8 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
                 return;
             }
 
-            addAssistant(`Thầy đang tìm dẫn chứng cho chủ đề: "${topic}"...`, false);
-            setIsLoading(true);
+            addAssistant(`${pronoun.charAt(0).toUpperCase() + pronoun.slice(1)} đang tìm dẫn chứng cho chủ đề: "${topic}"...`);
+            startBusy();
             try {
                 const citationPrompt = CITATION_GENERATION_PROMPT.replace('{{TOPIC}}', topic);
                 const { text: citationResult } = await sendChatMessage(messages, citationPrompt, null);
@@ -391,7 +485,7 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
             } catch {
                 addAssistant('Có lỗi khi tìm dẫn chứng. Em thử lại sau nhé.');
             } finally {
-                setIsLoading(false);
+                endBusy();
             }
             return;
         }
@@ -412,8 +506,8 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
             }
 
             // Nhắc xác nhận chủ đề Ngữ văn, rồi tạo ảnh bằng Imagen 3.0
-            addAssistant(`Thầy sẽ tạo một ảnh đồ hoạ minh hoạ cho chủ đề Ngữ văn: "${topic}". Đợi một chút nhé...`, false);
-            setIsLoading(true);
+            addAssistant(`${pronoun.charAt(0).toUpperCase() + pronoun.slice(1)} sẽ tạo một ảnh đồ hoạ minh hoạ cho chủ đề Ngữ văn: "${topic}". Đợi một chút nhé...`);
+            startBusy();
             try {
                 const prompt = `Tạo một ảnh minh hoạ/đồ hoạ đẹp, hiện đại cho môn Ngữ văn THPT Việt Nam với chủ đề: "${topic}".
 Yêu cầu: phải liên quan rõ ràng đến tác phẩm, nhân vật, bài thơ, chủ đề nghị luận hoặc kiến thức Ngữ văn; nếu chủ đề không thuộc môn Văn thì thay vào đó hãy thể hiện một tấm bảng ghi "Chủ đề này không thuộc môn Văn".
@@ -439,7 +533,7 @@ Phong cách: màu sắc ấm, chữ dễ đọc, phù hợp học sinh ôn thi t
             } catch {
                 addAssistant('Có lỗi khi tạo ảnh đồ hoạ. Em thử lại sau nhé.');
             } finally {
-                setIsLoading(false);
+                endBusy();
             }
             return;
         }
@@ -511,8 +605,8 @@ Phong cách: màu sắc ấm, chữ dễ đọc, phù hợp học sinh ôn thi t
                             const currentSection = (lp.currentSectionIndex ?? lp.sectionsDone) + 1;
                             const resumeMsg = `Tiếp tục học bài "${lesson.title}" trong chủ đề "${section.title}". 
 
-Trong bài học lần trước, thầy và em đã học đến phần thứ ${currentSection}/${lp.sectionsTotal} (đã hoàn thành ${lp.sectionsDone}/${lp.sectionsTotal} phần). Thầy sẽ nhắc lại ngắn gọn nội dung phần trước rồi tiếp tục giảng phần tiếp theo nhé.`;
-                            addAssistant(resumeMsg, false);
+Trong bài học lần trước, ${pronoun} và em đã học đến phần thứ ${currentSection}/${lp.sectionsTotal} (đã hoàn thành ${lp.sectionsDone}/${lp.sectionsTotal} phần). ${pronoun.charAt(0).toUpperCase() + pronoun.slice(1)} sẽ nhắc lại ngắn gọn nội dung phần trước rồi tiếp tục giảng phần tiếp theo nhé.`;
+                            addAssistant(resumeMsg);
                         }
                     }
                 } else {
@@ -555,7 +649,7 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
         }
 
         // ── Detect exam generation requests from chat ─────────────────────────
-        const wantsExam = /tạo\s*đề|ra\s*đề|cho em\s*đề|đề thi ngữ văn|thầy\s*ra\s*đề/i.test(lower);
+        const wantsExam = /tạo\s*đề|ra\s*đề|cho em\s*đề|đề thi ngữ văn|(?:thầy|cô)\s*ra\s*đề/i.test(lower);
         if (wantsExam) {
             startExamFlow();
             return;
@@ -584,7 +678,7 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
             return;
         }
 
-        setIsLoading(true);
+        startBusy();
         try {
             // Build enhanced prompt with lesson context + user memory
             let effectiveInput = val;
@@ -601,7 +695,8 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
                     resumeContext = `\n\n[TIẾP TỤC BÀI HỌC]: Em đã học xong ${sectionsDone}/${sectionsTotal} phần. Hiện tại đang học phần thứ ${currentSectionIndex + 1}. Hãy tiếp tục từ phần tiếp theo, nhắc lại ngắn gọn (1-2 câu) nội dung phần trước đó rồi tiếp tục giảng phần mới.\n`;
                 }
 
-                effectiveInput = `${LESSON_TEACH_PROMPT}${resumeContext}\n\n[NỘI DUNG LÝ THUYẾT]:\n${activeLesson.docxContent}\n\n[CÂU TRẢ LỜI CỦA HỌC SINH]: ${val}`;
+                const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
+                effectiveInput = `${LESSON_TEACH_PROMPT}\n\nQUAN TRỌNG: Xưng hô là "${pronoun}" khi nói với học sinh. Ví dụ: "${Pronoun} sẽ giảng phần tiếp theo...", "${Pronoun} muốn hỏi em...".${resumeContext}\n\n[NỘI DUNG LÝ THUYẾT]:\n${activeLesson.docxContent}\n\n[CÂU TRẢ LỜI CỦA HỌC SINH]: ${val}`;
             }
             // Inject user memory/traits for personalization
             const traits = userProfile?.userTraits;
@@ -614,7 +709,7 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
             const infMatch = aiContent.match(/\[INFOGRAPHIC\]([^\[]*)\[\/INFOGRAPHIC\]/);
             if (infMatch) {
                 const workTitle = infMatch[1].trim();
-                const ack = `Chờ chút, thầy sẽ tóm tắt và tạo infographic về "${workTitle}" cho em nhé.`;
+                const ack = `Chờ chút, ${pronoun} sẽ tóm tắt và tạo infographic về "${workTitle}" cho em nhé.`;
                 addAssistant(ack);
 
                 // Tạo infographic ở background, chỉ gửi 1 tin mới khi ảnh xong
@@ -639,7 +734,7 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
                 });
             } else if (generatedImageUrl) {
                 // Trường hợp Gemini trả về [GEN_IMAGE] → chỉ nói ngắn gọn rồi gửi ảnh
-                const ack = 'Chờ chút, thầy sẽ tạo ảnh minh hoạ cho em ngay đây.';
+                const ack = `Chờ chút, ${pronoun} sẽ tạo ảnh minh hoạ cho em ngay đây.`;
                 setMessages(p => {
                     const next = [
                         ...p,
@@ -756,7 +851,7 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
             console.error('API error:', err);
             addAssistant('Lỗi kết nối AI. Kiểm tra kết nối và API Key rồi thử lại.');
         } finally {
-            setIsLoading(false);
+            endBusy();
         }
     };
 
@@ -817,12 +912,12 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
         else if (choice === 'c') { examType = 'full'; label = 'Đề tổng hợp'; }
         else { examType = 'reading'; label = 'Đề đọc hiểu'; }
 
-        addAssistant(`Thầy đang tạo ${label} từ ngân hàng đề thi THPT cho em, chờ xíu...`, false);
-        setIsLoading(true);
+        addAssistant(`${pronoun.charAt(0).toUpperCase() + pronoun.slice(1)} đang tạo ${label} từ ngân hàng đề thi THPT cho em, chờ xíu...`);
+        startBusy();
         try {
             const { buildExamFromPool } = await import('../services/examPoolService');
             const exam = await buildExamFromPool(examType);
-            setIsLoading(false);
+            endBusy();
             if (!exam) {
                 addAssistant('Lỗi tạo đề thi, em thử lại sau nhé.');
                 return;
@@ -841,7 +936,7 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
             autoSpeak(msg);
         } catch (err) {
             console.error('Exam pool error:', err);
-            setIsLoading(false);
+            endBusy();
             addAssistant('Lỗi tạo đề thi, em thử lại sau nhé.');
         }
     }, [addAssistant, autoSpeak, resetProactiveTimer, playNotification]);
@@ -906,7 +1001,7 @@ Trong bài học lần trước, thầy và em đã học đến phần thứ ${
         // Clear existing messages and show intro (only if not resuming)
         if (!resumeMode) {
             setMessages([]);
-            addAssistant(`Sau đây thầy sẽ cùng em bắt đầu học bài: "${lesson.title}" nhé. Em đã sẵn sàng chưa?`);
+            addAssistant(`Sau đây ${pronoun} sẽ cùng em bắt đầu học bài: "${lesson.title}" nhé. Em đã sẵn sàng chưa?`);
         }
 
         // Fetch DOCX content
