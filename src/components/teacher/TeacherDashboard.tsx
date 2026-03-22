@@ -1,0 +1,250 @@
+import { useState, useEffect } from 'react';
+import { Users, FileText, Clock, RefreshCw, Award } from 'lucide-react';
+import {
+    getAllUsers,
+    getRegisteredUsersCount,
+    getSystemConfig,
+    updateSystemConfig,
+    updateUserProfile,
+    type AdminUserEntry,
+} from '../../services/firebaseService';
+import { detectAvailableExams } from '../../services/examService';
+
+export default function TeacherDashboard() {
+    const [users, setUsers] = useState<AdminUserEntry[]>([]);
+    const [totalExams, setTotalExams] = useState(0);
+    const [registeredCount, setRegisteredCount] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [examDate, setExamDate] = useState('');
+    const [dailyExamHour, setDailyExamHour] = useState('08:00');
+    const [savingConfig, setSavingConfig] = useState(false);
+    const [configSaved, setConfigSaved] = useState(false);
+
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            const [usersData, exams, registered, sysConfig] = await Promise.all([
+                getAllUsers(),
+                detectAvailableExams(),
+                getRegisteredUsersCount(),
+                getSystemConfig(),
+            ]);
+            setUsers(usersData); // show all users so we can manage roles
+            setTotalExams(exams);
+            setRegisteredCount(registered);
+            setExamDate((sysConfig.examDate as string) || '2026-06-11');
+            setDailyExamHour((sysConfig.dailyExamHour as string) || '08:00');
+        } catch (e) {
+            console.error('Dashboard load error:', e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { loadData(); }, []);
+
+    const handleSaveConfig = async () => {
+        setSavingConfig(true);
+        setConfigSaved(false);
+        try {
+            await updateSystemConfig({
+                examDate,
+                dailyExamHour,
+            });
+            setConfigSaved(true);
+            setTimeout(() => setConfigSaved(false), 2000);
+        } finally {
+            setSavingConfig(false);
+        }
+    };
+
+    const handleToggleRole = async (uid: string, currentRole?: string) => {
+        const newRole = currentRole === 'teacher' ? 'student' : 'teacher';
+        if (!window.confirm(`Bạn có chắc muốn chuyển tài khoản này thành ${newRole === 'teacher' ? 'Giáo viên/Admin' : 'Học sinh'}?`)) {
+            return;
+        }
+        try {
+            // TypeScript might complain depending on how UserProfile is typed in updateUserProfile, but ‘role’ is optional.
+            await updateUserProfile(uid, { role: newRole as any });
+            setUsers(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole } : u));
+        } catch (error) {
+            console.error('Error updating role:', error);
+            alert('Có lỗi xảy ra khi cập nhật quyền.');
+        }
+    };
+
+    const avgScoreAll = users.length > 0
+        ? (users.reduce((s, u) => s + u.avgScore, 0) / users.length).toFixed(1)
+        : '0.0';
+
+    const activeUsers = users.filter(u => u.submissionCount > 0).length;
+
+    return (
+        <div className="td-container">
+            <div className="td-header">
+                <div>
+                    <h1>Bảng Quản Lý</h1>
+                    <p>Tổng quan hệ thống Văn Master</p>
+                </div>
+                <button className="td-refresh-btn" onClick={loadData} disabled={loading}>
+                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                    Làm mới
+                </button>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="td-stats-grid">
+                <div className="td-stat-card td-stat-blue">
+                    <div className="td-stat-icon"><Users size={22} /></div>
+                    <div className="td-stat-info">
+                        <div className="td-stat-value">{registeredCount}</div>
+                        <div className="td-stat-label">Tổng tài khoản</div>
+                    </div>
+                </div>
+                <div className="td-stat-card td-stat-green">
+                    <div className="td-stat-icon"><Award size={22} /></div>
+                    <div className="td-stat-info">
+                        <div className="td-stat-value">{activeUsers}</div>
+                        <div className="td-stat-label">Đã nộp bài</div>
+                    </div>
+                </div>
+                <div className="td-stat-card td-stat-purple">
+                    <div className="td-stat-icon"><FileText size={22} /></div>
+                    <div className="td-stat-info">
+                        <div className="td-stat-value">{totalExams}</div>
+                        <div className="td-stat-label">Đề thi hiện có</div>
+                    </div>
+                </div>
+                <div className="td-stat-card td-stat-amber">
+                    <div className="td-stat-icon"><Award size={22} /></div>
+                    <div className="td-stat-info">
+                        <div className="td-stat-value">{avgScoreAll}</div>
+                        <div className="td-stat-label">Điểm TB chung</div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="td-grid-2col">
+                {/* Config Panel */}
+                <div className="td-card">
+                    <h3 className="td-card-title">
+                        <Clock size={16} /> Cấu hình hệ thống
+                    </h3>
+                    <div className="td-form-group">
+                        <label>Ngày thi chính thức</label>
+                        <input
+                            type="date"
+                            value={examDate}
+                            onChange={e => setExamDate(e.target.value)}
+                            className="td-input"
+                        />
+                    </div>
+                    <div className="td-form-group">
+                        <label>Giờ thi hàng ngày</label>
+                        <input
+                            type="time"
+                            value={dailyExamHour}
+                            onChange={e => setDailyExamHour(e.target.value)}
+                            className="td-input"
+                        />
+                    </div>
+                    <button
+                        className="td-save-btn"
+                        onClick={handleSaveConfig}
+                        disabled={savingConfig}
+                    >
+                        {savingConfig ? 'Đang lưu...' : configSaved ? '✓ Đã lưu' : 'Lưu cấu hình'}
+                    </button>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="td-card">
+                    <h3 className="td-card-title">
+                        <FileText size={16} /> Thông tin nhanh
+                    </h3>
+                    <div className="td-info-list">
+                        <div className="td-info-row">
+                            <span>Tổng đề thi DOCX</span>
+                            <strong>{totalExams} đề</strong>
+                        </div>
+                        <div className="td-info-row">
+                            <span>Học sinh đã onboard</span>
+                            <strong>{users.filter(u => u.isOnboarded).length}</strong>
+                        </div>
+                        <div className="td-info-row">
+                            <span>Ngày thi</span>
+                            <strong>{examDate}</strong>
+                        </div>
+                        <div className="td-info-row">
+                            <span>Giờ thi hàng ngày</span>
+                            <strong>{dailyExamHour}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* User Management Table */}
+            <div className="td-card td-full-width">
+                <h3 className="td-card-title">
+                    <Users size={16} /> Quản lý người dùng ({users.length})
+                </h3>
+                <div className="td-table-wrap">
+                    <table className="td-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Tên</th>
+                                <th>Email</th>
+                                <th>Quyền</th>
+                                <th>Cấp độ</th>
+                                <th>Điểm TB</th>
+                                <th>Bài nộp</th>
+                                <th>Trạng thái</th>
+                                <th>Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {users.map((u, i) => (
+                                <tr key={u.uid}>
+                                    <td>{i + 1}</td>
+                                    <td className="td-cell-name">{u.name}</td>
+                                    <td className="td-cell-email">{u.email}</td>
+                                    <td>
+                                        <span className={`td-level-badge ${u.role === 'teacher' ? 'bg-indigo-500/20 text-indigo-400' : ''}`}>
+                                            {u.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                                        </span>
+                                    </td>
+                                    <td><span className="td-level-badge">{u.level}</span></td>
+                                    <td className="td-cell-score">
+                                        {u.avgScore > 0 ? u.avgScore.toFixed(1) : '--'}
+                                    </td>
+                                    <td>{u.submissionCount}</td>
+                                    <td>
+                                        <span className={`td-status-badge ${u.isOnboarded ? 'active' : 'pending'}`}>
+                                            {u.isOnboarded ? 'Hoạt động' : 'Chưa onboard'}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button
+                                            onClick={() => handleToggleRole(u.uid, u.role)}
+                                            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors"
+                                        >
+                                            Đổi quyền
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {users.length === 0 && (
+                                <tr>
+                                    <td colSpan={9} className="td-empty-row">
+                                        {loading ? 'Đang tải...' : 'Chưa có người dùng nào'}
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -8,10 +8,12 @@ import Header from './components/Header';
 import TabNav from './components/TabNav';
 import Sidebar from './components/Sidebar';
 import ChatMessage from './components/chat/ChatMessage';
+import ChatBubble from './components/chat/ChatBubble';
 import SettingsPanel from './components/settings/SettingsPanel';
 import ExamPage from './components/exam/ExamPage';
 import LearningTimeline from './components/learn/LearningTimeline';
 import StatsTab from './components/stats/StatsTab';
+import TeacherApp from './components/teacher/TeacherApp';
 import { incrementTotalVisits, trackOnlinePresence } from './services/firebaseService';
 import type { ExamGrade, AIExamData } from './types';
 import './index.css';
@@ -19,7 +21,7 @@ import './index.css';
 type Tab = 'chat' | 'learn' | 'exam' | 'stats' | 'roadmap';
 
 function AppContent() {
-  const { user, userProfile, loading } = useAuth();
+  const { user, userProfile, loading, isTeacher } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('chat');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
@@ -91,6 +93,9 @@ function AppContent() {
   }
 
   if (!user) return <SplashScreen />;
+
+  // Teacher gets a completely different UI
+  if (isTeacher) return <TeacherApp />;
 
   return (
     <div className="app-shell">
@@ -256,6 +261,7 @@ function AppContent() {
       </div>
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <ChatBubble />
     </div>
   );
 }

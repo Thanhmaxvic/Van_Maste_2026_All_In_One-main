@@ -44,6 +44,8 @@ export interface UserProfile {
   uid: string;
   name: string;
   email: string;
+  /** Role-based access: 'student' (default) or 'teacher' */
+  role?: 'student' | 'teacher';
   targetScore: number | null;
   voiceGender: 'male' | 'female';
   isOnboarded: boolean;
@@ -81,6 +83,37 @@ export interface UserProfile {
     sectionId: string;
     lessonId: string;
   } | null;
+}
+
+/** Teacher display profile shown to students in chat */
+export interface TeacherProfile {
+  uid: string;
+  name: string;
+  avatarUrl: string;
+  bio: string;
+  specialization: string;
+}
+
+/** A single chat message in the teacher-student RTDB chat */
+export interface ChatMessage {
+  id?: string;
+  senderId: string;
+  text: string;
+  imageUrl?: string;
+  timestamp: number;
+  read?: boolean;
+}
+
+/** A conversation between a student and the teacher */
+export interface ChatConversation {
+  id: string;
+  studentUid: string;
+  studentName: string;
+  studentAvatar?: string;
+  lastMessage: string;
+  lastTimestamp: number;
+  lastSenderId: string;
+  unreadCount: number;
 }
 
 export interface LessonProgress {

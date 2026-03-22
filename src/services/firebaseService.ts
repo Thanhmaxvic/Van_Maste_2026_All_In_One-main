@@ -27,7 +27,7 @@ import {
     getCountFromServer
 } from 'firebase/firestore';
 import { getDatabase, ref as rtdbRef, onValue, onDisconnect, set, push } from 'firebase/database';
-import type { UserProfile, ExamSubmission, ExamGrade, LessonProgress } from '../types';
+import type { UserProfile, ExamSubmission, ExamGrade, LessonProgress, TeacherProfile } from '../types';
 
 const firebaseConfig = {
     apiKey: "AIzaSyCOwsJrIX6Ni1eWNzo4ytjdrNeVYiEJMjc",
@@ -70,15 +70,27 @@ export async function logout() {
 // ─── Firestore – User Profile ──────────────────────────────────────────────────
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-    const snap = await getDoc(doc(db, 'users', uid));
-    return snap.exists() ? (snap.data() as UserProfile) : null;
+    const docRef = doc(db, 'users', uid);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+        const data = snap.data() as UserProfile;
+        // Auto-upgrade admin@vanmaster.com to teacher if it was created as student
+        if (data.email?.toLowerCase() === 'admin@vanmaster.com' && data.role !== 'teacher') {
+            await setDoc(docRef, { role: 'teacher' }, { merge: true });
+            data.role = 'teacher';
+        }
+        return data;
+    }
+    return null;
 }
 
 export async function createUserProfile(user: User): Promise<UserProfile> {
+    const isTeacherEmail = user.email?.toLowerCase() === 'admin@vanmaster.com';
     const profile: UserProfile = {
         uid: user.uid,
         name: user.displayName || 'Bạn',
         email: user.email || '',
+        role: isTeacherEmail ? 'teacher' : 'student',
         targetScore: null,
         voiceGender: 'male',
         isOnboarded: false,
@@ -423,6 +435,79 @@ export async function clearActiveLesson(uid: string) {
     await updateDoc(doc(db, 'users', uid), {
         activeLesson: null,
     });
+}
+
+// ─── Teacher Profile ──────────────────────────────────────────────────────────
+
+/** Get the teacher profile doc from Firestore system collection */
+export async function getTeacherProfile(): Promise<TeacherProfile | null> {
+    try {
+        const snap = await getDoc(doc(db, 'system', 'teacherProfile'));
+        return snap.exists() ? (snap.data() as TeacherProfile) : null;
+    } catch (e) {
+        console.error('getTeacherProfile error:', e);
+        return null;
+    }
+}
+
+/** Update teacher display profile */
+export async function updateTeacherProfile(data: Partial<TeacherProfile>) {
+    await setDoc(doc(db, 'system', 'teacherProfile'), data, { merge: true });
+}
+
+/** Listen to teacher profile changes in real-time */
+export function listenToTeacherProfile(callback: (p: TeacherProfile | null) => void) {
+    return onSnapshot(doc(db, 'system', 'teacherProfile'), (snap) => {
+        callback(snap.exists() ? (snap.data() as TeacherProfile) : null);
+    });
+}
+
+// ─── Admin: All Users ─────────────────────────────────────────────────────────
+
+export interface AdminUserEntry {
+    uid: string;
+    name: string;
+    email: string;
+    role?: string;
+    avgScore: number;
+    submissionCount: number;
+    level: string;
+    isOnboarded: boolean;
+}
+
+/** Get all users for admin panel */
+export async function getAllUsers(): Promise<AdminUserEntry[]> {
+    const snap = await getDocs(collection(db, 'users'));
+    const users: AdminUserEntry[] = [];
+    snap.forEach(d => {
+        const data = d.data();
+        users.push({
+            uid: d.id,
+            name: data.name || 'Bạn',
+            email: data.email || '',
+            role: data.role || 'student',
+            avgScore: data.avgScore ?? 0,
+            submissionCount: data.submissionCount ?? 0,
+            level: data.level || 'Tân Binh',
+            isOnboarded: data.isOnboarded ?? false,
+        });
+    });
+    return users;
+}
+
+// ─── System Config ────────────────────────────────────────────────────────────
+
+export async function getSystemConfig(): Promise<Record<string, unknown>> {
+    try {
+        const snap = await getDoc(doc(db, 'system', 'config'));
+        return snap.exists() ? snap.data() : {};
+    } catch {
+        return {};
+    }
+}
+
+export async function updateSystemConfig(data: Record<string, unknown>) {
+    await setDoc(doc(db, 'system', 'config'), data, { merge: true });
 }
 
 // ─── Leaderboard ──────────────────────────────────────────────────────────────

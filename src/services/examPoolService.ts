@@ -47,10 +47,11 @@ Trả về JSON THUẦN (không markdown, không \`\`\`):
   "relevantAnswerKey": "<phần hướng dẫn chấm tương ứng với các câu hỏi đã trích — giữ nguyên văn>"
 }
 
-LƯU Ý:
+LƯU Ý QUAN TRỌNG:
 - GIỮ NGUYÊN VĂN tất cả câu hỏi, không thay đổi từ nào
 - Điểm mỗi câu phải đúng với thang điểm trong đề
-- relevantAnswerKey phải chứa hướng dẫn chấm tương ứng cho TẤT CẢ câu hỏi đã trích`;
+- relevantAnswerKey phải chứa hướng dẫn chấm tương ứng cho TẤT CẢ câu hỏi đã trích
+- NẾU câu viết (writingQuestions) có tham chiếu đến ngữ liệu/đoạn trích ở phần đọc hiểu (ví dụ: "ở phần đọc hiểu", "đoạn trích trên", "văn bản trên"), thì PHẢI gắn nguyên văn đoạn trích/ngữ liệu đó VÀO CUỐI prompt của câu viết. Ví dụ: nếu câu viết yêu cầu phân tích "hai khổ thơ đầu trong đoạn trích ở phần đọc hiểu", prompt phải chứa cả đoạn trích đó để câu hỏi tự đầy đủ.`;
 
     try {
         const raw = await sendGradingRequest(prompt);
@@ -136,6 +137,16 @@ export async function buildExamFromPool(
         const wSource = writingSource || parsed;
         const startId = questions.length + 1;
 
+        // Check if any writing question references the reading passage
+        const readingRefPattern = /phần đọc hiểu|đoạn trích trên|văn bản trên|ngữ liệu trên/i;
+        const hasReadingRef = wSource.writingQuestions.some(q => readingRefPattern.test(q.prompt));
+
+        // For writing-only exams: include reading passage if questions reference it
+        if (type === 'writing' && hasReadingRef && wSource.readingPassage) {
+            passage = wSource.readingPassage;
+            source = `Ngữ liệu trích từ đề thi số ${validSources[0].id}`;
+        }
+
         wSource.writingQuestions.forEach((q, i) => {
             questions.push({
                 id: startId + i,
@@ -147,6 +158,9 @@ export async function buildExamFromPool(
 
         if (writingSource && writingSource !== parsed) {
             answerKeyParts.push(writingSource.answerKey);
+        } else if (type === 'writing') {
+            // For writing-only exams using the same parsed source, still include the answer key
+            answerKeyParts.push(wSource.answerKey);
         }
     }
 

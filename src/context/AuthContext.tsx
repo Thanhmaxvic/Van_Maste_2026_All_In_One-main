@@ -7,6 +7,7 @@ interface AuthContextValue {
     user: User | null;
     userProfile: UserProfile | null;
     loading: boolean;
+    isTeacher: boolean;
     refreshProfile: () => Promise<void>;
     setUserProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
 }
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextValue>({
     user: null,
     userProfile: null,
     loading: true,
+    isTeacher: false,
     refreshProfile: async () => { },
     setUserProfile: () => { },
 });
@@ -49,8 +51,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return unsub;
     }, []);
 
+    const isTeacher = userProfile?.role === 'teacher';
+
     return (
-        <AuthContext.Provider value={{ user, userProfile, loading, refreshProfile, setUserProfile }}>
+        <AuthContext.Provider value={{ user, userProfile, loading, isTeacher, refreshProfile, setUserProfile }}>
             {children}
         </AuthContext.Provider>
     );

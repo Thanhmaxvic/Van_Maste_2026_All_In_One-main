@@ -19,18 +19,27 @@ let _availableExamsCache: number | null = null;
  */
 export async function detectAvailableExams(): Promise<number> {
     if (_availableExamsCache !== null) return _availableExamsCache;
-    let count = 0;
-    // Try up to EXAM_COUNT + 10 to be safe
-    for (let i = 1; i <= EXAM_COUNT + 10; i++) {
+
+    // Scan up to 200 exams concurrently to be safe and handle holes or .doc
+    const promises = Array.from({ length: 200 }, async (_, index) => {
+        const i = index + 1;
         try {
-            const res = await fetch(`/dethi/${i}.docx`, { method: 'HEAD' });
-            if (!res.ok) break;
-            count = i;
+            let res = await fetch(`/dethi/${i}.docx`, { method: 'HEAD' });
+            if (res.ok) return i;
+
+            res = await fetch(`/dethi/${i}.doc`, { method: 'HEAD' });
+            if (res.ok) return i;
+
+            return null;
         } catch {
-            break;
+            return null;
         }
-    }
-    _availableExamsCache = Math.max(1, count);
+    });
+
+    const results = await Promise.all(promises);
+    const validExams = results.filter(id => id !== null) as number[];
+
+    _availableExamsCache = Math.max(1, validExams.length);
     return _availableExamsCache;
 }
 
@@ -130,9 +139,16 @@ NGUYÊN TẮC CHẤM BẮT BUỘC (vi phạm = chấm sai):
    Thiếu luận điểm nào trong hướng dẫn → trừ điểm phần đó
 
 ⑥ GIỚI HẠN ĐIỂM CAO:
-   - ≥ 2 lỗi nghiêm trọng (thiếu ý chính / thiếu dẫn chứng / không đủ chữ): điểm ≤ 7.5
-   - ≥ 1 lỗi nghiêm trọng: điểm ≤ 8.75
-   - Chỉ cho điểm 9.0–10.0 khi bài gần như hoàn hảo, không có lỗi đáng kể
+   - ≥ 2 lỗi nghiêm trọng (thiếu ý chính / thiếu dẫn chứng / không đủ chữ): điểm ≤ 7.0
+   - ≥ 1 lỗi nghiêm trọng: điểm ≤ 8.0
+   - KHÔNG BAO GIỜ cho điểm tối đa (10/10). Điểm tổng tối đa tuyệt đối = 9.5
+   - Bài xuất sắc nhất cũng chỉ đạt 8.75–9.5 điểm
+
+⑦ GIỚI HẠN ĐIỂM CÂU VIẾT (NGHỊ LUẬN):
+   - Câu nghị luận xã hội: điểm tối đa = 100% thang điểm (VD: câu 2đ → max 2.0đ)
+   - Câu nghị luận văn học: điểm tối đa = 90% thang điểm (VD: câu 5đ → max 4.5đ)
+   - Lý do: Bài viết của học sinh THPT luôn có thể cải thiện — cho điểm tối đa là không thực tế
+   - Chỉ câu đọc hiểu (trắc nghiệm/trả lời ngắn) mới được phép cho điểm tối đa nếu đúng hoàn toàn
 
 ══════════════════════════════════════════
 ĐỀ THI:
@@ -191,6 +207,11 @@ RÀNG BUỘC BẮT BUỘC:
             parsed.improvements = parsed.improvements || [];
             parsed.weaknesses = parsed.weaknesses || [];
             parsed.strengths = parsed.strengths || [];
+            // Safety net: cap score at 95% of maxScore (max 9.5/10)
+            const capScore = parsed.maxScore * 0.95;
+            if (parsed.score > capScore) {
+                parsed.score = capScore;
+            }
             return parsed;
         }
     } catch (e) {
