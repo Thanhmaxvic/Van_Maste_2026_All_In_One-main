@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, getUserProfile, createUserProfile } from '../services/firebaseService';
+import { auth, getUserProfile, createUserProfile, listenToUserProfile } from '../services/firebaseService';
 import type { UserProfile } from '../types';
 
 interface AuthContextValue {
@@ -39,16 +39,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
-        const unsub = onAuthStateChanged(auth, async (u) => {
+        let profileUnsub: (() => void) | undefined;
+
+        const unsubAuth = onAuthStateChanged(auth, async (u) => {
             setUser(u);
             if (u) {
-                await loadProfile(u);
+                let profile = await getUserProfile(u.uid);
+                if (!profile) {
+                    await createUserProfile(u);
+                }
+                profileUnsub = listenToUserProfile(u.uid, (p) => {
+                    setUserProfile(p);
+                    setLoading(false);
+                });
             } else {
+                if (profileUnsub) {
+                    profileUnsub();
+                    profileUnsub = undefined;
+                }
                 setUserProfile(null);
+                setLoading(false);
             }
-            setLoading(false);
         });
-        return unsub;
+
+        return () => {
+            unsubAuth();
+            if (profileUnsub) profileUnsub();
+        };
     }, []);
 
     const isTeacher = userProfile?.role === 'teacher';

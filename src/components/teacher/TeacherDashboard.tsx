@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, FileText, Clock, RefreshCw, Award } from 'lucide-react';
+import { Users, FileText, Clock, RefreshCw, Award, Search } from 'lucide-react';
 import {
     getAllUsers,
     getRegisteredUsersCount,
@@ -19,6 +19,7 @@ export default function TeacherDashboard() {
     const [dailyExamHour, setDailyExamHour] = useState('08:00');
     const [savingConfig, setSavingConfig] = useState(false);
     const [configSaved, setConfigSaved] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const loadData = async () => {
         setLoading(true);
@@ -78,6 +79,11 @@ export default function TeacherDashboard() {
         : '0.0';
 
     const activeUsers = users.filter(u => u.submissionCount > 0).length;
+
+    const filteredUsers = users.filter(u =>
+        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (u.email || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     return (
         <div className="td-container">
@@ -185,9 +191,21 @@ export default function TeacherDashboard() {
 
             {/* User Management Table */}
             <div className="td-card td-full-width">
-                <h3 className="td-card-title">
-                    <Users size={16} /> Quản lý người dùng ({users.length})
-                </h3>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="td-card-title mb-0">
+                        <Users size={16} /> Quản lý người dùng ({filteredUsers.length}/{users.length})
+                    </h3>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Tìm kiếm theo tên hoặc email..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 w-[300px] transition-colors"
+                        />
+                    </div>
+                </div>
                 <div className="td-table-wrap">
                     <table className="td-table">
                         <thead>
@@ -204,7 +222,7 @@ export default function TeacherDashboard() {
                             </tr>
                         </thead>
                         <tbody>
-                            {users.map((u, i) => (
+                            {filteredUsers.map((u, i) => (
                                 <tr key={u.uid}>
                                     <td>{i + 1}</td>
                                     <td className="td-cell-name">{u.name}</td>
@@ -224,20 +242,39 @@ export default function TeacherDashboard() {
                                             {u.isOnboarded ? 'Hoạt động' : 'Chưa onboard'}
                                         </span>
                                     </td>
-                                    <td>
+                                    <td className="flex gap-2">
                                         <button
                                             onClick={() => handleToggleRole(u.uid, u.role)}
                                             className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors"
+                                            title="Chuyển đổi Học sinh / Giáo viên"
                                         >
                                             Đổi quyền
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!u.email) return alert('Người dùng này không có email hợp lệ.');
+                                                if (window.confirm(`Gửi email khôi phục mật khẩu đến ${u.email}?`)) {
+                                                    try {
+                                                        const { sendResetPasswordEmail } = await import('../../services/firebaseService');
+                                                        await sendResetPasswordEmail(u.email);
+                                                        alert('Đã gửi email khôi phục mật khẩu thành công. Lời khuyên: báo người dùng kiểm tra hộp thư (cả hộp thư rác).');
+                                                    } catch (e: any) {
+                                                        alert('Lỗi: ' + e.message);
+                                                    }
+                                                }
+                                            }}
+                                            className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-red-400 text-xs font-semibold transition-colors"
+                                            title="Gửi email đặt lại mật khẩu"
+                                        >
+                                            Đổi mật khẩu
                                         </button>
                                     </td>
                                 </tr>
                             ))}
-                            {users.length === 0 && (
+                            {filteredUsers.length === 0 && (
                                 <tr>
                                     <td colSpan={9} className="td-empty-row">
-                                        {loading ? 'Đang tải...' : 'Chưa có người dùng nào'}
+                                        {loading ? 'Đang tải...' : 'Không tìm thấy người dùng nào phù hợp'}
                                     </td>
                                 </tr>
                             )}

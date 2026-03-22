@@ -7,6 +7,9 @@ import {
     GoogleAuthProvider,
     signOut,
     updateProfile,
+    sendPasswordResetEmail,
+    updatePassword,
+    updateEmail,
     type User,
 } from 'firebase/auth';
 import {
@@ -59,6 +62,20 @@ export async function registerWithEmail(email: string, password: string, display
     return cred;
 }
 
+export async function directUpdatePassword(newPassword: string) {
+    if (!auth.currentUser) throw new Error("Chưa đăng nhập");
+    return updatePassword(auth.currentUser, newPassword);
+}
+
+export async function directUpdateEmail(newEmail: string) {
+    if (!auth.currentUser) throw new Error("Chưa đăng nhập");
+    return updateEmail(auth.currentUser, newEmail);
+}
+
+export async function sendResetPasswordEmail(email: string) {
+    return sendPasswordResetEmail(auth, email);
+}
+
 export async function loginWithGoogle() {
     return signInWithPopup(auth, googleProvider);
 }
@@ -82,6 +99,17 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
         return data;
     }
     return null;
+}
+
+export function listenToUserProfile(uid: string, callback: (profile: UserProfile | null) => void): () => void {
+    const docRef = doc(db, 'users', uid);
+    return onSnapshot(docRef, (snap) => {
+        if (snap.exists()) {
+            callback(snap.data() as UserProfile);
+        } else {
+            callback(null);
+        }
+    });
 }
 
 export async function createUserProfile(user: User): Promise<UserProfile> {
