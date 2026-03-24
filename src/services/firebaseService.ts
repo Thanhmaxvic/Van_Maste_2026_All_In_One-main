@@ -538,6 +538,12 @@ export async function updateSystemConfig(data: Record<string, unknown>) {
     await setDoc(doc(db, 'system', 'config'), data, { merge: true });
 }
 
+export function listenToSystemConfig(callback: (config: Record<string, unknown>) => void) {
+    return onSnapshot(doc(db, 'system', 'config'), (snap) => {
+        callback(snap.exists() ? (snap.data() as Record<string, unknown>) : {});
+    });
+}
+
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
 
 export interface LeaderboardEntry {

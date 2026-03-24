@@ -56,8 +56,16 @@ export default function TeacherChatPanel() {
         if (!input.trim() || !activeConvId || !user) return;
         setSending(true);
         try {
-            await sendMessage(activeConvId, user.uid, input.trim(), undefined, true);
+            if (activeConvId === 'BROADCAST') {
+                const { broadcastMessage } = await import('../../services/chatService');
+                await broadcastMessage(user.uid, input.trim(), undefined);
+                alert('Đã gửi thông báo đến tất cả học sinh!');
+            } else {
+                await sendMessage(activeConvId, user.uid, input.trim(), undefined, true);
+            }
             setInput('');
+        } catch (err: any) {
+            alert('Lỗi: ' + err.message);
         } finally {
             setSending(false);
         }
@@ -69,9 +77,16 @@ export default function TeacherChatPanel() {
         setUploading(true);
         try {
             const url = await uploadChatImage(file);
-            await sendMessage(activeConvId, user.uid, '', url, true);
+            if (activeConvId === 'BROADCAST') {
+                const { broadcastMessage } = await import('../../services/chatService');
+                await broadcastMessage(user.uid, '', url);
+                alert('Đã gửi hình ảnh đến tất cả học sinh!');
+            } else {
+                await sendMessage(activeConvId, user.uid, '', url, true);
+            }
         } catch (err) {
             console.error('Upload error:', err);
+            alert('Lỗi tải ảnh. Vui lòng thử lại.');
         } finally {
             setUploading(false);
             e.target.value = '';
@@ -109,6 +124,20 @@ export default function TeacherChatPanel() {
                 </div>
 
                 <div className="tc-conv-list">
+                    <button
+                        className={`tc-conv-item ${activeConvId === 'BROADCAST' ? 'active' : ''}`}
+                        onClick={() => setActiveConvId('BROADCAST')}
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}
+                    >
+                        <div className="tc-conv-avatar" style={{ background: '#ec4899' }}>
+                            <Send size={16} color="white" />
+                        </div>
+                        <div className="tc-conv-info">
+                            <div className="tc-conv-name" style={{ color: '#ec4899', fontWeight: 600 }}>Gửi thông báo chung</div>
+                            <div className="tc-conv-last">Đến tất cả học sinh ({conversations.length})</div>
+                        </div>
+                    </button>
+
                     {filteredConvs.length === 0 && (
                         <div className="tc-empty">Chưa có tin nhắn nào</div>
                     )}
@@ -144,6 +173,64 @@ export default function TeacherChatPanel() {
                         <h3>Chọn cuộc trò chuyện</h3>
                         <p>Chọn một học sinh từ danh sách bên trái để bắt đầu trò chuyện</p>
                     </div>
+                ) : activeConvId === 'BROADCAST' ? (
+                    <>
+                        {/* Chat Header for Broadcast */}
+                        <div className="tc-chat-header">
+                            <div className="tc-chat-header-avatar" style={{ background: '#ec4899' }}>
+                                <Send size={20} color="white" />
+                            </div>
+                            <div>
+                                <div className="tc-chat-header-name" style={{ color: '#ec4899' }}>Gửi thông báo chung</div>
+                                <div className="tc-chat-header-status">Tin nhắn sẽ được gửi đến tất cả {conversations.length} học sinh</div>
+                            </div>
+                        </div>
+
+                        {/* Messages placeholder */}
+                        <div className="tc-messages" style={{ justifyContent: 'center', alignItems: 'center' }}>
+                            <div className="tc-chat-empty" style={{ opacity: 0.5, marginTop: 0 }}>
+                                <MessageSquareIcon />
+                                <h3>Chế độ Gửi Thông Báo</h3>
+                                <p>Nhập và gửi tin nhắn để phát đến tất cả học sinh.</p>
+                            </div>
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        {/* Input bar */}
+                        <div className="tc-input-bar">
+                            <button
+                                className="tc-input-btn"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploading}
+                                title="Gửi hình ảnh chung"
+                            >
+                                {uploading ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={handleImageUpload}
+                            />
+                            <textarea
+                                className="tc-input"
+                                rows={1}
+                                placeholder="Nhập thông báo chung..."
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                            />
+                            <button
+                                className="tc-send-btn bg-pink-500 hover:bg-pink-600 border-pink-500"
+                                onClick={handleSend}
+                                disabled={!input.trim() || sending}
+                                title="Gửi thông báo"
+                            >
+                                {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                            </button>
+                        </div>
+                    </>
                 ) : (
                     <>
                         {/* Chat Header */}

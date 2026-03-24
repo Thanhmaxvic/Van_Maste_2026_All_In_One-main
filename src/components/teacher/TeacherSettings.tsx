@@ -22,12 +22,25 @@ export default function TeacherSettings() {
     const [newPassword, setNewPassword] = useState('');
     const [updatingSecurity, setUpdatingSecurity] = useState(false);
 
+    const [globalNotif, setGlobalNotif] = useState({ text: '', active: false });
+    const [savingNotif, setSavingNotif] = useState(false);
+
     useEffect(() => {
         getTeacherProfile().then(p => {
             if (p) setProfile(p);
             else if (user) {
                 setProfile(prev => ({ ...prev, uid: user.uid, name: 'Giáo viên Văn Master' }));
             }
+        });
+
+        // Load System Config for Global Notification
+        import('../../services/firebaseService').then(({ getSystemConfig }) => {
+            getSystemConfig().then(config => {
+                setGlobalNotif({
+                    text: (config.globalNotification as string) || '',
+                    active: !!config.globalNotificationActive,
+                });
+            });
         });
     }, [user]);
 
@@ -138,6 +151,52 @@ export default function TeacherSettings() {
                         <Save size={16} />
                         {saving ? 'Đang lưu...' : saved ? '✓ Đã lưu thành công' : 'Lưu thông tin'}
                     </button>
+
+                    <h2 className="text-xl font-bold mt-12 mb-4">Thông báo Hệ thống (Toàn trang)</h2>
+                    <div className="bg-white/5 rounded-xl p-6 border border-white/10 flex flex-col gap-6">
+                        <div className="ts-form-group mb-0">
+                            <label className="flex items-center gap-2 cursor-pointer mb-2 w-max text-white">
+                                <input
+                                    type="checkbox"
+                                    checked={globalNotif.active}
+                                    onChange={e => setGlobalNotif(prev => ({ ...prev, active: e.target.checked }))}
+                                    className="w-4 h-4 rounded cursor-pointer"
+                                />
+                                <span className="font-medium">Bật dòng chạy thông báo trên Header</span>
+                            </label>
+
+                            <textarea
+                                value={globalNotif.text}
+                                onChange={e => setGlobalNotif(prev => ({ ...prev, text: e.target.value }))}
+                                placeholder="Nhập nội dung thông báo chung (VD: Chào mừng các em đến với hệ thống Văn Master, hôm nay chúng ta sẽ ôn luyện...)"
+                                className="ts-textarea mb-4 text-white"
+                                rows={2}
+                                disabled={!globalNotif.active}
+                            />
+
+                            <button
+                                disabled={savingNotif}
+                                className="px-5 py-2.5 bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors w-max"
+                                onClick={async () => {
+                                    setSavingNotif(true);
+                                    try {
+                                        const { updateSystemConfig } = await import('../../services/firebaseService');
+                                        await updateSystemConfig({
+                                            globalNotification: globalNotif.text,
+                                            globalNotificationActive: globalNotif.active,
+                                        });
+                                        alert('Lưu thông báo hệ thống thành công!');
+                                    } catch (e: any) {
+                                        alert('Lỗi khi lưu thông báo: ' + e.message);
+                                    } finally {
+                                        setSavingNotif(false);
+                                    }
+                                }}
+                            >
+                                {savingNotif ? 'Đang lưu...' : 'Lưu Thông báo'}
+                            </button>
+                        </div>
+                    </div>
 
                     <h2 className="text-xl font-bold mt-12 mb-4">Bảo mật tài khoản Admin</h2>
                     <div className="bg-white/5 rounded-xl p-6 border border-white/10 flex flex-col gap-6">

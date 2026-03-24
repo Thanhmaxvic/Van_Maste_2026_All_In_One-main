@@ -20,6 +20,11 @@ export default function TeacherDashboard() {
     const [savingConfig, setSavingConfig] = useState(false);
     const [configSaved, setConfigSaved] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [sortField, setSortField] = useState<'name' | 'avgScore' | 'submissionCount'>('name');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [editingUserId, setEditingUserId] = useState<string | null>(null);
+    const [editFormData, setEditFormData] = useState({ name: '', email: '', avgScore: 0 });
+    const [savingUser, setSavingUser] = useState(false);
 
     const loadData = async () => {
         setLoading(true);
@@ -74,6 +79,40 @@ export default function TeacherDashboard() {
         }
     };
 
+    const handleSort = (field: 'name' | 'avgScore' | 'submissionCount') => {
+        if (sortField === field) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortOrder(field === 'name' ? 'asc' : 'desc');
+        }
+    };
+
+    const handleEditClick = (user: AdminUserEntry) => {
+        setEditingUserId(user.uid);
+        setEditFormData({ name: user.name, email: user.email || '', avgScore: user.avgScore });
+    };
+
+    const handleSaveUser = async () => {
+        if (!editingUserId) return;
+        setSavingUser(true);
+        try {
+            const dataToUpdate = {
+                name: editFormData.name,
+                email: editFormData.email,
+                avgScore: Number(editFormData.avgScore)
+            };
+            await updateUserProfile(editingUserId, dataToUpdate);
+            setUsers(prev => prev.map(u => u.uid === editingUserId ? { ...u, ...dataToUpdate } : u));
+            setEditingUserId(null);
+        } catch (error) {
+            console.error('Error updating user:', error);
+            alert('Lỗi cập nhật thông tin người dùng.');
+        } finally {
+            setSavingUser(false);
+        }
+    };
+
     const avgScoreAll = users.length > 0
         ? (users.reduce((s, u) => s + u.avgScore, 0) / users.length).toFixed(1)
         : '0.0';
@@ -83,7 +122,17 @@ export default function TeacherDashboard() {
     const filteredUsers = users.filter(u =>
         u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (u.email || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    ).sort((a, b) => {
+        let valA = a[sortField];
+        let valB = b[sortField];
+        if (sortField === 'name') {
+            valA = (valA as string).toLowerCase();
+            valB = (valB as string).toLowerCase();
+        }
+        if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+    });
 
     return (
         <div className="td-container">
@@ -211,12 +260,18 @@ export default function TeacherDashboard() {
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>Tên</th>
+                                <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }} className="hover:text-white transition-colors">
+                                    Tên {sortField === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                </th>
                                 <th>Email</th>
                                 <th>Quyền</th>
                                 <th>Cấp độ</th>
-                                <th>Điểm TB</th>
-                                <th>Bài nộp</th>
+                                <th onClick={() => handleSort('avgScore')} style={{ cursor: 'pointer' }} className="hover:text-white transition-colors">
+                                    Điểm TB {sortField === 'avgScore' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                </th>
+                                <th onClick={() => handleSort('submissionCount')} style={{ cursor: 'pointer' }} className="hover:text-white transition-colors">
+                                    Bài nộp {sortField === 'submissionCount' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                </th>
                                 <th>Trạng thái</th>
                                 <th>Hành động</th>
                             </tr>
@@ -225,8 +280,21 @@ export default function TeacherDashboard() {
                             {filteredUsers.map((u, i) => (
                                 <tr key={u.uid}>
                                     <td>{i + 1}</td>
-                                    <td className="td-cell-name">{u.name}</td>
-                                    <td className="td-cell-email">{u.email}</td>
+                                    {editingUserId === u.uid ? (
+                                        <>
+                                            <td className="td-cell-name">
+                                                <input type="text" value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} className="td-input text-xs p-1 h-auto" />
+                                            </td>
+                                            <td className="td-cell-email">
+                                                <input type="email" value={editFormData.email} onChange={e => setEditFormData({ ...editFormData, email: e.target.value })} className="td-input text-xs p-1 h-auto" />
+                                            </td>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <td className="td-cell-name">{u.name}</td>
+                                            <td className="td-cell-email">{u.email}</td>
+                                        </>
+                                    )}
                                     <td>
                                         <span className={`td-level-badge ${u.role === 'teacher' ? 'bg-indigo-500/20 text-indigo-400' : ''}`}>
                                             {u.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
@@ -234,7 +302,11 @@ export default function TeacherDashboard() {
                                     </td>
                                     <td><span className="td-level-badge">{u.level}</span></td>
                                     <td className="td-cell-score">
-                                        {u.avgScore > 0 ? u.avgScore.toFixed(1) : '--'}
+                                        {editingUserId === u.uid ? (
+                                            <input type="number" step="0.1" value={editFormData.avgScore} onChange={e => setEditFormData({ ...editFormData, avgScore: Number(e.target.value) })} className="td-input text-xs p-1 h-auto w-16" />
+                                        ) : (
+                                            u.avgScore > 0 ? u.avgScore.toFixed(1) : '--'
+                                        )}
                                     </td>
                                     <td>{u.submissionCount}</td>
                                     <td>
@@ -242,32 +314,52 @@ export default function TeacherDashboard() {
                                             {u.isOnboarded ? 'Hoạt động' : 'Chưa onboard'}
                                         </span>
                                     </td>
-                                    <td className="flex gap-2">
-                                        <button
-                                            onClick={() => handleToggleRole(u.uid, u.role)}
-                                            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors"
-                                            title="Chuyển đổi Học sinh / Giáo viên"
-                                        >
-                                            Đổi quyền
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                if (!u.email) return alert('Người dùng này không có email hợp lệ.');
-                                                if (window.confirm(`Gửi email khôi phục mật khẩu đến ${u.email}?`)) {
-                                                    try {
-                                                        const { sendResetPasswordEmail } = await import('../../services/firebaseService');
-                                                        await sendResetPasswordEmail(u.email);
-                                                        alert('Đã gửi email khôi phục mật khẩu thành công. Lời khuyên: báo người dùng kiểm tra hộp thư (cả hộp thư rác).');
-                                                    } catch (e: any) {
-                                                        alert('Lỗi: ' + e.message);
-                                                    }
-                                                }
-                                            }}
-                                            className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-red-400 text-xs font-semibold transition-colors"
-                                            title="Gửi email đặt lại mật khẩu"
-                                        >
-                                            Đổi mật khẩu
-                                        </button>
+                                    <td className="flex gap-2 flex-wrap">
+                                        {editingUserId === u.uid ? (
+                                            <>
+                                                <button onClick={handleSaveUser} disabled={savingUser} className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-xs font-semibold text-green-400 transition-colors">
+                                                    {savingUser ? '...' : 'Lưu'}
+                                                </button>
+                                                <button onClick={() => setEditingUserId(null)} disabled={savingUser} className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors">
+                                                    Hủy
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    onClick={() => handleEditClick(u)}
+                                                    className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-xs font-semibold text-blue-400 transition-colors"
+                                                    title="Sửa thông tin"
+                                                >
+                                                    Sửa
+                                                </button>
+                                                <button
+                                                    onClick={() => handleToggleRole(u.uid, u.role)}
+                                                    className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors"
+                                                    title="Chuyển đổi Học sinh / Giáo viên"
+                                                >
+                                                    Đổi quyền
+                                                </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!u.email) return alert('Người dùng này không có email hợp lệ.');
+                                                        if (window.confirm(`Gửi email khôi phục mật khẩu đến ${u.email}?`)) {
+                                                            try {
+                                                                const { sendResetPasswordEmail } = await import('../../services/firebaseService');
+                                                                await sendResetPasswordEmail(u.email);
+                                                                alert('Đã gửi email khôi phục mật khẩu thành công. Lời khuyên: báo người dùng kiểm tra hộp thư (cả hộp thư rác).');
+                                                            } catch (e: any) {
+                                                                alert('Lỗi: ' + e.message);
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-red-400 text-xs font-semibold transition-colors"
+                                                    title="Gửi email đặt lại mật khẩu"
+                                                >
+                                                    Mật khẩu
+                                                </button>
+                                            </>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

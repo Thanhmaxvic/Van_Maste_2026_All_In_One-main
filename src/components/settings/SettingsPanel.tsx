@@ -12,6 +12,23 @@ interface SettingsPanelProps {
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     const { userProfile, setUserProfile } = useAuth();
     const [saving, setSaving] = useState(false);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [newName, setNewName] = useState('');
+
+    const handleNameSave = async () => {
+        if (!userProfile || !newName.trim()) return;
+        setSaving(true);
+        try {
+            await updateUserProfile(userProfile.uid, { name: newName.trim() });
+            setUserProfile({ ...userProfile, name: newName.trim() });
+            setIsEditingName(false);
+        } catch (error) {
+            console.error('Error updating name:', error);
+            alert('Có lỗi xảy ra khi cập nhật tên.');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const handleVoiceChange = async (gender: 'male' | 'female') => {
         if (!userProfile) return;
@@ -65,7 +82,80 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                         <div className="sp-profile-card">
                             <div className="sp-avatar">{userProfile.name.charAt(0).toUpperCase()}</div>
                             <div className="sp-profile-info">
-                                <div className="sp-profile-name">{userProfile.name}</div>
+                                {isEditingName ? (
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
+                                        <input
+                                            type="text"
+                                            value={newName}
+                                            onChange={(e) => setNewName(e.target.value)}
+                                            style={{
+                                                background: 'rgba(255,255,255,0.1)',
+                                                border: '1px solid rgba(255,255,255,0.2)',
+                                                borderRadius: '4px',
+                                                color: '#fff',
+                                                padding: '4px 8px',
+                                                fontSize: '14px',
+                                                outline: 'none',
+                                                width: '100%',
+                                            }}
+                                            autoFocus
+                                            onKeyDown={(e) => e.key === 'Enter' && handleNameSave()}
+                                            disabled={saving}
+                                        />
+                                        <button
+                                            onClick={handleNameSave}
+                                            disabled={saving}
+                                            style={{
+                                                background: 'var(--sp-accent)',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                color: '#fff',
+                                                padding: '4px 8px',
+                                                cursor: 'pointer',
+                                                fontSize: '12px',
+                                            }}
+                                        >
+                                            {saving ? '...' : 'Lưu'}
+                                        </button>
+                                        <button
+                                            onClick={() => setIsEditingName(false)}
+                                            disabled={saving}
+                                            style={{
+                                                background: 'transparent',
+                                                border: '1px solid rgba(255,255,255,0.2)',
+                                                borderRadius: '4px',
+                                                color: '#fff',
+                                                padding: '4px 8px',
+                                                cursor: 'pointer',
+                                                fontSize: '12px',
+                                            }}
+                                        >
+                                            Hủy
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div className="sp-profile-name">{userProfile.name}</div>
+                                        <button
+                                            onClick={() => {
+                                                setNewName(userProfile.name);
+                                                setIsEditingName(true);
+                                            }}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: 'var(--sp-accent)',
+                                                cursor: 'pointer',
+                                                padding: '2px 4px',
+                                                fontSize: '12px',
+                                                textDecoration: 'underline'
+                                            }}
+                                            title="Sửa tên"
+                                        >
+                                            Sửa
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="sp-profile-email">{userProfile.email}</div>
                             </div>
                             <div className="sp-level-badge">{userProfile.level}</div>

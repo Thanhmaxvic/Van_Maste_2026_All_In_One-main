@@ -1,4 +1,4 @@
-import { rtdb } from './firebaseService';
+import { rtdb, getAllUsers } from './firebaseService';
 import {
     ref,
     push,
@@ -107,6 +107,26 @@ export async function sendMessage(
             }).then(() => resolve());
         }, { onlyOnce: true });
     });
+}
+
+/** Broadcast a message to all students */
+export async function broadcastMessage(
+    senderId: string,
+    text: string,
+    imageUrl?: string
+): Promise<void> {
+    const users = await getAllUsers();
+    const promises = users.map(async (u) => {
+        if (u.role === 'teacher') return;
+        try {
+            const convId = await getOrCreateConversation(u.uid, u.name);
+            await sendMessage(convId, senderId, text, imageUrl, true);
+        } catch (e) {
+            console.error(`Error sending broadcast to ${u.uid}:`, e);
+        }
+    });
+
+    await Promise.allSettled(promises);
 }
 
 // ─── Listen to Messages ───────────────────────────────────────────────────────
