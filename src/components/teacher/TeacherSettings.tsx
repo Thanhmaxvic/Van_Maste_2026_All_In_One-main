@@ -31,6 +31,8 @@ export default function TeacherSettings() {
     // Thêm Quản trị viên
     const [newAdminEmail, setNewAdminEmail] = useState('');
     const [addingAdmin, setAddingAdmin] = useState(false);
+    const [adminList, setAdminList] = useState<{ uid: string; name: string; email: string }[]>([]);
+    const [loadingAdmins, setLoadingAdmins] = useState(false);
 
     const [globalNotif, setGlobalNotif] = useState({ text: '', active: false });
     const [savingNotif, setSavingNotif] = useState(false);
@@ -51,6 +53,12 @@ export default function TeacherSettings() {
                     active: !!config.globalNotificationActive,
                 });
             });
+        });
+
+        // Load Admin List
+        setLoadingAdmins(true);
+        import('../../services/firebaseService').then(({ getAdminUsers }) => {
+            getAdminUsers().then(setAdminList).finally(() => setLoadingAdmins(false));
         });
     }, [user]);
 
@@ -346,6 +354,32 @@ export default function TeacherSettings() {
                                     Cấp Quyền Admin
                                 </button>
                             </div>
+                        </div>
+
+                        <div className="border-t border-white/10"></div>
+
+                        <div className="ts-form-group mb-0">
+                            <label>Danh sách Quản trị viên hiện tại</label>
+                            {loadingAdmins ? (
+                                <p className="text-white/50 text-sm">Đang tải...</p>
+                            ) : adminList.length === 0 ? (
+                                <p className="text-white/50 text-sm">Chưa có quản trị viên nào</p>
+                            ) : (
+                                <div className="flex flex-col gap-2 mt-2">
+                                    {adminList.map(admin => (
+                                        <div key={admin.uid} className="flex items-center gap-3 bg-white/5 rounded-lg px-4 py-3 border border-white/10">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                                                {admin.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-white text-sm font-medium truncate">{admin.name}</div>
+                                                <div className="text-white/50 text-xs truncate">{admin.email}</div>
+                                            </div>
+                                            <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[11px] font-semibold rounded-full">Admin</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                     </div>

@@ -545,6 +545,18 @@ export async function grantAdminRoleByEmail(email: string): Promise<void> {
     await updateDoc(doc(db, 'users', userDoc.id), { role: 'teacher' });
 }
 
+export async function getAdminUsers(): Promise<{ uid: string; name: string; email: string }[]> {
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('role', '==', 'teacher'));
+    const snap = await getDocs(q);
+    const admins: { uid: string; name: string; email: string }[] = [];
+    snap.forEach(d => {
+        const data = d.data();
+        admins.push({ uid: d.id, name: data.name || 'Admin', email: data.email || '' });
+    });
+    return admins;
+}
+
 // ─── System Config ────────────────────────────────────────────────────────────
 
 export async function getSystemConfig(): Promise<Record<string, unknown>> {

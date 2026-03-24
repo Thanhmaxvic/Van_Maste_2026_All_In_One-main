@@ -11,6 +11,7 @@ import {
     markAsRead,
 } from '../../services/chatService';
 import type { ChatMessage, TeacherProfile } from '../../types';
+import { generateChatAutoResponse } from '../../services/geminiApi';
 
 export default function ChatBubble() {
     const { user, userProfile } = useAuth();
@@ -72,10 +73,22 @@ export default function ChatBubble() {
 
     const handleSend = async () => {
         if (!input.trim() || !convId || !user) return;
+        const userText = input.trim();
         setSending(true);
         try {
-            await sendMessage(convId, user.uid, input.trim(), undefined, false);
+            await sendMessage(convId, user.uid, userText, undefined, false);
             setInput('');
+
+            // AI Auto-Responder: generate and send reply
+            const history = messages.slice(-6).map(m => ({
+                role: m.senderId === user.uid ? 'student' : 'assistant',
+                content: m.text,
+            }));
+            generateChatAutoResponse(userText, history).then(async (aiReply) => {
+                if (aiReply && convId) {
+                    await sendMessage(convId, 'ai-auto-responder', aiReply, undefined, true);
+                }
+            }).catch(console.error);
         } finally {
             setSending(false);
         }
