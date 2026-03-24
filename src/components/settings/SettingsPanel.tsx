@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, Volume2, LogOut, User, Trophy, Zap, ChevronRight, Settings } from 'lucide-react';
+import { X, Volume2, LogOut, User, Trophy, Zap, ChevronRight, Settings, ImagePlus, Loader2 } from 'lucide-react';
 import { logout, updateUserProfile } from '../../services/firebaseService';
+import { uploadChatImage } from '../../services/chatService';
 import { useAuth } from '../../context/AuthContext';
 import { PRONOUN_MAP, TTS_VOICE_MAP } from '../../constants';
 
@@ -14,6 +15,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     const [saving, setSaving] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
     const [newName, setNewName] = useState('');
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
     const handleNameSave = async () => {
         if (!userProfile || !newName.trim()) return;
@@ -38,6 +40,24 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             setUserProfile({ ...userProfile, voiceGender: gender });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !userProfile) return;
+        setUploadingAvatar(true);
+        try {
+            const url = await uploadChatImage(file);
+            if (url) {
+                await updateUserProfile(userProfile.uid, { avatarUrl: url });
+                setUserProfile({ ...userProfile, avatarUrl: url });
+            }
+        } catch (err: any) {
+            alert('Lỗi tải ảnh: ' + err.message);
+        } finally {
+            setUploadingAvatar(false);
+            e.target.value = '';
         }
     };
 
@@ -80,10 +100,21 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                     {/* Profile card */}
                     {userProfile && (
                         <div className="sp-profile-card">
-                            <div className="sp-avatar">{userProfile.name.charAt(0).toUpperCase()}</div>
+                            <div className="sp-avatar relative group overflow-hidden">
+                                {userProfile.avatarUrl ? (
+                                    <img src={userProfile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                ) : (
+                                    <span>{userProfile.name.charAt(0).toUpperCase()}</span>
+                                )}
+                                <label className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity text-white text-[10px] gap-1">
+                                    {uploadingAvatar ? <Loader2 className="animate-spin" size={16} /> : <ImagePlus size={16} />}
+                                    <span>Đổi ảnh</span>
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+                                </label>
+                            </div>
                             <div className="sp-profile-info">
                                 {isEditingName ? (
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px', width: '100%', minWidth: '220px' }}>
                                         <input
                                             type="text"
                                             value={newName}
@@ -91,10 +122,10 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                                             style={{
                                                 background: 'rgba(255,255,255,0.1)',
                                                 border: '1px solid rgba(255,255,255,0.2)',
-                                                borderRadius: '4px',
+                                                borderRadius: '6px',
                                                 color: '#fff',
-                                                padding: '4px 8px',
-                                                fontSize: '14px',
+                                                padding: '8px 12px',
+                                                fontSize: '15px',
                                                 outline: 'none',
                                                 width: '100%',
                                             }}
@@ -102,36 +133,40 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                                             onKeyDown={(e) => e.key === 'Enter' && handleNameSave()}
                                             disabled={saving}
                                         />
-                                        <button
-                                            onClick={handleNameSave}
-                                            disabled={saving}
-                                            style={{
-                                                background: 'var(--sp-accent)',
-                                                border: 'none',
-                                                borderRadius: '4px',
-                                                color: '#fff',
-                                                padding: '4px 8px',
-                                                cursor: 'pointer',
-                                                fontSize: '12px',
-                                            }}
-                                        >
-                                            {saving ? '...' : 'Lưu'}
-                                        </button>
-                                        <button
-                                            onClick={() => setIsEditingName(false)}
-                                            disabled={saving}
-                                            style={{
-                                                background: 'transparent',
-                                                border: '1px solid rgba(255,255,255,0.2)',
-                                                borderRadius: '4px',
-                                                color: '#fff',
-                                                padding: '4px 8px',
-                                                cursor: 'pointer',
-                                                fontSize: '12px',
-                                            }}
-                                        >
-                                            Hủy
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button
+                                                onClick={handleNameSave}
+                                                disabled={saving}
+                                                style={{
+                                                    background: 'var(--sp-accent)',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    color: '#fff',
+                                                    padding: '6px 12px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '13px',
+                                                    flex: 1
+                                                }}
+                                            >
+                                                {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                                            </button>
+                                            <button
+                                                onClick={() => setIsEditingName(false)}
+                                                disabled={saving}
+                                                style={{
+                                                    background: 'transparent',
+                                                    border: '1px solid rgba(255,255,255,0.2)',
+                                                    borderRadius: '4px',
+                                                    color: '#fff',
+                                                    padding: '6px 12px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '13px',
+                                                    flex: 1
+                                                }}
+                                            >
+                                                Hủy
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -10,6 +10,8 @@ import {
     sendPasswordResetEmail,
     updatePassword,
     updateEmail,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
     type User,
 } from 'firebase/auth';
 import {
@@ -82,6 +84,12 @@ export async function loginWithGoogle() {
 
 export async function logout() {
     return signOut(auth);
+}
+
+export async function reauthenticateWithPassword(password: string) {
+    if (!auth.currentUser || !auth.currentUser.email) throw new Error("Chưa đăng nhập");
+    const credential = EmailAuthProvider.credential(auth.currentUser.email, password);
+    await reauthenticateWithCredential(auth.currentUser, credential);
 }
 
 // ─── Firestore – User Profile ──────────────────────────────────────────────────
@@ -521,6 +529,20 @@ export async function getAllUsers(): Promise<AdminUserEntry[]> {
         });
     });
     return users;
+}
+
+export async function grantAdminRoleByEmail(email: string): Promise<void> {
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('email', '==', email.trim()));
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+        throw new Error("Không tìm thấy người dùng với email này");
+    }
+
+    // Nếu có thể có nhiều người dùng trùng email, lấy người dùng đầu tiên
+    const userDoc = snap.docs[0];
+    await updateDoc(doc(db, 'users', userDoc.id), { role: 'teacher' });
 }
 
 // ─── System Config ────────────────────────────────────────────────────────────

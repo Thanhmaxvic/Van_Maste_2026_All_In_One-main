@@ -44,6 +44,7 @@ export interface UserProfile {
   uid: string;
   name: string;
   email: string;
+  avatarUrl?: string;
   /** Role-based access: 'student' (default) or 'teacher' */
   role?: 'student' | 'teacher';
   targetScore: number | null;

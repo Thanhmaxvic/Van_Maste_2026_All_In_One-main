@@ -18,9 +18,19 @@ export default function TeacherSettings() {
     const [showPreview, setShowPreview] = useState(false);
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
+    const [oldPassword, setOldPassword] = useState('');
     const [newEmail, setNewEmail] = useState('');
+
+    // Đổi mật khẩu states
+    const [oldPasswordForPw, setOldPasswordForPw] = useState('');
     const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+
     const [updatingSecurity, setUpdatingSecurity] = useState(false);
+
+    // Thêm Quản trị viên
+    const [newAdminEmail, setNewAdminEmail] = useState('');
+    const [addingAdmin, setAddingAdmin] = useState(false);
 
     const [globalNotif, setGlobalNotif] = useState({ text: '', active: false });
     const [savingNotif, setSavingNotif] = useState(false);
@@ -203,7 +213,15 @@ export default function TeacherSettings() {
 
                         <div className="ts-form-group mb-0">
                             <label>Đổi Email đăng nhập</label>
-                            <div className="flex gap-2 items-center">
+                            <div className="flex gap-2 items-center mb-2">
+                                <input
+                                    type="password"
+                                    value={oldPassword}
+                                    onChange={e => setOldPassword(e.target.value)}
+                                    placeholder="Mật khẩu hiện tại..."
+                                    className="ts-input flex-1 m-0"
+                                    autoComplete="new-password"
+                                />
                                 <input
                                     type="email"
                                     value={newEmail}
@@ -213,24 +231,26 @@ export default function TeacherSettings() {
                                     autoComplete="off"
                                 />
                                 <button
-                                    disabled={updatingSecurity || !newEmail}
+                                    disabled={updatingSecurity || !newEmail || !oldPassword}
                                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
                                     onClick={async () => {
-                                        if (!newEmail) return;
+                                        if (!newEmail || !oldPassword) return;
                                         setUpdatingSecurity(true);
                                         try {
-                                            const { directUpdateEmail } = await import('../../services/firebaseService');
+                                            const { directUpdateEmail, reauthenticateWithPassword } = await import('../../services/firebaseService');
+                                            await reauthenticateWithPassword(oldPassword);
                                             await directUpdateEmail(newEmail);
                                             alert('Đổi email thành công!');
                                             setNewEmail('');
+                                            setOldPassword('');
                                         } catch (e: any) {
-                                            alert('Lỗi (Có thể bạn cần đăng xuất và đăng nhập lại trước khi đổi email): ' + e.message);
+                                            alert('Lỗi đổi email: ' + e.message);
                                         } finally {
                                             setUpdatingSecurity(false);
                                         }
                                     }}
                                 >
-                                    Cập nhật Email
+                                    Xác nhận Đổi Email
                                 </button>
                             </div>
                         </div>
@@ -238,35 +258,92 @@ export default function TeacherSettings() {
                         <div className="border-t border-white/10"></div>
 
                         <div className="ts-form-group mb-0">
-                            <label>Đổi Mật khẩu trực tiếp</label>
-                            <div className="flex gap-2 items-center">
+                            <label>Đổi Mật khẩu</label>
+                            <div className="flex flex-col gap-2">
+                                <input
+                                    type="password"
+                                    value={oldPasswordForPw}
+                                    onChange={e => setOldPasswordForPw(e.target.value)}
+                                    placeholder="Mật khẩu hiện tại..."
+                                    className="ts-input m-0"
+                                    autoComplete="new-password"
+                                />
                                 <input
                                     type="password"
                                     value={newPassword}
                                     onChange={e => setNewPassword(e.target.value)}
-                                    placeholder="Nhập mật khẩu mới (ít nhất 6 ký tự)..."
+                                    placeholder="Mật khẩu mới (ít nhất 6 ký tự)..."
+                                    className="ts-input m-0"
+                                    autoComplete="new-password"
+                                />
+                                <div className="flex gap-2 items-center">
+                                    <input
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={e => setConfirmPassword(e.target.value)}
+                                        placeholder="Xác nhận mật khẩu mới..."
+                                        className="ts-input flex-1 m-0"
+                                        autoComplete="new-password"
+                                    />
+                                    <button
+                                        disabled={updatingSecurity || !oldPasswordForPw || !newPassword || newPassword.length < 6 || confirmPassword !== newPassword}
+                                        className="px-4 py-2 bg-red-500/10 text-red-500 disabled:opacity-50 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-sm font-semibold transition whitespace-nowrap"
+                                        onClick={async () => {
+                                            if (!oldPasswordForPw || newPassword.length < 6 || confirmPassword !== newPassword) return;
+                                            setUpdatingSecurity(true);
+                                            try {
+                                                const { directUpdatePassword, reauthenticateWithPassword } = await import('../../services/firebaseService');
+                                                await reauthenticateWithPassword(oldPasswordForPw);
+                                                await directUpdatePassword(newPassword);
+                                                alert('Đổi mật khẩu thành công!');
+                                                setOldPasswordForPw('');
+                                                setNewPassword('');
+                                                setConfirmPassword('');
+                                            } catch (e: any) {
+                                                alert('Lỗi đổi mật khẩu: ' + e.message);
+                                            } finally {
+                                                setUpdatingSecurity(false);
+                                            }
+                                        }}
+                                    >
+                                        Đổi Mật khẩu
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="border-t border-white/10"></div>
+
+                        <div className="ts-form-group mb-0">
+                            <label>Thêm Quản trị viên (Phân quyền Admin)</label>
+                            <p className="text-xs text-white/50 mb-2">Người dùng mang email này sẽ có toàn quyền truy cập trang quản lý.</p>
+                            <div className="flex gap-2 items-center">
+                                <input
+                                    type="email"
+                                    value={newAdminEmail}
+                                    onChange={e => setNewAdminEmail(e.target.value)}
+                                    placeholder="Nhập email của người dùng cần cấp quyền..."
                                     className="ts-input flex-1 m-0"
-                                    autoComplete="off"
                                 />
                                 <button
-                                    disabled={updatingSecurity || !newPassword || newPassword.length < 6}
-                                    className="px-4 py-2 bg-red-500/10 text-red-500 disabled:opacity-50 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-sm font-semibold transition whitespace-nowrap"
+                                    disabled={addingAdmin || !newAdminEmail}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
                                     onClick={async () => {
-                                        if (!newPassword || newPassword.length < 6) return;
-                                        setUpdatingSecurity(true);
+                                        if (!newAdminEmail) return;
+                                        setAddingAdmin(true);
                                         try {
-                                            const { directUpdatePassword } = await import('../../services/firebaseService');
-                                            await directUpdatePassword(newPassword);
-                                            alert('Đổi mật khẩu trực tiếp thành công!');
-                                            setNewPassword('');
+                                            const { grantAdminRoleByEmail } = await import('../../services/firebaseService');
+                                            await grantAdminRoleByEmail(newAdminEmail);
+                                            alert(`Đã cấp quyền Admin thành công cho ${newAdminEmail}!`);
+                                            setNewAdminEmail('');
                                         } catch (e: any) {
-                                            alert('Lỗi (Có thể bạn cần đăng xuất và đăng nhập lại trước khi đổi mật khẩu): ' + e.message);
+                                            alert('Lỗi: ' + e.message);
                                         } finally {
-                                            setUpdatingSecurity(false);
+                                            setAddingAdmin(false);
                                         }
                                     }}
                                 >
-                                    Đổi Mật khẩu
+                                    Cấp Quyền Admin
                                 </button>
                             </div>
                         </div>
