@@ -186,7 +186,7 @@ export default function TeacherSettings() {
                             <textarea
                                 value={globalNotif.text}
                                 onChange={e => setGlobalNotif(prev => ({ ...prev, text: e.target.value }))}
-                                placeholder="Nhập nội dung thông báo chung (VD: Chào mừng các em đến với hệ thống Văn Master, hôm nay chúng ta sẽ ôn luyện...)"
+                                placeholder="Nhập nội dung thông báo chung (VD: Chào mừng các em đến với hệ thống NgữVăn Master, hôm nay chúng ta sẽ ôn luyện...)"
                                 className="ts-textarea mb-4 text-white"
                                 rows={2}
                                 disabled={!globalNotif.active}

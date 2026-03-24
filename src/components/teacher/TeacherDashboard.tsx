@@ -20,10 +20,10 @@ export default function TeacherDashboard() {
     const [savingConfig, setSavingConfig] = useState(false);
     const [configSaved, setConfigSaved] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [sortField, setSortField] = useState<'name' | 'avgScore' | 'submissionCount'>('name');
+    const [sortField, setSortField] = useState<'name' | 'avgScore' | 'submissionCount' | 'bestScore'>('name');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
-    const [editFormData, setEditFormData] = useState({ name: '', email: '', avgScore: 0 });
+    const [editFormData, setEditFormData] = useState({ name: '', email: '', avgScore: 0, bestScore: 0 });
     const [savingUser, setSavingUser] = useState(false);
 
     const loadData = async () => {
@@ -79,7 +79,7 @@ export default function TeacherDashboard() {
         }
     };
 
-    const handleSort = (field: 'name' | 'avgScore' | 'submissionCount') => {
+    const handleSort = (field: 'name' | 'avgScore' | 'submissionCount' | 'bestScore') => {
         if (sortField === field) {
             setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
         } else {
@@ -90,7 +90,7 @@ export default function TeacherDashboard() {
 
     const handleEditClick = (user: AdminUserEntry) => {
         setEditingUserId(user.uid);
-        setEditFormData({ name: user.name, email: user.email || '', avgScore: user.avgScore });
+        setEditFormData({ name: user.name, email: user.email || '', avgScore: user.avgScore, bestScore: user.bestScore ?? 0 });
     };
 
     const handleSaveUser = async () => {
@@ -100,7 +100,8 @@ export default function TeacherDashboard() {
             const dataToUpdate = {
                 name: editFormData.name,
                 email: editFormData.email,
-                avgScore: Number(editFormData.avgScore)
+                avgScore: Number(editFormData.avgScore),
+                bestScore: Number(editFormData.bestScore),
             };
             await updateUserProfile(editingUserId, dataToUpdate);
             setUsers(prev => prev.map(u => u.uid === editingUserId ? { ...u, ...dataToUpdate } : u));
@@ -123,8 +124,8 @@ export default function TeacherDashboard() {
         u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (u.email || '').toLowerCase().includes(searchQuery.toLowerCase())
     ).sort((a, b) => {
-        let valA = a[sortField];
-        let valB = b[sortField];
+        let valA: string | number = a[sortField] ?? 0;
+        let valB: string | number = b[sortField] ?? 0;
         if (sortField === 'name') {
             valA = (valA as string).toLowerCase();
             valB = (valB as string).toLowerCase();
@@ -139,7 +140,7 @@ export default function TeacherDashboard() {
             <div className="td-header">
                 <div>
                     <h1>Bảng Quản Lý</h1>
-                    <p>Tổng quan hệ thống Văn Master</p>
+                    <p>Tổng quan hệ thống Ngữ Văn Master</p>
                 </div>
                 <button className="td-refresh-btn" onClick={loadData} disabled={loading}>
                     <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -272,7 +273,9 @@ export default function TeacherDashboard() {
                                 <th onClick={() => handleSort('submissionCount')} style={{ cursor: 'pointer' }} className="hover:text-white transition-colors">
                                     Bài nộp {sortField === 'submissionCount' && (sortOrder === 'asc' ? '↑' : '↓')}
                                 </th>
-                                <th>Điểm luyện đề</th>
+                                <th onClick={() => handleSort('bestScore')} style={{ cursor: 'pointer' }} className="hover:text-white transition-colors">
+                                    Điểm luyện đề {sortField === 'bestScore' && (sortOrder === 'asc' ? '↑' : '↓')}
+                                </th>
                                 <th>Trạng thái</th>
                                 <th>Hành động</th>
                             </tr>
@@ -311,7 +314,11 @@ export default function TeacherDashboard() {
                                     </td>
                                     <td>{u.submissionCount}</td>
                                     <td className="td-cell-score">
-                                        {u.bestScore != null ? u.bestScore.toFixed(1) : '--'}
+                                        {editingUserId === u.uid ? (
+                                            <input type="number" step="0.1" value={editFormData.bestScore} onChange={e => setEditFormData({ ...editFormData, bestScore: Number(e.target.value) })} className="td-input text-xs p-1 h-auto w-16" />
+                                        ) : (
+                                            u.bestScore != null && u.bestScore > 0 ? u.bestScore.toFixed(1) : '--'
+                                        )}
                                     </td>
                                     <td>
                                         <span className={`td-status-badge ${u.isOnboarded ? 'active' : 'pending'}`}>
