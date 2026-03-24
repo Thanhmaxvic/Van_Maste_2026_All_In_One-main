@@ -213,9 +213,11 @@ export default function ChatBubble() {
                     <div className="cb-messages">
                         {messages.map((msg, i) => {
                             const isStudent = msg.senderId === user?.uid;
+                            const isAI = msg.senderId === 'ai-auto-responder';
                             return (
                                 <div key={msg.id || i} className={`cb-msg ${isStudent ? 'sent' : 'received'}`}>
                                     <div className="cb-msg-bubble">
+                                        {isAI && <div style={{ fontSize: '10px', opacity: 0.6, marginBottom: '4px', fontWeight: 500 }}>🤖 Trợ lý AI</div>}
                                         {msg.imageUrl && (
                                             <img src={msg.imageUrl} alt="" className="cb-msg-img" />
                                         )}

@@ -506,6 +506,7 @@ export interface AdminUserEntry {
     email: string;
     role?: string;
     avgScore: number;
+    bestScore: number | null;
     submissionCount: number;
     level: string;
     isOnboarded: boolean;
@@ -523,6 +524,7 @@ export async function getAllUsers(): Promise<AdminUserEntry[]> {
             email: data.email || '',
             role: data.role || 'student',
             avgScore: data.avgScore ?? 0,
+            bestScore: data.bestScore ?? null,
             submissionCount: data.submissionCount ?? 0,
             level: data.level || 'Tân Binh',
             isOnboarded: data.isOnboarded ?? false,

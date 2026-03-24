@@ -247,10 +247,12 @@ export default function TeacherChatPanel() {
                         {/* Messages */}
                         <div className="tc-messages">
                             {messages.map((msg, i) => {
-                                const isTeacher = msg.senderId === user?.uid;
+                                const isTeacher = msg.senderId === user?.uid || msg.senderId === 'ai-auto-responder';
+                                const isAI = msg.senderId === 'ai-auto-responder';
                                 return (
                                     <div key={msg.id || i} className={`tc-msg ${isTeacher ? 'sent' : 'received'}`}>
                                         <div className="tc-msg-bubble">
+                                            {isAI && <div className="text-[10px] opacity-50 mb-1 font-medium">🤖 Trợ lý AI</div>}
                                             {msg.imageUrl && (
                                                 <img src={msg.imageUrl} alt="" className="tc-msg-img" />
                                             )}

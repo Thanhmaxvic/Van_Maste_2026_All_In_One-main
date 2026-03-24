@@ -272,6 +272,7 @@ export default function TeacherDashboard() {
                                 <th onClick={() => handleSort('submissionCount')} style={{ cursor: 'pointer' }} className="hover:text-white transition-colors">
                                     Bài nộp {sortField === 'submissionCount' && (sortOrder === 'asc' ? '↑' : '↓')}
                                 </th>
+                                <th>Điểm luyện đề</th>
                                 <th>Trạng thái</th>
                                 <th>Hành động</th>
                             </tr>
@@ -309,6 +310,9 @@ export default function TeacherDashboard() {
                                         )}
                                     </td>
                                     <td>{u.submissionCount}</td>
+                                    <td className="td-cell-score">
+                                        {u.bestScore != null ? u.bestScore.toFixed(1) : '--'}
+                                    </td>
                                     <td>
                                         <span className={`td-status-badge ${u.isOnboarded ? 'active' : 'pending'}`}>
                                             {u.isOnboarded ? 'Hoạt động' : 'Chưa onboard'}
@@ -365,7 +369,7 @@ export default function TeacherDashboard() {
                             ))}
                             {filteredUsers.length === 0 && (
                                 <tr>
-                                    <td colSpan={9} className="td-empty-row">
+                                    <td colSpan={10} className="td-empty-row">
                                         {loading ? 'Đang tải...' : 'Không tìm thấy người dùng nào phù hợp'}
                                     </td>
                                 </tr>
