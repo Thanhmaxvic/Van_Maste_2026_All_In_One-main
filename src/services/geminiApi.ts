@@ -1,5 +1,5 @@
 import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT } from '../constants';
-import type { Message, UserProfile, AIExamData } from '../types';
+import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -331,4 +331,96 @@ export async function generateChatAutoResponse(
         console.error('Chat auto-response error:', err);
         return null;
     }
+}
+
+/**
+ * Grade student submission using Gemini with File support
+ * Supports images, PDF, and DOCX (via mammoth).
+ */
+export async function gradeStudentSubmission(prompt: string, file: File | null): Promise<ExamGrade> {
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('API_KEY_MISSING');
+
+    const parts: any[] = [{ text: prompt }];
+
+    if (file) {
+        if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+            const base64Data = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const res = reader.result as string;
+                    resolve(res.split(',')[1]);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            parts.push({
+                inlineData: {
+                    mimeType: file.type || 'application/pdf',
+                    data: base64Data
+                }
+            });
+        } else if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const mammoth = await import('mammoth');
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                parts.push({ text: `\n--- NỘI DUNG VĂN BẢN ĐÍNH KÈM ---\n${result.value}\n-----------------------------------\n` });
+            } catch (e) {
+                console.error('Lỗi khi đọc file docx:', e);
+                parts.push({ text: `\n(Lưu ý: Không thể đọc được nội dung từ file docx đính kèm.)\n` });
+            }
+        } else {
+            try {
+                const text = await file.text();
+                parts.push({ text: `\n--- NỘI DUNG VĂN BẢN ĐÍNH KÈM ---\n${text}\n-----------------------------------\n` });
+            } catch (e) {
+                console.error('Lỗi đọc file txt:', e);
+            }
+        }
+    }
+
+    const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{ role: 'user', parts }],
+            generationConfig: {
+                temperature: 0.2,
+            }
+        }),
+    });
+
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    try {
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]) as ExamGrade;
+            parsed.errors = parsed.errors || [];
+            parsed.improvements = parsed.improvements || [];
+            parsed.weaknesses = parsed.weaknesses || [];
+            parsed.strengths = parsed.strengths || [];
+            if (parsed.score > parsed.maxScore) parsed.score = parsed.maxScore;
+            return parsed;
+        }
+    } catch (e) {
+        console.error('Failed to parse AI grading JSON:', e, 'RawText:', rawText);
+    }
+
+    return {
+        score: 0,
+        maxScore: 10,
+        feedback: rawText || 'Không thể đọc được kết quả hoặc có lỗi.',
+        details: 'Không có chi tiết.',
+        errors: [],
+        improvements: [],
+        weaknesses: [],
+        strengths: []
+    } as ExamGrade;
 }

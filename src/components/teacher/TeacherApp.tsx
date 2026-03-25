@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { MessageSquare, LayoutDashboard, Settings, LogOut } from 'lucide-react';
+import { MessageSquare, LayoutDashboard, Settings, LogOut, PenTool } from 'lucide-react';
 import { logout } from '../../services/firebaseService';
 import { useAuth } from '../../context/AuthContext';
 import TeacherChatPanel from './TeacherChatPanel';
 import TeacherDashboard from './TeacherDashboard';
 import TeacherSettings from './TeacherSettings';
+import TeacherGrading from './TeacherGrading';
 
-type TeacherTab = 'chat' | 'dashboard' | 'settings';
+type TeacherTab = 'chat' | 'dashboard' | 'grading' | 'settings';
 
 const NAV_ITEMS: { id: TeacherTab; label: string; icon: React.ReactNode }[] = [
     { id: 'chat', label: 'Tin nhắn', icon: <MessageSquare size={18} /> },
     { id: 'dashboard', label: 'Quản lý', icon: <LayoutDashboard size={18} /> },
+    { id: 'grading', label: 'Chấm thi', icon: <PenTool size={18} /> },
     { id: 'settings', label: 'Cài đặt', icon: <Settings size={18} /> },
 ];
 
@@ -66,6 +68,7 @@ export default function TeacherApp() {
             <main className="teacher-main">
                 {activeTab === 'chat' && <TeacherChatPanel />}
                 {activeTab === 'dashboard' && <TeacherDashboard />}
+                {activeTab === 'grading' && <TeacherGrading />}
                 {activeTab === 'settings' && <TeacherSettings />}
             </main>
         </div>

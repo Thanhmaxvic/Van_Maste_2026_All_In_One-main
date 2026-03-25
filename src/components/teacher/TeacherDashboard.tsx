@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, FileText, Clock, RefreshCw, Award, Search } from 'lucide-react';
+import { Users, FileText, Clock, RefreshCw, Award, Search, Upload } from 'lucide-react';
 import {
     getAllUsers,
     getRegisteredUsersCount,
@@ -25,6 +25,11 @@ export default function TeacherDashboard() {
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [editFormData, setEditFormData] = useState({ name: '', email: '', avgScore: 0, bestScore: 0 });
     const [savingUser, setSavingUser] = useState(false);
+
+    // File upload state
+    const [uploadFolder, setUploadFolder] = useState('dethi');
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [isUploadingDoc, setIsUploadingDoc] = useState(false);
 
     const loadData = async () => {
         setLoading(true);
@@ -85,6 +90,27 @@ export default function TeacherDashboard() {
         } else {
             setSortField(field);
             setSortOrder(field === 'name' ? 'asc' : 'desc');
+        }
+    };
+
+    const handleDocUpload = async () => {
+        if (!uploadFile) return;
+        setIsUploadingDoc(true);
+        try {
+            const { storage } = await import('../../services/firebaseService');
+            const { ref, uploadBytes } = await import('firebase/storage');
+            const fileRef = ref(storage, `${uploadFolder}/${uploadFile.name}`);
+            await uploadBytes(fileRef, uploadFile);
+            alert('Tải tài liệu lên thành công!');
+            setUploadFile(null);
+            // Optionally clear the input
+            const fileInput = document.getElementById('admin-doc-upload') as HTMLInputElement;
+            if (fileInput) fileInput.value = '';
+        } catch (e: any) {
+            console.error('Upload error:', e);
+            alert('Lỗi tải lên: ' + e.message);
+        } finally {
+            setIsUploadingDoc(false);
         }
     };
 
@@ -235,6 +261,52 @@ export default function TeacherDashboard() {
                             <span>Giờ thi hàng ngày</span>
                             <strong>{dailyExamHour}</strong>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Document Upload Panel */}
+            <div className="td-card td-full-width" style={{ marginTop: '24px', marginBottom: '24px' }}>
+                <h3 className="td-card-title">
+                    <Upload size={16} /> Quản lý tài liệu hệ thống
+                </h3>
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 1 300px', paddingRight: '20px', borderRight: '1px solid #f1f5f9' }}>
+                        <div className="td-form-group">
+                            <label>Chọn thư mục đích</label>
+                            <select className="td-input" value={uploadFolder} onChange={e => setUploadFolder(e.target.value)}>
+                                <option value="dethi">Đề thi (dethi/)</option>
+                                <option value="huongdancham">Hướng dẫn chấm (huongdancham/)</option>
+                                <option value="lythuyet">Lý thuyết (lythuyet/)</option>
+                            </select>
+                        </div>
+                        <div className="td-form-group">
+                            <label>Chọn file tải lên</label>
+                            <input
+                                id="admin-doc-upload"
+                                type="file"
+                                accept=".pdf,.doc,.docx"
+                                className="td-input bg-white"
+                                onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                            />
+                        </div>
+                        <button
+                            className="td-save-btn bg-pink-500 hover:bg-pink-600 border-pink-500 text-white"
+                            style={{ width: '100%' }}
+                            onClick={handleDocUpload}
+                            disabled={!uploadFile || isUploadingDoc}
+                        >
+                            {isUploadingDoc ? 'Đang tải lên...' : 'Tải lên cơ sở dữ liệu'}
+                        </button>
+                    </div>
+                    <div style={{ flex: '1 1 300px' }} className="text-sm">
+                        <h4 className="font-semibold text-gray-800 mb-2">Hướng dẫn đặt tên file:</h4>
+                        <ul className="list-disc pl-5 space-y-2 text-gray-600">
+                            <li><strong>Đề thi:</strong> Đặt tên theo số thứ tự bài thi (Ví dụ: <code>1.docx</code>, <code>2.pdf</code>).</li>
+                            <li><strong>Hướng dẫn chấm:</strong> Thêm hậu tố "_key" sau tên đề thi tương ứng (Ví dụ: <code>1_key.docx</code>).</li>
+                            <li><strong>Lý thuyết:</strong> Đặt tên theo ID bài học kết hợp chủ đề (Ví dụ: <code>vnl-1.docx</code> cho Vợ Nhặt bài 1).</li>
+                            <li className="text-pink-600 mt-2 font-medium">Lưu ý: Chỉ hỗ trợ các định dạng <code>.docx</code>, <code>.doc</code>, <code>.pdf</code>.</li>
+                        </ul>
                     </div>
                 </div>
             </div>
