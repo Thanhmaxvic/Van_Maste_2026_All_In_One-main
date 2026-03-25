@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, ImagePlus, Search, Loader2 } from 'lucide-react';
+import { Send, ImagePlus, Search, Loader2, Paperclip, Trash2, FileText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
     listenToConversations,
     listenToMessages,
     sendMessage,
     uploadChatImage,
+    uploadChatDocument,
+    deleteConversation,
     markAsRead,
 } from '../../services/chatService';
 import type { ChatMessage, ChatConversation } from '../../types';
@@ -27,8 +29,10 @@ export default function TeacherChatPanel() {
     const [searchQuery, setSearchQuery] = useState('');
     const [uploading, setUploading] = useState(false);
     const [sending, setSending] = useState(false);
+    const [uploadingDoc, setUploadingDoc] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const docInputRef = useRef<HTMLInputElement>(null);
 
     // Listen to all conversations
     useEffect(() => {
@@ -90,6 +94,39 @@ export default function TeacherChatPanel() {
         } finally {
             setUploading(false);
             e.target.value = '';
+        }
+    };
+
+    const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !activeConvId || !user) return;
+        setUploadingDoc(true);
+        try {
+            const url = await uploadChatDocument(file);
+            if (activeConvId === 'BROADCAST') {
+                const { broadcastMessage } = await import('../../services/chatService');
+                // Broadcast logic for documents may require modifying broadcastMessage, 
+                // but since broadcast is rare for docs, we'll just send text with link for simplicity
+                await broadcastMessage(user.uid, `Tài liệu đính kèm: ${url}`, undefined);
+                alert('Đã gửi tài liệu đến tất cả học sinh!');
+            } else {
+                await sendMessage(activeConvId, user.uid, '', undefined, true, url, file.name);
+            }
+        } catch (err: any) {
+            console.error('Upload document error:', err);
+            alert('Lỗi tải tài liệu: ' + err.message);
+        } finally {
+            setUploadingDoc(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleDeleteConversation = async () => {
+        if (!activeConvId || activeConvId === 'BROADCAST') return;
+        if (window.confirm('Bạn có chắc chắn muốn xoá toàn bộ đoạn chat này không? Mọi dữ liệu sẽ bị mất.')) {
+            await deleteConversation(activeConvId);
+            setActiveConvId(null);
+            alert('Đã xoá đoạn chat!');
         }
     };
 
@@ -213,6 +250,21 @@ export default function TeacherChatPanel() {
                                 style={{ display: 'none' }}
                                 onChange={handleImageUpload}
                             />
+                            <button
+                                className="tc-input-btn"
+                                onClick={() => docInputRef.current?.click()}
+                                disabled={uploadingDoc}
+                                title="Gửi tài liệu chung"
+                            >
+                                {uploadingDoc ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}
+                            </button>
+                            <input
+                                ref={docInputRef}
+                                type="file"
+                                accept=".pdf,.doc,.docx,.txt"
+                                style={{ display: 'none' }}
+                                onChange={handleDocUpload}
+                            />
                             <textarea
                                 className="tc-input"
                                 rows={1}
@@ -238,10 +290,17 @@ export default function TeacherChatPanel() {
                             <div className="tc-chat-header-avatar">
                                 {activeConv?.studentName.charAt(0).toUpperCase() || '?'}
                             </div>
-                            <div>
+                            <div style={{ flex: 1 }}>
                                 <div className="tc-chat-header-name">{activeConv?.studentName}</div>
                                 <div className="tc-chat-header-status">Học sinh</div>
                             </div>
+                            <button
+                                onClick={handleDeleteConversation}
+                                className="text-red-400 hover:text-red-500 hover:bg-red-500/10 p-2 rounded-full transition-colors"
+                                title="Xoá đoạn chat"
+                            >
+                                <Trash2 size={18} />
+                            </button>
                         </div>
 
                         {/* Messages */}
@@ -255,6 +314,12 @@ export default function TeacherChatPanel() {
                                             {isAI && <div className="text-[10px] opacity-50 mb-1 font-medium">🤖 Trợ lý AI</div>}
                                             {msg.imageUrl && (
                                                 <img src={msg.imageUrl} alt="" className="tc-msg-img" />
+                                            )}
+                                            {msg.fileUrl && (
+                                                <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors mb-2 text-sm text-blue-300">
+                                                    <FileText size={18} className="text-blue-400 shrink-0" />
+                                                    <span className="truncate max-w-[200px]">{msg.fileName || 'Tài liệu đính kèm'}</span>
+                                                </a>
                                             )}
                                             {msg.text && <p>{msg.text}</p>}
                                             <span className="tc-msg-time">
@@ -282,6 +347,21 @@ export default function TeacherChatPanel() {
                                 accept="image/*"
                                 style={{ display: 'none' }}
                                 onChange={handleImageUpload}
+                            />
+                            <button
+                                className="tc-input-btn"
+                                onClick={() => docInputRef.current?.click()}
+                                disabled={uploadingDoc}
+                                title="Đính kèm tài liệu"
+                            >
+                                {uploadingDoc ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}
+                            </button>
+                            <input
+                                ref={docInputRef}
+                                type="file"
+                                accept=".pdf,.doc,.docx,.txt"
+                                style={{ display: 'none' }}
+                                onChange={handleDocUpload}
                             />
                             <textarea
                                 className="tc-input"

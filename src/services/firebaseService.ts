@@ -32,6 +32,7 @@ import {
     getCountFromServer
 } from 'firebase/firestore';
 import { getDatabase, ref as rtdbRef, onValue, onDisconnect, set, push } from 'firebase/database';
+import { getStorage } from 'firebase/storage';
 import type { UserProfile, ExamSubmission, ExamGrade, LessonProgress, TeacherProfile } from '../types';
 
 const firebaseConfig = {
@@ -49,6 +50,7 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
+export const storage = getStorage(app);
 
 const googleProvider = new GoogleAuthProvider();
 

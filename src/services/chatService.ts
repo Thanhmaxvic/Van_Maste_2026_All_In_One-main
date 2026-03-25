@@ -1,4 +1,5 @@
-import { rtdb, getAllUsers } from './firebaseService';
+import { rtdb, storage, getAllUsers } from './firebaseService';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import {
     ref,
     push,
@@ -35,6 +36,15 @@ export async function uploadChatImage(file: File): Promise<string> {
     throw new Error(data.errors?.[0] || 'Upload ảnh thất bại');
 }
 
+/** Upload a document using Firebase Storage */
+export async function uploadChatDocument(file: File): Promise<string> {
+    const ext = file.name.split('.').pop() || 'bin';
+    const fileName = `chat_docs/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+    const fileRef = storageRef(storage, fileName);
+    await uploadBytes(fileRef, file);
+    return await getDownloadURL(fileRef);
+}
+
 // ─── Conversations ────────────────────────────────────────────────────────────
 
 /** Get or create a conversation between a student and the (single) teacher */
@@ -62,8 +72,7 @@ export async function getOrCreateConversation(
                     lastSenderId: '',
                     unreadByTeacher: 0,
                     unreadByStudent: 0,
-                });
-                resolve(convId);
+                }).then(() => resolve(convId));
             }
         }, { onlyOnce: true });
     });
@@ -78,15 +87,22 @@ export async function sendMessage(
     text: string,
     imageUrl?: string,
     senderIsTeacher = false,
+    fileUrl?: string,
+    fileName?: string
 ): Promise<void> {
     const msgRef = push(ref(rtdb, `chats/${conversationId}/messages`));
+    const now = Date.now();
     const msg: ChatMessage = {
         senderId,
         text,
-        imageUrl: imageUrl || '',
-        timestamp: Date.now(),
+        timestamp: now,
         read: false,
     };
+    if (imageUrl) msg.imageUrl = imageUrl;
+    if (fileUrl) {
+        msg.fileUrl = fileUrl;
+        msg.fileName = fileName;
+    }
     await set(msgRef, msg);
 
     // Update conversation info
@@ -99,12 +115,19 @@ export async function sendMessage(
             off(convInfoRef);
             const data = snap.val() || {};
             const currentUnread = data[unreadField] || 0;
-            update(convInfoRef, {
+
+            const infoUpdates: Record<string, any> = {
                 lastMessage: text || (imageUrl ? '📷 Hình ảnh' : ''),
-                lastTimestamp: Date.now(),
+                lastTimestamp: now,
                 lastSenderId: senderId,
                 [unreadField]: currentUnread + 1,
-            }).then(() => resolve());
+            };
+
+            if (fileUrl) {
+                infoUpdates.lastMessage = fileName ? `Tệp đính kèm: ${fileName}` : 'Tài liệu đính kèm';
+            }
+
+            update(convInfoRef, infoUpdates).then(() => resolve());
         }, { onlyOnce: true });
     });
 }
@@ -207,4 +230,11 @@ export async function markAsRead(
 ): Promise<void> {
     const field = role === 'teacher' ? 'unreadByTeacher' : 'unreadByStudent';
     await update(ref(rtdb, `chats/${conversationId}/info`), { [field]: 0 });
+}
+
+// ─── Delete conversation ──────────────────────────────────────────────────────
+
+/** Delete a whole conversation and all its messages */
+export async function deleteConversation(conversationId: string): Promise<void> {
+    await set(ref(rtdb, `chats/${conversationId}`), null);
 }

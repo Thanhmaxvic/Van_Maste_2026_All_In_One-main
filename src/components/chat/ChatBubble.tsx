@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, Send, ImagePlus, Loader2, GripHorizontal } from 'lucide-react';
+import { MessageCircle, X, Send, ImagePlus, Loader2, GripHorizontal, FileText, Trash2, Paperclip } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { listenToTeacherProfile } from '../../services/firebaseService';
 import {
@@ -8,6 +8,8 @@ import {
     listenToMessages,
     listenToStudentUnread,
     uploadChatImage,
+    uploadChatDocument,
+    deleteConversation,
     markAsRead,
 } from '../../services/chatService';
 import type { ChatMessage, TeacherProfile } from '../../types';
@@ -23,8 +25,10 @@ export default function ChatBubble() {
     const [unread, setUnread] = useState(0);
     const [sending, setSending] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [uploadingDoc, setUploadingDoc] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const docInputRef = useRef<HTMLInputElement>(null);
 
     // Dragging state
     const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -109,6 +113,29 @@ export default function ChatBubble() {
         }
     };
 
+    const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !convId || !user) return;
+        setUploadingDoc(true);
+        try {
+            const url = await uploadChatDocument(file);
+            await sendMessage(convId, user.uid, '', undefined, false, url, file.name);
+        } catch (err) {
+            console.error('Upload document error:', err);
+        } finally {
+            setUploadingDoc(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleDeleteChat = async () => {
+        if (!convId) return;
+        if (window.confirm('Bạn có chắc chắn muốn xoá toàn bộ đoạn chat này không? Dữ liệu sẽ mất sau khi tải lại trang.')) {
+            await deleteConversation(convId);
+            setMessages([]);
+        }
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -181,7 +208,16 @@ export default function ChatBubble() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <GripHorizontal size={16} className="text-white/40 mr-2" />
+                            <button
+                                className="cb-close"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={handleDeleteChat}
+                                title="Xoá đoạn chat"
+                                style={{ color: 'rgba(255,255,255,0.7)' }}
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                            <GripHorizontal size={16} className="text-white/40 mx-2" />
                             <button
                                 className="cb-close"
                                 onPointerDown={(e) => e.stopPropagation()}
@@ -221,6 +257,12 @@ export default function ChatBubble() {
                                         {msg.imageUrl && (
                                             <img src={msg.imageUrl} alt="" className="cb-msg-img" />
                                         )}
+                                        {msg.fileUrl && (
+                                            <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: 'rgba(0,0,0,0.05)', borderRadius: '8px', marginBottom: '8px', textDecoration: 'none', color: 'inherit' }}>
+                                                <FileText size={18} style={{ color: '#ec4899', flexShrink: 0 }} />
+                                                <span style={{ fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{msg.fileName || 'Tài liệu đính kèm'}</span>
+                                            </a>
+                                        )}
                                         {msg.text && <p>{msg.text}</p>}
                                         <span className="cb-msg-time">
                                             {new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
@@ -247,6 +289,21 @@ export default function ChatBubble() {
                             accept="image/*"
                             style={{ display: 'none' }}
                             onChange={handleImageUpload}
+                        />
+                        <button
+                            className="cb-input-btn"
+                            onClick={() => docInputRef.current?.click()}
+                            disabled={uploadingDoc}
+                            title="Đính kèm tài liệu"
+                        >
+                            {uploadingDoc ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                        </button>
+                        <input
+                            ref={docInputRef}
+                            type="file"
+                            accept=".pdf,.doc,.docx,.txt"
+                            style={{ display: 'none' }}
+                            onChange={handleDocUpload}
                         />
                         <input
                             className="cb-input"

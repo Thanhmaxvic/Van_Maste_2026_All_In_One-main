@@ -101,6 +101,8 @@ export interface ChatMessage {
   senderId: string;
   text: string;
   imageUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
   timestamp: number;
   read?: boolean;
 }

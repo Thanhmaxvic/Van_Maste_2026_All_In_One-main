@@ -28,7 +28,7 @@ export default function TeacherApp() {
             <nav className="teacher-nav">
                 <div className="teacher-nav-logo">
                     <img src="/images/logo.png" alt="Logo" className="teacher-nav-logo-img" />
-                    <span className="teacher-nav-logo-text">Ngữ Văn Master</span>
+                    <span className="teacher-nav-logo-text">Ngữ văn Master</span>
                     <span className="teacher-nav-badge">Giáo viên</span>
                 </div>
 

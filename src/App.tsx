@@ -20,8 +20,8 @@ import './index.css';
 
 type Tab = 'chat' | 'learn' | 'exam' | 'stats' | 'roadmap';
 
-function AppContent() {
-  const { user, userProfile, loading, isTeacher } = useAuth();
+function StudentApp() {
+  const { user, userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('chat');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
@@ -83,19 +83,6 @@ function AppContent() {
   };
 
   const handleCameraCapture = () => fileInputRef.current?.click();
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', background: '#F8FAFC' }}>
-        <div className="loading-dots"><span /><span /><span /></div>
-      </div>
-    );
-  }
-
-  if (!user) return <SplashScreen />;
-
-  // Teacher gets a completely different UI
-  if (isTeacher) return <TeacherApp />;
 
   return (
     <div className="app-shell">
@@ -264,6 +251,25 @@ function AppContent() {
       <ChatBubble />
     </div>
   );
+}
+
+function AppContent() {
+  const { user, loading, isTeacher } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', background: '#F8FAFC' }}>
+        <div className="loading-dots"><span /><span /><span /></div>
+      </div>
+    );
+  }
+
+  if (!user) return <SplashScreen />;
+
+  // Teacher gets a completely different UI
+  if (isTeacher) return <TeacherApp />;
+
+  return <StudentApp />;
 }
 
 export default function App() {
