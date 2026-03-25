@@ -1,6 +1,5 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { UploadCloud, FileText, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
-import { sendGradingRequest, generateImage } from '../../services/geminiApi';
 import type { ExamGrade } from '../../types';
 
 export default function TeacherGrading() {
@@ -32,24 +31,12 @@ export default function TeacherGrading() {
             // Functionality to process files using Gemini Multimodal
             // For now we'll simulate reading the files as base64 (for images) 
             // and relying on geminiApi to parse it. We'll build the generic prompt.
-            let studentContentDesc = `Bài làm học sinh đính kèm dạng file: ${studentFile.name}`;
 
             // To properly send images to Gemini, normally we'd need convert to base64. 
             // Here we just craft a prompt for the multimodal model.
             // If the user's geminiApi.ts supports images, we will pass them.
             // But right now geminiApi.ts text-only or chat-based might need adjustment.
 
-            // We read the files as data urls to pass to Gemini
-            const readAsDataURL = (file: File): Promise<string> => {
-                return new Promise((res, rej) => {
-                    const reader = new FileReader();
-                    reader.onload = e => res(e.target?.result as string);
-                    reader.onerror = rej;
-                    reader.readAsDataURL(file);
-                });
-            };
-
-            const studentDataUrl = await readAsDataURL(studentFile);
             let guideText = gradingGuide;
 
             if (gradingGuideFile) {
