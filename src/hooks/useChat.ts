@@ -370,7 +370,9 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
             lines.push(`${i + 1}. ${isRight ? '✅ Đúng' : '❌ Sai'} — Em chọn ${label(userAns)} — Đáp án: ${label(q.correct)}`);
         });
         const pct = Math.round((correct / 10) * 100);
-        const score = +(correct / 10 * 10).toFixed(1);
+        const rawScore = +(correct / 10 * 10).toFixed(1);
+        // Cap at 9.5 to match exam grading standard (no perfect 10)
+        const score = Math.min(rawScore, 9.5);
         lines.push(`\nTổng: ${correct}/10 (${pct}%)`);
         if (pct >= 80) lines.push(`Năng lực đọc hiểu tốt — ${pronoun} sẽ đặt lộ trình nâng cao.`);
         else if (pct >= 60) lines.push('Năng lực ở mức trung bình — lộ trình chuẩn sẽ phù hợp.');

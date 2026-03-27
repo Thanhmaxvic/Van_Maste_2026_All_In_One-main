@@ -158,12 +158,14 @@ export async function saveTargetScore(uid: string, score: number) {
  * Mark assessment as done. This is the final onboarding step.
  */
 export async function completeAssessment(uid: string, diagnosticScore: number) {
+    // Cap at 9.5 to match exam grading standard (no perfect 10)
+    const cappedScore = Math.min(diagnosticScore, 9.5);
     await updateDoc(doc(db, 'users', uid), {
         isOnboarded: true,
         assessmentDone: true,
-        diagnosticScore,
-        avgScore: diagnosticScore,
-        bestScore: diagnosticScore,
+        diagnosticScore: cappedScore,
+        avgScore: cappedScore,
+        bestScore: cappedScore,
         submissionCount: 1,
     });
 }
@@ -621,7 +623,7 @@ export function listenToLeaderboard(
                 name: displayName,
                 avgScore,
                 submissionCount: data.submissionCount ?? 0,
-                bestScore: bestScore > 0 ? bestScore : avgScore,
+                bestScore,
             });
         });
         entries.sort((a, b) => b.avgScore - a.avgScore);

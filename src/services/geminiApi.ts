@@ -407,6 +407,9 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
             parsed.weaknesses = parsed.weaknesses || [];
             parsed.strengths = parsed.strengths || [];
             if (parsed.score > parsed.maxScore) parsed.score = parsed.maxScore;
+            // Cap at 95% of maxScore to match exam grading standard (no perfect 10)
+            const capScore = parsed.maxScore * 0.95;
+            if (parsed.score > capScore) parsed.score = capScore;
             return parsed;
         }
     } catch (e) {
