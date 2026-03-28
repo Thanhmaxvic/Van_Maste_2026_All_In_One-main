@@ -81,20 +81,27 @@ export async function sendGradingRequest(prompt: string): Promise<string> {
 }
 
 /**
- * Generate an image using Imagen 3.0.
+ * Generate an image using Gemini 2.5 Flash native image generation.
  */
 export async function generateImage(prompt: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        const res = await fetch(`${GEMINI_BASE_URL}/nano-banana-pro-preview:generateContent?key=${apiKey}`, {
+        const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash-image:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+            }),
         });
         const data = await res.json();
-        if (data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
-            return `data:image/png;base64,${data.candidates[0].content.parts[0].inlineData.data}`;
+        // Iterate through all parts to find image data
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        for (const part of parts) {
+            if (part.inlineData?.mimeType?.startsWith('image/')) {
+                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            }
         }
     } catch (error) {
         console.error('Image generation error:', error);
@@ -192,7 +199,18 @@ export async function generateDiagnosticMCQ(prompt: string): Promise<DiagnosticQ
         let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
         // Strip markdown code fences if present
         raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-        return JSON.parse(raw) as DiagnosticQuizData;
+        // Try direct parse first
+        try {
+            return JSON.parse(raw) as DiagnosticQuizData;
+        } catch {
+            // Fallback: extract the JSON object from surrounding text
+            const jsonMatch = raw.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]) as DiagnosticQuizData;
+            }
+            console.error('generateDiagnosticMCQ: Could not extract JSON from response:', raw.slice(0, 200));
+            return null;
+        }
     } catch (err) {
         console.error('generateDiagnosticMCQ error:', err);
         return null;
@@ -230,7 +248,7 @@ export async function sendProactiveMessage(
 
 /**
  * Generate an educational infographic about a Vietnamese literary work
- * using Nano Banana Pro (gemini-3-pro-image-preview model).
+ * using Gemini 2.5 Flash native image generation.
  * Returns a base64 data URL string or null on failure.
  */
 export async function generateInfographic(workTitle: string): Promise<string | null> {
@@ -244,9 +262,8 @@ Text must be clear, readable Vietnamese. High contrast. Suitable for high school
 Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
-        // nano-banana-pro-preview = Nanobanana Pro (confirmed available)
-        const NANO_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-        const res = await fetch(`${NANO_BASE}/nano-banana-pro-preview:generateContent?key=${apiKey}`, {
+        // Use Gemini 2.5 Flash native image generation
+        const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash-image:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
