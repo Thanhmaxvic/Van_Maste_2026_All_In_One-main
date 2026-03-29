@@ -34,6 +34,7 @@ import {
 import { getDatabase, ref as rtdbRef, onValue, onDisconnect, set, push } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
 import type { UserProfile, ExamSubmission, ExamGrade, LessonProgress, TeacherProfile } from '../types';
+import { calculateUserLevel } from './levelService';
 
 const firebaseConfig = {
     apiKey: "AIzaSyCOwsJrIX6Ni1eWNzo4ytjdrNeVYiEJMjc",
@@ -137,7 +138,8 @@ export async function createUserProfile(user: User): Promise<UserProfile> {
         submissionCount: 0,
         weaknesses: [],
         strengths: [],
-        level: 'Tân Binh',
+        level: calculateUserLevel(0, false).level,
+        badges: calculateUserLevel(0, false).badges,
         xp: 0,
         streak: 1,
         progress: 5,
@@ -160,6 +162,7 @@ export async function saveTargetScore(uid: string, score: number) {
 export async function completeAssessment(uid: string, diagnosticScore: number) {
     // Cap at 9.5 to match exam grading standard (no perfect 10)
     const cappedScore = Math.min(diagnosticScore, 9.5);
+    const { level, badges } = calculateUserLevel(cappedScore, true);
     await updateDoc(doc(db, 'users', uid), {
         isOnboarded: true,
         assessmentDone: true,
@@ -167,6 +170,8 @@ export async function completeAssessment(uid: string, diagnosticScore: number) {
         avgScore: cappedScore,
         bestScore: cappedScore,
         submissionCount: 1,
+        level,
+        badges,
     });
 }
 
@@ -307,6 +312,8 @@ export async function saveExamInsights(
 
     const newBest = Math.max(currentProfile.bestScore || 0, scoreOutOf10);
 
+    const { level, badges } = calculateUserLevel(newAvg, currentProfile.isOnboarded);
+
     await updateDoc(doc(db, 'users', uid), {
         weaknesses: mergedWeaknesses,
         weaknessCleanStreak: cleanStreak,
@@ -315,6 +322,8 @@ export async function saveExamInsights(
         submissionCount: newCount,
         bestScore: newBest,
         xp: (currentProfile.xp || 0) + Math.round(grade.score * 20),
+        level,
+        badges
     });
 
     return { mergedWeaknesses, resolvedWeaknesses, mergedStrengths, newAvg };

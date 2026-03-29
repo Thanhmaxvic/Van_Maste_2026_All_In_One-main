@@ -7,10 +7,11 @@ import { PRONOUN_MAP, TTS_VOICE_MAP } from '../../constants';
 
 interface SettingsPanelProps {
     open: boolean;
+    mode?: 'settings' | 'profile';
     onClose: () => void;
 }
 
-export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
+export default function SettingsPanel({ open, mode = 'settings', onClose }: SettingsPanelProps) {
     const { userProfile, setUserProfile } = useAuth();
     const [saving, setSaving] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
@@ -81,13 +82,16 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             />
 
             {/* Drawer */}
-            <aside className={`sp-drawer ${open ? 'sp-open' : ''}`}>
+            <aside 
+                className={`sp-drawer ${open ? 'sp-open' : ''}`}
+                style={{ height: 'auto', bottom: 'auto', maxHeight: '100vh', paddingBottom: 20, borderRadius: '0 0 0 24px' }}
+            >
 
                 {/* ── Top bar ── */}
                 <div className="sp-topbar">
                     <div className="sp-title">
-                        <Settings size={18} />
-                        <span>Cài đặt</span>
+                        {mode === 'settings' ? <Settings size={18} /> : <User size={18} />}
+                        <span>{mode === 'settings' ? 'Cài đặt' : 'Hồ sơ của bạn'}</span>
                     </div>
                     <button className="sp-close-btn" onClick={onClose}>
                         <X size={18} />
@@ -97,8 +101,8 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                 {/* ── Scrollable body ── */}
                 <div className="sp-body">
 
-                    {/* Profile card */}
-                    {userProfile && (
+                    {/* Profile card: Settings mode */}
+                    {userProfile && mode === 'settings' && (
                         <div className="sp-profile-card">
                             <div className="sp-avatar relative group overflow-hidden">
                                 {userProfile.avatarUrl ? (
@@ -193,96 +197,143 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
                                 )}
                                 <div className="sp-profile-email">{userProfile.email}</div>
                             </div>
-                            <div className="sp-level-badge">{userProfile.level}</div>
                         </div>
                     )}
 
-                    {/* Stats row */}
-                    <div className="sp-stats-row">
-                        <div className="sp-stat">
-                            <div className="sp-stat-icon sp-stat-blue"><Trophy size={14} /></div>
-                            <div>
-                                <div className="sp-stat-val">{avgScore}/10</div>
-                                <div className="sp-stat-lbl">Điểm TB</div>
+                    {/* Profile Banner: Profile mode only */}
+                    {userProfile && mode === 'profile' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 20px 8px' }}>
+                            <div className="sp-avatar" style={{ width: 64, height: 64, fontSize: 28, margin: '0 auto 12px' }}>
+                                {userProfile.avatarUrl ? (
+                                    <img src={userProfile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                ) : (
+                                    <span>{userProfile.name.charAt(0).toUpperCase()}</span>
+                                )}
+                            </div>
+                            <div className="sp-level-badge" style={{ alignSelf: 'center', margin: 0, fontSize: 13, padding: '6px 14px' }}>
+                                {userProfile.level}
                             </div>
                         </div>
-                        <div className="sp-stat-div" />
-                        <div className="sp-stat">
-                            <div className="sp-stat-icon sp-stat-gold"><Zap size={14} /></div>
-                            <div>
-                                <div className="sp-stat-val">{target}/10</div>
-                                <div className="sp-stat-lbl">Mục tiêu</div>
+                    )}
+
+                    {/* Stats and Badges: Only in Profile mode */}
+                    {mode === 'profile' && (
+                        <>
+                            <div className="sp-stats-row">
+                                <div className="sp-stat">
+                                    <div className="sp-stat-icon sp-stat-blue"><Trophy size={14} /></div>
+                                    <div>
+                                        <div className="sp-stat-val">{avgScore}/10</div>
+                                        <div className="sp-stat-lbl">Điểm TB</div>
+                                    </div>
+                                </div>
+                                <div className="sp-stat-div" />
+                                <div className="sp-stat">
+                                    <div className="sp-stat-icon sp-stat-gold"><Zap size={14} /></div>
+                                    <div>
+                                        <div className="sp-stat-val">{target}/10</div>
+                                        <div className="sp-stat-lbl">Mục tiêu</div>
+                                    </div>
+                                </div>
+                                <div className="sp-stat-div" />
+                                <div className="sp-stat">
+                                    <div className="sp-stat-icon sp-stat-green"><User size={14} /></div>
+                                    <div>
+                                        <div className="sp-stat-val">{userProfile?.submissionCount ?? 0}</div>
+                                        <div className="sp-stat-lbl">Bài nộp</div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div className="sp-stat-div" />
-                        <div className="sp-stat">
-                            <div className="sp-stat-icon sp-stat-green"><User size={14} /></div>
-                            <div>
-                                <div className="sp-stat-val">{userProfile?.submissionCount ?? 0}</div>
-                                <div className="sp-stat-lbl">Bài nộp</div>
+
+                            {userProfile?.badges && userProfile.badges.length > 0 && (
+                                <div className="sp-section">
+                                    <div className="sp-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fcd34d' }}>
+                                        <Trophy size={15} />
+                                        Thành tích & Vật phẩm
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                                        {userProfile.badges.map((badge, idx) => (
+                                            <div key={idx} style={{ 
+                                                background: 'linear-gradient(135deg, rgba(252, 211, 77, 0.15), rgba(252, 211, 77, 0.05))', 
+                                                border: '1px solid rgba(252, 211, 77, 0.3)', 
+                                                color: '#fcd34d', 
+                                                padding: '6px 12px', 
+                                                borderRadius: '20px', 
+                                                fontSize: '13px', 
+                                                fontWeight: 600, 
+                                                boxShadow: '0 2px 10px rgba(0,0,0,0.2)' 
+                                            }}>
+                                                {badge}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* Voice and App Info: Only in Settings mode */}
+                    {mode === 'settings' && (
+                        <>
+                            <div className="sp-section">
+                                <div className="sp-section-title">Giọng gia sư</div>
+                                <p className="sp-section-desc">
+                                    AI sẽ xưng "<strong>{pronoun}</strong>" với bạn
+                                </p>
+
+                                <div className="sp-voice-toggle">
+                                    <button
+                                        className={`sp-voice-btn ${!isMale ? 'active female' : ''}`}
+                                        onClick={() => handleVoiceChange('female')}
+                                        disabled={saving}
+                                    >
+                                        <span>Giọng Nữ</span>
+                                        <span className="sp-voice-pronoun">Xưng: Cô</span>
+                                    </button>
+                                    <button
+                                        className={`sp-voice-btn ${isMale ? 'active male' : ''}`}
+                                        onClick={() => handleVoiceChange('male')}
+                                        disabled={saving}
+                                    >
+                                        <span>Giọng Nam</span>
+                                        <span className="sp-voice-pronoun">Xưng: Thầy</span>
+                                    </button>
+                                </div>
+                                {saving && <p className="sp-saving">Đang lưu...</p>}
                             </div>
-                        </div>
-                    </div>
 
-                    {/* Section: Voice */}
-                    <div className="sp-section">
-                        <div className="sp-section-title">Giọng gia sư</div>
-                        <p className="sp-section-desc">
-                            AI sẽ xưng "<strong>{pronoun}</strong>" với bạn
-                        </p>
-
-                        {/* Toggle switch */}
-                        <div className="sp-voice-toggle">
-                            <button
-                                className={`sp-voice-btn ${!isMale ? 'active female' : ''}`}
-                                onClick={() => handleVoiceChange('female')}
-                                disabled={saving}
-                            >
-                                <span>Giọng Nữ</span>
-                                <span className="sp-voice-pronoun">Xưng: Cô</span>
-                            </button>
-                            <button
-                                className={`sp-voice-btn ${isMale ? 'active male' : ''}`}
-                                onClick={() => handleVoiceChange('male')}
-                                disabled={saving}
-                            >
-                                <span>Giọng Nam</span>
-                                <span className="sp-voice-pronoun">Xưng: Thầy</span>
-                            </button>
-                        </div>
-                        {saving && <p className="sp-saving">Đang lưu...</p>}
-                    </div>
-
-                    {/* Section: Voice info */}
-                    <div className="sp-section">
-                        <div className="sp-section-title">Giọng đọc hiện tại</div>
-                        <div className="sp-info-row">
-                            <Volume2 size={14} style={{ color: 'var(--sp-accent)' }} />
-                            <div>
-                                <div className="sp-info-main">{voiceName}</div>
-                                <div className="sp-info-sub">Google Cloud TTS Wavenet</div>
+                            <div className="sp-section">
+                                <div className="sp-section-title">Giọng đọc hiện tại</div>
+                                <div className="sp-info-row">
+                                    <Volume2 size={14} style={{ color: 'var(--sp-accent)' }} />
+                                    <div>
+                                        <div className="sp-info-main">{voiceName}</div>
+                                        <div className="sp-info-sub">Google Cloud TTS Wavenet</div>
+                                    </div>
+                                    <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: 0.4 }} />
+                                </div>
                             </div>
-                            <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: 0.4 }} />
-                        </div>
-                    </div>
 
-                    {/* Section: App info */}
-                    <div className="sp-section">
-                        <div className="sp-section-title">Ứng dụng</div>
-                        <div className="sp-info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-                            <div className="sp-info-main">Chuyên gia Ngữ văn THPT v1.1</div>
-                            <div className="sp-info-sub">Powered by Google Gemini 2.5 Flash</div>
-                        </div>
-                    </div>
+                            <div className="sp-section">
+                                <div className="sp-section-title">Ứng dụng</div>
+                                <div className="sp-info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                                    <div className="sp-info-main">Chuyên gia Ngữ văn THPT v1.1</div>
+                                    <div className="sp-info-sub">Powered by Google Gemini 2.5 Flash</div>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
 
-                {/* ── Footer: logout ── */}
-                <div className="sp-footer">
-                    <button className="sp-logout-btn" onClick={handleLogout}>
-                        <LogOut size={16} />
-                        Đăng xuất
-                    </button>
-                </div>
+                {/* Footer: logout (Available in both modes but particularly fits settings) */}
+                {mode === 'settings' && (
+                    <div className="sp-footer">
+                        <button className="sp-logout-btn" onClick={handleLogout}>
+                            <LogOut size={16} />
+                            Đăng xuất
+                        </button>
+                    </div>
+                )}
             </aside>
         </>
     );

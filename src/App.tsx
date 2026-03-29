@@ -23,7 +23,7 @@ type Tab = 'chat' | 'learn' | 'exam' | 'stats' | 'roadmap';
 function StudentApp() {
   const { user, userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('chat');
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [panelMode, setPanelMode] = useState<'settings' | 'profile' | null>(null);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeAIExam, setActiveAIExam] = useState<AIExamData | null>(null);
@@ -87,8 +87,7 @@ function StudentApp() {
   return (
     <div className="app-shell">
       <Header
-        onOpenSettings={() => setSettingsOpen(true)}
-        onOpenSidebar={() => setMobileSidebarOpen(true)}
+        onOpenPanel={(mode) => setPanelMode(mode)}
       />
 
       {/* Mobile sidebar overlay (profile & stats) */}
@@ -247,7 +246,7 @@ function StudentApp() {
         </div>
       </div>
 
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsPanel open={!!panelMode} mode={panelMode || 'settings'} onClose={() => setPanelMode(null)} />
       <ChatBubble />
     </div>
   );

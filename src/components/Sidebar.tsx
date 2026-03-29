@@ -140,6 +140,28 @@ export default function Sidebar({ profile }: SidebarProps) {
                 </div>
             )}
 
+            {/* Badges */}
+            {profile.badges && profile.badges.length > 0 && (
+                <div>
+                    <div className="sidebar-section-title" style={{ color: '#FCD34D' }}>Danh hiệu & Vật phẩm</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {profile.badges.map((badge, i) => (
+                            <span key={i} style={{
+                                background: 'rgba(252,211,77,0.1)',
+                                border: '1px solid rgba(252,211,77,0.3)',
+                                color: '#FCD34D',
+                                padding: '4px 8px',
+                                borderRadius: '12px',
+                                fontSize: '12px',
+                                fontWeight: 600
+                            }}>
+                                {badge}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Level */}
             <div className="stat-row">
                 <span className="stat-row-label">Cấp độ</span>

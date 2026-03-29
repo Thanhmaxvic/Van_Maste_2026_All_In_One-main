@@ -64,6 +64,7 @@ export interface UserProfile {
   /** Strengths detected by AI */
   strengths: string[];
   level: string;
+  badges?: string[];
   xp: number;
   streak: number;
   progress: number;

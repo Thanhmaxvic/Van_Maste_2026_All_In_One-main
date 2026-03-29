@@ -5,8 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { listenToStats, listenToOnlineUsers, getRegisteredUsersCount, listenToSystemConfig } from '../services/firebaseService';
 
 interface HeaderProps {
-    onOpenSettings: () => void;
-    onOpenSidebar?: () => void;
+    onOpenPanel: (mode: 'settings' | 'profile') => void;
 }
 
 function daysLeft() {
@@ -15,7 +14,7 @@ function daysLeft() {
     ));
 }
 
-export default function Header({ onOpenSettings, onOpenSidebar }: HeaderProps) {
+export default function Header({ onOpenPanel }: HeaderProps) {
     const { userProfile } = useAuth();
     const diff = daysLeft();
     const pct = Math.min(100, Math.round(100 - (diff / 365) * 100));
@@ -24,6 +23,7 @@ export default function Header({ onOpenSettings, onOpenSidebar }: HeaderProps) {
     const [onlineUsers, setOnlineUsers] = useState(0);
     const [registeredCount, setRegisteredCount] = useState(0);
     const [globalNotif, setGlobalNotif] = useState<{ text: string, active: boolean } | null>(null);
+    const [showNotif, setShowNotif] = useState(false);
 
     useEffect(() => {
         // Lấy số tài khoản thực tế từ collection users
@@ -115,21 +115,61 @@ export default function Header({ onOpenSettings, onOpenSidebar }: HeaderProps) {
                     </div>
                 </div>
 
-                {/* Notification (future feature placeholder) */}
-                <button className="hdr-icon-btn hdr-bell-btn" title="Thông báo" style={{ position: 'relative' }}>
-                    <Bell size={17} />
-                    <span className="notif-dot" />
-                </button>
+                {/* Notification */}
+                <div style={{ position: 'relative' }}>
+                    <button 
+                        className="hdr-icon-btn hdr-bell-btn" 
+                        title="Thông báo"
+                        onClick={() => setShowNotif(!showNotif)}
+                    >
+                        <Bell size={17} />
+                        {(globalNotif?.active || userProfile?.level === 'Tân binh Khám phá') && <span className="notif-dot" />}
+                    </button>
+
+                    {showNotif && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '120%',
+                            right: 0,
+                            width: 300,
+                            background: '#fff',
+                            borderRadius: 12,
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                            padding: 16,
+                            zIndex: 1000,
+                            color: '#1e293b',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 12,
+                            border: '1px solid rgba(0,0,0,0.05)'
+                        }}>
+                            <div style={{ fontWeight: 600, fontSize: 14, borderBottom: '1px solid #eee', paddingBottom: 8 }}>Thông báo</div>
+                            {userProfile?.level === 'Tân binh Khám phá' && (
+                                <div style={{ fontSize: 13, background: '#f8fafc', padding: 10, borderRadius: 8, borderLeft: '3px solid #3b82f6' }}>
+                                    <strong style={{ color: '#3b82f6' }}>Hệ thống:</strong> Chào mừng bạn! Hành trình vạn dặm bắt đầu từ bước chân đầu tiên. Thay đổi trong Cài đặt để nhận Huy hiệu Nhập môn.
+                                </div>
+                            )}
+                            {globalNotif?.active && globalNotif?.text && (
+                                <div style={{ fontSize: 13, background: '#fff5f5', padding: 10, borderRadius: 8, borderLeft: '3px solid #ef4444' }}>
+                                    <strong style={{ color: '#ef4444' }}>Giáo viên:</strong> {globalNotif.text}
+                                </div>
+                            )}
+                            {!(globalNotif?.active) && userProfile?.level !== 'Tân binh Khám phá' && (
+                                <div style={{ fontSize: 13, opacity: 0.6, textAlign: 'center', padding: '10px 0' }}>Không có thông báo mới.</div>
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 {/* Settings */}
-                <button className="hdr-icon-btn" onClick={onOpenSettings} title="Cài đặt">
+                <button className="hdr-icon-btn" onClick={() => onOpenPanel('settings')} title="Cài đặt">
                     <Settings size={17} />
                 </button>
 
-                {/* User avatar (desktop: mở cài đặt, mobile: mở sidebar) */}
+                {/* User avatar */}
                 <button
                     className="hdr-avatar"
-                    onClick={onOpenSidebar || onOpenSettings}
+                    onClick={() => onOpenPanel('profile')}
                     title="Hồ sơ của bạn"
                 >
                     {initial}
