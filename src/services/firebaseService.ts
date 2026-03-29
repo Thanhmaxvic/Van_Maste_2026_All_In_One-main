@@ -342,12 +342,84 @@ export async function saveExamSubmission(uid: string, examId: number, studentAns
     return ref.id;
 }
 
-export async function updateSubmissionGrade(uid: string, submissionId: string, grade: ExamSubmission['grade']) {
+export async function updateSubmissionPendingGrade(uid: string, submissionId: string, grade: ExamSubmission['grade']) {
     await updateDoc(doc(db, 'users', uid, 'submissions', submissionId), {
-        status: 'graded',
-        grade,
+        status: 'pending_review', // Không graded ngay mà phải chờ duyệt
+        aiSuggestedGrade: grade,
         gradedAt: serverTimestamp(),
     });
+}
+
+export interface PendingSubmission {
+    uid: string;
+    userName: string;
+    submissionId: string;
+    examId: number;
+    studentAnswer: string;
+    cheating: boolean;
+    aiSuggestedGrade: ExamGrade;
+    createdAt: any;
+}
+
+export async function getPendingSubmissions(): Promise<PendingSubmission[]> {
+    const usersSnap = await getDocs(collection(db, 'users'));
+    const pendingList: PendingSubmission[] = [];
+    
+    for (const d of usersSnap.docs) {
+        const uid = d.id;
+        const name = d.data().name || 'Unknown';
+        const subQ = query(collection(db, 'users', uid, 'submissions'), where('status', '==', 'pending_review'));
+        const subSnap = await getDocs(subQ);
+        subSnap.docs.forEach(sd => {
+            const sData = sd.data();
+            if (sData.aiSuggestedGrade) {
+                pendingList.push({
+                    uid,
+                    userName: name,
+                    submissionId: sd.id,
+                    examId: sData.examId,
+                    studentAnswer: sData.studentAnswer,
+                    cheating: sData.cheating || false,
+                    aiSuggestedGrade: sData.aiSuggestedGrade as ExamGrade,
+                    createdAt: sData.createdAt,
+                });
+            }
+        });
+    }
+    // Sort by createdAt descending
+    return pendingList.sort((a, b) => {
+        const ta = a.createdAt?.toMillis?.() || 0;
+        const tb = b.createdAt?.toMillis?.() || 0;
+        return tb - ta;
+    });
+}
+
+export async function approveSubmission(uid: string, finalGrade: ExamGrade, submissionId?: string) {
+    if (submissionId) {
+        await updateDoc(doc(db, 'users', uid, 'submissions', submissionId), {
+            status: 'graded',
+            grade: finalGrade,
+            approvedAt: serverTimestamp(),
+        });
+    } else {
+        // Giáo viên upload file chấm hộ
+        await addDoc(collection(db, 'users', uid, 'submissions'), {
+            examId: 9999, // offline đánh dấu là mã 9999
+            studentAnswer: "(Bài thi nộp bên ngoài)",
+            cheating: false,
+            status: 'graded',
+            grade: finalGrade,
+            createdAt: serverTimestamp(),
+            approvedAt: serverTimestamp(),
+        });
+    }
+
+    const docRef = doc(db, 'users', uid);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+    const currentProfile = snap.data() as UserProfile;
+
+    return saveExamInsights(uid, finalGrade, currentProfile);
 }
 
 /**

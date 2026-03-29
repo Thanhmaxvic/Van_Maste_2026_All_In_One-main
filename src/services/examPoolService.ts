@@ -1,8 +1,6 @@
-import { fetchDocxAsText } from './examService';
+import { fetchDocxAsText, detectAvailableExams } from './examService';
 import { sendGradingRequest } from './geminiApi';
 import type { AIExamData, AIExamQuestion } from '../types';
-
-const TOTAL_EXAMS = 51;
 
 /** Pick N unique random numbers from 1..max */
 function pickRandom(count: number, max: number): number[] {
@@ -79,8 +77,10 @@ LƯU Ý QUAN TRỌNG:
 export async function buildExamFromPool(
     type: 'reading' | 'writing' | 'full'
 ): Promise<AIExamData | null> {
+    const totalExams = await detectAvailableExams();
+    
     // Pick 2 random source exams for variety
-    const sourceIds = pickRandom(2, TOTAL_EXAMS);
+    const sourceIds = pickRandom(2, totalExams);
 
     // Fetch all source exams and answer keys in parallel
     const sources = await Promise.all(

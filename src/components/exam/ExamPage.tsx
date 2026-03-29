@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, Send, RefreshCw, CheckCircle, AlertCircle, Mic, MicOff, Square, Play, Maximize2, Clock, Trophy } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 import { pickRandomExam, fetchDocxAsText, gradeWithAI, detectAvailableExams } from '../../services/examService';
-import { saveExamSubmission, updateSubmissionGrade, completeAssessment, saveExamInsights, getExamHistory } from '../../services/firebaseService';
+import { saveExamSubmission, updateSubmissionPendingGrade, completeAssessment, getExamHistory } from '../../services/firebaseService';
 import { useAuth } from '../../context/AuthContext';
 import GradingResult from './GradingResult';
 import type { ExamSubmission, ExamGrade, AIExamData } from '../../types';
@@ -39,7 +39,7 @@ interface ExamPageProps {
 }
 
 export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onGradeComplete, aiExam }: ExamPageProps) {
-    const { user, userProfile, setUserProfile } = useAuth();
+    const { user, setUserProfile } = useAuth();
     const [examId, setExamId] = useState<number | null>(aiExam ? 0 : null);
     const [status, setStatus] = useState<ExamStatus>('loading');
     const [answer, setAnswer] = useState('');
@@ -283,28 +283,17 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
             }
 
             const grade = await gradeWithAI(examText, answerKeyText, answer || '(Bo trang)');
-            await updateSubmissionGrade(user.uid, submissionId, grade);
+            await updateSubmissionPendingGrade(user.uid, submissionId, grade);
 
-            // Save weakness/strength insights to Firestore
-            let resolvedWeaknesses: string[] = [];
-            if (userProfile) {
-                const insights = await saveExamInsights(user.uid, grade, userProfile);
-                resolvedWeaknesses = insights.resolvedWeaknesses || [];
-                // Update local profile with resolved weaknesses removed
-                setUserProfile(p => p ? {
-                    ...p,
-                    weaknesses: insights.mergedWeaknesses,
-                    strengths: insights.mergedStrengths,
-                    avgScore: insights.newAvg,
-                    submissionCount: (p.submissionCount || 0) + 1,
-                } : p);
-            }
+            // Bỏ qua luồng saveExamInsights và cập nhật local profile
+            // Học sinh chỉ nhận được kết quả dự đoán (Pending Review) từ AI.
 
             // Complete assessment gate if this was a diagnostic exam
             if (diagnosticMode && grade) {
+                // Tạm thời cho phép qua Onboarding gạt để vào app, nhưng không lưu điểm chính thức
                 const diagScore = +(grade.score / grade.maxScore * 10).toFixed(1);
                 await completeAssessment(user.uid, diagScore);
-                setUserProfile(p => p ? { ...p, diagnosticScore: diagScore, assessmentDone: true, isOnboarded: true } : p);
+                setUserProfile(p => p ? { ...p, assessmentDone: true, isOnboarded: true } : p);
                 onDiagnosticDone?.();
             }
 
@@ -312,19 +301,8 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
             setStatus('graded');
             setShowGrading(true);
 
-            // Update local examHistory (best score per exam)
-            const scoreOutOf10 = +(grade.score / grade.maxScore * 10).toFixed(1);
-            setExamHistory(prev => {
-                const next = new Map(prev);
-                const existing = next.get(examId);
-                if (existing === undefined || scoreOutOf10 > existing) {
-                    next.set(examId, scoreOutOf10);
-                }
-                return next;
-            });
-
-            // Switch to chat and show grade result (with resolved weaknesses list)
-            onGradeComplete?.(grade, resolvedWeaknesses);
+            // Switch to chat and show grade result (with an empty string array since points won't be resolved yet)
+            onGradeComplete?.(grade, []);
         } catch (err) {
             console.error('Submit error:', err);
             setErrorMsg('Có lỗi khi nộp bài. Vui lòng thử lại.');

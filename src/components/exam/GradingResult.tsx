@@ -40,7 +40,10 @@ export default function GradingResult({ grade, examId, onClose, onNewExam }: Gra
                     </button>
 
                     <div className="text-5xl mb-2">{getScoreEmoji()}</div>
-                    <h2 className="font-black text-2xl mb-1">Kết Quả Chấm Bài</h2>
+                    <h2 className="font-black text-xl mb-1 mt-2">Điểm AI Gợi Ý (Chờ Duyệt)</h2>
+                    <p className="text-white/90 text-xs bg-black/20 px-3 py-1 rounded-full inline-block mt-1 mb-2">
+                        Điểm sẽ được cập nhật chính thức sau khi Giáo viên duyệt
+                    </p>
                     <p className="text-white/80 text-sm">Đề thi số #{examId}</p>
 
                     {/* Score circle */}

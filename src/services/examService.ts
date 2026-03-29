@@ -20,26 +20,41 @@ let _availableExamsCache: number | null = null;
 export async function detectAvailableExams(): Promise<number> {
     if (_availableExamsCache !== null) return _availableExamsCache;
 
-    // Scan up to 200 exams concurrently to be safe and handle holes or .doc
-    const promises = Array.from({ length: 200 }, async (_, index) => {
-        const i = index + 1;
-        try {
-            let res = await fetch(`/dethi/${i}.docx`, { method: 'HEAD' });
-            if (res.ok) return i;
+    // Quét tới 200 đề. Để tránh lỗi giới hạn kết nối đồng thời của trình duyệt (thường là 6)
+    // hoặc lỗi 429 Too Many Requests từ server khi gửi 400 request cùng lúc,
+    // chúng ta sẽ quét theo từng lô (batch).
+    let validCount = 0;
+    const maxExams = 150; // Quét tối đa 150 đề
+    const batchSize = 10; 
 
-            res = await fetch(`/dethi/${i}.doc`, { method: 'HEAD' });
-            if (res.ok) return i;
+    for (let i = 0; i < maxExams; i += batchSize) {
+        const batch = Array.from({ length: Math.min(batchSize, maxExams - i) }, (_, index) => i + index + 1);
+        const promises = batch.map(async (id) => {
+            try {
+                let res = await fetch(`/dethi/${id}.docx`, { method: 'HEAD' });
+                if (res.ok) return id;
 
-            return null;
-        } catch {
-            return null;
+                res = await fetch(`/dethi/${id}.doc`, { method: 'HEAD' });
+                if (res.ok) return id;
+
+                return null;
+            } catch {
+                return null;
+            }
+        });
+
+        const results = await Promise.all(promises);
+        const validExamsInBatch = results.filter(id => id !== null);
+        validCount += validExamsInBatch.length;
+        
+        // Nếu lô này hoàn toàn không có đề nào (tức là đã quét hết đến số đề cuối),
+        // ta có thể dừng sớm để tiết kiệm thời gian chờ.
+        if (validExamsInBatch.length === 0 && i > 50) {
+            break; 
         }
-    });
+    }
 
-    const results = await Promise.all(promises);
-    const validExams = results.filter(id => id !== null) as number[];
-
-    _availableExamsCache = Math.max(1, validExams.length);
+    _availableExamsCache = Math.max(1, validCount);
     return _availableExamsCache;
 }
 
