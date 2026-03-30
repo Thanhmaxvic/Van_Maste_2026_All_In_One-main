@@ -123,7 +123,7 @@ export default function Header({ onOpenPanel }: HeaderProps) {
                         onClick={() => setShowNotif(!showNotif)}
                     >
                         <Bell size={17} />
-                        {(globalNotif?.active || userProfile?.level === 'Tân binh Khám phá') && <span className="notif-dot" />}
+                        {(globalNotif?.active || userProfile?.level === 'Sĩ Tử Nhập Môn') && <span className="notif-dot" />}
                     </button>
 
                     {showNotif && (
@@ -144,9 +144,9 @@ export default function Header({ onOpenPanel }: HeaderProps) {
                             border: '1px solid rgba(0,0,0,0.05)'
                         }}>
                             <div style={{ fontWeight: 600, fontSize: 14, borderBottom: '1px solid #eee', paddingBottom: 8 }}>Thông báo</div>
-                            {userProfile?.level === 'Tân binh Khám phá' && (
+                            {userProfile?.level === 'Sĩ Tử Nhập Môn' && (
                                 <div style={{ fontSize: 13, background: '#f8fafc', padding: 10, borderRadius: 8, borderLeft: '3px solid #3b82f6' }}>
-                                    <strong style={{ color: '#3b82f6' }}>Hệ thống:</strong> Chào mừng bạn! Hành trình vạn dặm bắt đầu từ bước chân đầu tiên. Thay đổi trong Cài đặt để nhận Huy hiệu Nhập môn.
+                                    <strong style={{ color: '#3b82f6' }}>Hệ thống:</strong> Chào mừng bạn! Hành trình vạn dặm bắt đầu từ bước chân đầu tiên. Thay đổi trong Cài đặt để nhận Đèn Khuya.
                                 </div>
                             )}
                             {globalNotif?.active && globalNotif?.text && (
@@ -154,7 +154,7 @@ export default function Header({ onOpenPanel }: HeaderProps) {
                                     <strong style={{ color: '#ef4444' }}>Giáo viên:</strong> {globalNotif.text}
                                 </div>
                             )}
-                            {!(globalNotif?.active) && userProfile?.level !== 'Tân binh Khám phá' && (
+                            {!(globalNotif?.active) && userProfile?.level !== 'Sĩ Tử Nhập Môn' && (
                                 <div style={{ fontSize: 13, opacity: 0.6, textAlign: 'center', padding: '10px 0' }}>Không có thông báo mới.</div>
                             )}
                         </div>

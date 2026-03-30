@@ -29,7 +29,7 @@ import {
 import type { DiagnosticQuizData } from '../services/geminiApi';
 import { playTTS, queueTTS, stopCurrentAudio } from '../services/ttsService';
 import { useAuth } from '../context/AuthContext';
-import { saveTargetScore, completeAssessment, saveChatMemory, loadChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson } from '../services/firebaseService';
+import { saveTargetScore, saveChatMemory, loadChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson } from '../services/firebaseService';
 import { findLesson, getLessonKey } from '../constants/curriculum';
 import { fetchDocxAsText, estimateSectionCount } from '../services/examService';
 

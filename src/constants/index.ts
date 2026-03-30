@@ -160,7 +160,7 @@ Trả về JSON THUẦN:
 }`;
 
 export const DEFAULT_USER_DATA: UserData = {
-  level: 'Tân Binh',
+  level: 'Sĩ Tử Nhập Môn',
   status: 'Sẵn sàng chiến',
   progress: 5,
   xp: 0,

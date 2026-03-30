@@ -619,7 +619,7 @@ export async function getAllUsers(): Promise<AdminUserEntry[]> {
             avgScore: data.avgScore ?? 0,
             bestScore: data.bestScore ?? null,
             submissionCount: data.submissionCount ?? 0,
-            level: data.level || 'Tân Binh',
+            level: data.level || 'Sĩ Tử Nhập Môn',
             isOnboarded: data.isOnboarded ?? false,
         });
     });
