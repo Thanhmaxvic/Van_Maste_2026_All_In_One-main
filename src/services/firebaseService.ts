@@ -156,22 +156,15 @@ export async function saveTargetScore(uid: string, score: number) {
     await updateDoc(doc(db, 'users', uid), { targetScore: score });
 }
 
-/**
- * Mark assessment as done. This is the final onboarding step.
- */
 export async function completeAssessment(uid: string, diagnosticScore: number) {
-    // Cap at 9.5 to match exam grading standard (no perfect 10)
+    // Chỉ kích hoạt cờ hoàn thành Onboarding để vào ứng dụng, 
+    // điểm số và level sẽ KHÔNG được cộng ngay mà đợi giáo viên duyệt.
     const cappedScore = Math.min(diagnosticScore, 9.5);
-    const { level, badges } = calculateUserLevel(cappedScore, true);
     await updateDoc(doc(db, 'users', uid), {
         isOnboarded: true,
         assessmentDone: true,
-        diagnosticScore: cappedScore,
-        avgScore: cappedScore,
-        bestScore: cappedScore,
-        submissionCount: 1,
-        level,
-        badges,
+        diagnosticScore: cappedScore, 
+        // Xóa logic cập nhật avgScore, bestScore, level, badges tại đây theo rule: không tự động duyệt.
     });
 }
 
@@ -364,15 +357,28 @@ export interface PendingSubmission {
 export async function getPendingSubmissions(): Promise<PendingSubmission[]> {
     const usersSnap = await getDocs(collection(db, 'users'));
     const pendingList: PendingSubmission[] = [];
-    
-    for (const d of usersSnap.docs) {
+
+    await Promise.all(usersSnap.docs.map(async (d) => {
         const uid = d.id;
         const name = d.data().name || 'Unknown';
-        const subQ = query(collection(db, 'users', uid, 'submissions'), where('status', '==', 'pending_review'));
-        const subSnap = await getDocs(subQ);
-        subSnap.docs.forEach(sd => {
-            const sData = sd.data();
-            if (sData.aiSuggestedGrade) {
+        const subQ = query(
+            collection(db, 'users', uid, 'submissions'), 
+            where('status', 'in', ['pending', 'pending_review'])
+        );
+        
+        try {
+            const subSnap = await getDocs(subQ);
+            subSnap.docs.forEach(sd => {
+                const sData = sd.data();
+                // Luôn push tất cả submission đang ở trạng thái pending_review
+                const aiGrade: ExamGrade = sData.aiSuggestedGrade || {
+                    score: 0,
+                    maxScore: 10,
+                    feedback: 'Lỗi parse điểm AI',
+                    details: 'AI không thể tạo điểm nháp',
+                    errors: [], improvements: [], weaknesses: [], strengths: []
+                };
+
                 pendingList.push({
                     uid,
                     userName: name,
@@ -380,12 +386,14 @@ export async function getPendingSubmissions(): Promise<PendingSubmission[]> {
                     examId: sData.examId,
                     studentAnswer: sData.studentAnswer,
                     cheating: sData.cheating || false,
-                    aiSuggestedGrade: sData.aiSuggestedGrade as ExamGrade,
+                    aiSuggestedGrade: aiGrade,
                     createdAt: sData.createdAt,
                 });
-            }
-        });
-    }
+            });
+        } catch (err) {
+            console.error('Lỗi khi fetch pending của user', uid, err);
+        }
+    }));
     // Sort by createdAt descending
     return pendingList.sort((a, b) => {
         const ta = a.createdAt?.toMillis?.() || 0;

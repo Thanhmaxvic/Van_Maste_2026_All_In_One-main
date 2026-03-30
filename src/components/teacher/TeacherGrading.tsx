@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { UploadCloud, FileText, CheckCircle, Loader2, AlertCircle, Clock, User, Check, Edit3 } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, Loader2, AlertCircle, Clock, User, Check, Edit3, RefreshCw } from 'lucide-react';
 import type { ExamGrade } from '../../types';
 import { getPendingSubmissions, approveSubmission, type PendingSubmission } from '../../services/firebaseService';
 
@@ -38,8 +38,9 @@ export default function TeacherGrading() {
         try {
             const list = await getPendingSubmissions();
             setPendingList(list);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            setErrorMsg('Lỗi tải hàng chờ: ' + e.message);
         }
         setIsLoadingPending(false);
     };
@@ -135,19 +136,27 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
             <p className="text-gray-500 mb-6 mt-1 text-sm">Hệ thống tuân thủ nguyên tắc kiểm duyệt: AI Gợi ý - Giáo viên Quyết định.</p>
 
             {/* Tabs */}
-            <div className="flex gap-2 mb-6 border-b border-gray-200">
-                <button
-                    onClick={() => { setActiveTab('pending'); setResult(null); setSelectedPending(null); }}
-                    className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                    Hàng Chờ Duyệt ({pendingList.length})
-                </button>
-                <button
-                    onClick={() => { setActiveTab('offline'); setResult(null); setSelectedPending(null); }}
-                    className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'offline' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                    Chấm Bài Offline
-                </button>
+            <div className="flex gap-2 mb-6 border-b border-gray-200 justify-between items-center">
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => { setActiveTab('pending'); setResult(null); setSelectedPending(null); loadPending(); }}
+                        className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Hàng Chờ Duyệt ({pendingList.length})
+                    </button>
+                    <button
+                        onClick={() => { setActiveTab('offline'); setResult(null); setSelectedPending(null); }}
+                        className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'offline' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Chấm Bài Offline
+                    </button>
+                </div>
+                {activeTab === 'pending' && (
+                    <button onClick={loadPending} className="flex items-center gap-1 text-sm text-pink-500 hover:text-pink-600 font-medium px-3 py-1 bg-pink-50 rounded-lg transition-colors">
+                        <RefreshCw size={14} className={isLoadingPending ? "animate-spin" : ""} />
+                        Làm mới
+                    </button>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
