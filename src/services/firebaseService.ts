@@ -107,6 +107,11 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
             await setDoc(docRef, { role: 'teacher' }, { merge: true });
             data.role = 'teacher';
         }
+        // Recalculate level dynamically to handle updates in level logic
+        const levelInfo = calculateUserLevel(data.avgScore || 0, data.isOnboarded || false);
+        data.level = levelInfo.level;
+        data.badges = levelInfo.badges;
+
         return data;
     }
     return null;
@@ -116,7 +121,11 @@ export function listenToUserProfile(uid: string, callback: (profile: UserProfile
     const docRef = doc(db, 'users', uid);
     return onSnapshot(docRef, (snap) => {
         if (snap.exists()) {
-            callback(snap.data() as UserProfile);
+            const data = snap.data() as UserProfile;
+            const levelInfo = calculateUserLevel(data.avgScore || 0, data.isOnboarded || false);
+            data.level = levelInfo.level;
+            data.badges = levelInfo.badges;
+            callback(data);
         } else {
             callback(null);
         }
@@ -611,6 +620,7 @@ export async function getAllUsers(): Promise<AdminUserEntry[]> {
     const users: AdminUserEntry[] = [];
     snap.forEach(d => {
         const data = d.data();
+        const levelInfo = calculateUserLevel(data.avgScore || 0, data.isOnboarded || false);
         users.push({
             uid: d.id,
             name: data.name || 'Bạn',
@@ -619,7 +629,7 @@ export async function getAllUsers(): Promise<AdminUserEntry[]> {
             avgScore: data.avgScore ?? 0,
             bestScore: data.bestScore ?? null,
             submissionCount: data.submissionCount ?? 0,
-            level: data.level || 'Sĩ Tử Nhập Môn',
+            level: levelInfo.level,
             isOnboarded: data.isOnboarded ?? false,
         });
     });
