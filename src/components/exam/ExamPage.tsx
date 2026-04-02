@@ -322,7 +322,7 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
             <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 shadow-sm">
                 <div>
                     <h2 className="font-black text-slate-800 text-base flex items-center gap-2">
-                        Đề Thi #{examId}
+                        Đề thi #{examId}
                         {diagnosticMode && (
                             <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                                 Chẩn đoán

@@ -131,9 +131,9 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
     return (
         <div className="teacher-grading p-6 max-w-7xl mx-auto h-[100dvh] overflow-y-auto w-full">
             <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <CheckCircle className="text-pink-500" /> Trung Tâm Chấm Thi AI
+                <CheckCircle className="text-pink-500" /> Trung tâm chấm thi AI
             </h1>
-            <p className="text-gray-500 mb-6 mt-1 text-sm">Hệ thống tuân thủ nguyên tắc kiểm duyệt: AI Gợi ý - Giáo viên Quyết định.</p>
+            <p className="text-gray-500 mb-6 mt-1 text-sm">Hệ thống tuân thủ nguyên tắc kiểm duyệt: AI gợi ý - con người kiểm tra - con người quyết định - hệ thống thực thi.</p>
 
             {/* Tabs */}
             <div className="flex gap-2 mb-6 border-b border-gray-200 justify-between items-center">
@@ -142,13 +142,13 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                         onClick={() => { setActiveTab('pending'); setResult(null); setSelectedPending(null); loadPending(); }}
                         className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                     >
-                        Hàng Chờ Duyệt ({pendingList.length})
+                        Hàng chờ duyệt ({pendingList.length})
                     </button>
                     <button
                         onClick={() => { setActiveTab('offline'); setResult(null); setSelectedPending(null); }}
                         className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${activeTab === 'offline' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                     >
-                        Chấm Bài Offline
+                        Chấm bài offline
                     </button>
                 </div>
                 {activeTab === 'pending' && (
@@ -165,7 +165,7 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                     {activeTab === 'pending' ? (
                         <>
                             <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                                <Clock size={20} className="text-orange-500" /> Bài Thi Học Sinh Mới Nộp
+                                <Clock size={20} className="text-orange-500" /> Bài thi học sinh mới nộp
                             </h2>
                             {isLoadingPending ? (
                                 <div className="flex-1 flex justify-center items-center text-gray-400">
@@ -200,7 +200,7 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                                     ))}
                                 </div>
                             )}
-                            
+
                             {selectedPending && (
                                 <div className="mt-4 pt-4 border-t border-gray-100">
                                     <h3 className="font-bold text-gray-700 mb-2 text-sm">Nội dung bài làm của học sinh:</h3>
@@ -292,9 +292,9 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                 {/* Right: Results Panel */}
                 <div className="bg-slate-50 rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col h-full min-h-[500px]">
                     <h2 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200 flex items-center justify-between">
-                        <span className="flex items-center gap-2"><Award size={20} className="text-purple-500" /> Kết Quả Đánh Giá (AI Gợi Ý)</span>
+                        <span className="flex items-center gap-2"><Award size={20} className="text-purple-500" /> Kết quả đánh giá (AI gợi ý)</span>
                         {selectedPending && (
-                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-bold">Chờ Giáo Viên Chốt</span>
+                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-bold">Chờ giáo viên chốt</span>
                         )}
                     </h2>
 
@@ -316,10 +316,10 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                         <div className="flex-1 overflow-y-auto pr-2 flex flex-col">
                             {/* Score header - Editable */}
                             <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-pink-100 shadow-sm mb-6">
-                                <span className="text-gray-600 font-semibold text-sm flex items-center gap-1"><Edit3 size={14}/> Điểm Cuối Cùng:</span>
+                                <span className="text-gray-600 font-semibold text-sm flex items-center gap-1"><Edit3 size={14} /> Điểm Cuối Cùng:</span>
                                 <div className="flex items-center gap-2">
-                                    <input 
-                                        type="number" 
+                                    <input
+                                        type="number"
                                         min="0" max="10" step="0.25"
                                         value={editScore}
                                         onChange={e => setEditScore(e.target.value === '' ? '' : Number(e.target.value))}
@@ -331,8 +331,8 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
 
                             {/* Main feedback - Editable */}
                             <div className="mb-6">
-                                <h3 className="text-sm uppercase tracking-wider font-bold text-gray-500 mb-2 flex items-center gap-1"><Edit3 size={14}/> Nhận xét chung cho học sinh</h3>
-                                <textarea 
+                                <h3 className="text-sm uppercase tracking-wider font-bold text-gray-500 mb-2 flex items-center gap-1"><Edit3 size={14} /> Nhận xét chung cho học sinh</h3>
+                                <textarea
                                     className="w-full bg-white p-4 rounded-lg border border-gray-200 text-gray-800 text-sm leading-relaxed shadow-sm min-h-[120px] outline-none focus:ring-2 focus:ring-pink-300 transition-shadow resize-y"
                                     value={editFeedback}
                                     onChange={e => setEditFeedback(e.target.value)}
@@ -343,7 +343,7 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                             <div className="space-y-6 flex-1">
                                 {result.details && (
                                     <div>
-                                        <h3 className="text-sm uppercase tracking-wider font-bold text-gray-400 mb-2">Chi tiết từng phần (AI Phân tích - Readonly)</h3>
+                                        <h3 className="text-sm uppercase tracking-wider font-bold text-gray-400 mb-2">Chi tiết từng phần (AI phân tích - Readonly)</h3>
                                         <div className="bg-white/50 p-4 rounded-lg border border-gray-100 text-gray-500 text-sm whitespace-pre-wrap leading-relaxed">
                                             {result.details}
                                         </div>
@@ -365,10 +365,10 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                                         </div>
                                     </div>
                                 )}
-                                
+
                                 <div className="h-8"></div> {/* spacer */}
                             </div>
-                            
+
                             {/* Action Form Footer */}
                             <div className="pt-4 mt-auto border-t border-gray-200">
                                 {selectedPending ? (

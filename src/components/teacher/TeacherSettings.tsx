@@ -351,7 +351,7 @@ export default function TeacherSettings() {
                                         }
                                     }}
                                 >
-                                    Cấp Quyền Admin
+                                    Cấp quyền admin
                                 </button>
                             </div>
                         </div>
@@ -359,7 +359,7 @@ export default function TeacherSettings() {
                         <div className="border-t border-white/10"></div>
 
                         <div className="ts-form-group mb-0">
-                            <label>Danh sách Quản trị viên hiện tại</label>
+                            <label>Danh sách quản trị viên hiện tại</label>
                             {loadingAdmins ? (
                                 <p className="text-white/50 text-sm">Đang tải...</p>
                             ) : adminList.length === 0 ? (

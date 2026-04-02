@@ -33,7 +33,7 @@ export const CURRICULUM: CurriculumSection[] = [
     },
     {
         id: 's2',
-        title: 'Đọc Hiểu',
+        title: 'Đọc hiểu',
         icon: Search,
         color: '#8b5cf6',
         lessons: [
@@ -43,7 +43,7 @@ export const CURRICULUM: CurriculumSection[] = [
     },
     {
         id: 's3',
-        title: 'Viết Đoạn Văn',
+        title: 'Viết đoạn văn',
         icon: Edit3,
         color: '#f59e0b',
         lessons: [
@@ -54,7 +54,7 @@ export const CURRICULUM: CurriculumSection[] = [
     },
     {
         id: 's4',
-        title: 'Viết Bài Văn',
+        title: 'Viết bài Văn',
         icon: PenTool,
         color: '#10b981',
         lessons: [

@@ -82,7 +82,7 @@ export default function SettingsPanel({ open, mode = 'settings', onClose }: Sett
             />
 
             {/* Drawer */}
-            <aside 
+            <aside
                 className={`sp-drawer ${open ? 'sp-open' : ''}`}
                 style={{ height: 'auto', bottom: 'auto', maxHeight: '100vh', paddingBottom: 20, borderRadius: '0 0 0 24px' }}
             >
@@ -253,15 +253,15 @@ export default function SettingsPanel({ open, mode = 'settings', onClose }: Sett
                                     </div>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                                         {userProfile.badges.map((badge, idx) => (
-                                            <div key={idx} style={{ 
-                                                background: 'linear-gradient(135deg, rgba(252, 211, 77, 0.15), rgba(252, 211, 77, 0.05))', 
-                                                border: '1px solid rgba(252, 211, 77, 0.3)', 
-                                                color: '#fcd34d', 
-                                                padding: '6px 12px', 
-                                                borderRadius: '20px', 
-                                                fontSize: '13px', 
-                                                fontWeight: 600, 
-                                                boxShadow: '0 2px 10px rgba(0,0,0,0.2)' 
+                                            <div key={idx} style={{
+                                                background: 'linear-gradient(135deg, rgba(252, 211, 77, 0.15), rgba(252, 211, 77, 0.05))',
+                                                border: '1px solid rgba(252, 211, 77, 0.3)',
+                                                color: '#fcd34d',
+                                                padding: '6px 12px',
+                                                borderRadius: '20px',
+                                                fontSize: '13px',
+                                                fontWeight: 600,
+                                                boxShadow: '0 2px 10px rgba(0,0,0,0.2)'
                                             }}>
                                                 {badge}
                                             </div>
@@ -287,7 +287,7 @@ export default function SettingsPanel({ open, mode = 'settings', onClose }: Sett
                                         onClick={() => handleVoiceChange('female')}
                                         disabled={saving}
                                     >
-                                        <span>Giọng Nữ</span>
+                                        <span>Giọng nữ</span>
                                         <span className="sp-voice-pronoun">Xưng: Cô</span>
                                     </button>
                                     <button
@@ -295,7 +295,7 @@ export default function SettingsPanel({ open, mode = 'settings', onClose }: Sett
                                         onClick={() => handleVoiceChange('male')}
                                         disabled={saving}
                                     >
-                                        <span>Giọng Nam</span>
+                                        <span>Giọng nam</span>
                                         <span className="sp-voice-pronoun">Xưng: Thầy</span>
                                     </button>
                                 </div>

@@ -165,7 +165,7 @@ export default function TeacherDashboard() {
         <div className="td-container">
             <div className="td-header">
                 <div>
-                    <h1>Bảng Quản Lý</h1>
+                    <h1>Bảng quản lý</h1>
                     <p>Tổng quan hệ thống Ngữ Văn Master</p>
                 </div>
                 <button className="td-refresh-btn" onClick={loadData} disabled={loading}>
