@@ -170,7 +170,7 @@ export default function TeacherSettings() {
                         {saving ? 'Đang lưu...' : saved ? '✓ Đã lưu thành công' : 'Lưu thông tin'}
                     </button>
 
-                    <h2 className="text-xl font-bold mt-12 mb-4">Thông báo Hệ thống (Toàn trang)</h2>
+                    <h2 className="text-xl font-bold mt-12 mb-4">Thông báo hệ thống (toàn trang)</h2>
                     <div className="bg-white/5 rounded-xl p-6 border border-white/10 flex flex-col gap-6">
                         <div className="ts-form-group mb-0">
                             <label className="flex items-center gap-2 cursor-pointer mb-2 w-max text-white">
@@ -211,7 +211,7 @@ export default function TeacherSettings() {
                                     }
                                 }}
                             >
-                                {savingNotif ? 'Đang lưu...' : 'Lưu Thông báo'}
+                                {savingNotif ? 'Đang lưu...' : 'Lưu thông báo'}
                             </button>
                         </div>
                     </div>
@@ -220,7 +220,7 @@ export default function TeacherSettings() {
                     <div className="bg-white/5 rounded-xl p-6 border border-white/10 flex flex-col gap-6">
 
                         <div className="ts-form-group mb-0">
-                            <label>Đổi Email đăng nhập</label>
+                            <label>Đổi email đăng nhập</label>
                             <div className="flex gap-2 items-center mb-2">
                                 <input
                                     type="password"
@@ -258,7 +258,7 @@ export default function TeacherSettings() {
                                         }
                                     }}
                                 >
-                                    Xác nhận Đổi Email
+                                    Xác nhận đổi email
                                 </button>
                             </div>
                         </div>
@@ -266,7 +266,7 @@ export default function TeacherSettings() {
                         <div className="border-t border-white/10"></div>
 
                         <div className="ts-form-group mb-0">
-                            <label>Đổi Mật khẩu</label>
+                            <label>Đổi mật khẩu</label>
                             <div className="flex flex-col gap-2">
                                 <input
                                     type="password"
@@ -314,7 +314,7 @@ export default function TeacherSettings() {
                                             }
                                         }}
                                     >
-                                        Đổi Mật khẩu
+                                        Đổi mật khẩu
                                     </button>
                                 </div>
                             </div>
@@ -323,7 +323,7 @@ export default function TeacherSettings() {
                         <div className="border-t border-white/10"></div>
 
                         <div className="ts-form-group mb-0">
-                            <label>Thêm Quản trị viên (Phân quyền Admin)</label>
+                            <label>Thêm quản trị viên (Phân quyền Admin)</label>
                             <p className="text-xs text-white/50 mb-2">Người dùng mang email này sẽ có toàn quyền truy cập trang quản lý.</p>
                             <div className="flex gap-2 items-center">
                                 <input
