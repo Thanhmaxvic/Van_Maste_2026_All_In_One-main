@@ -17,6 +17,7 @@ import {
 import {
     getFirestore,
     doc,
+    deleteDoc,
     getDoc,
     setDoc,
     updateDoc,
@@ -409,6 +410,10 @@ export async function getPendingSubmissions(): Promise<PendingSubmission[]> {
         const tb = b.createdAt?.toMillis?.() || 0;
         return tb - ta;
     });
+}
+
+export async function rejectSubmission(uid: string, submissionId: string) {
+    await deleteDoc(doc(db, 'users', uid, 'submissions', submissionId));
 }
 
 export async function approveSubmission(uid: string, finalGrade: ExamGrade, submissionId?: string) {

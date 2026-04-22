@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { UploadCloud, FileText, CheckCircle, Loader2, AlertCircle, Clock, User, Check, Edit3, RefreshCw } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, Loader2, AlertCircle, Clock, User, Check, Edit3, RefreshCw, Trash2 } from 'lucide-react';
 import type { ExamGrade } from '../../types';
-import { getPendingSubmissions, approveSubmission, type PendingSubmission } from '../../services/firebaseService';
+import { getPendingSubmissions, approveSubmission, rejectSubmission, type PendingSubmission } from '../../services/firebaseService';
 
 export default function TeacherGrading() {
     const [activeTab, setActiveTab] = useState<'pending' | 'offline'>('pending');
@@ -48,8 +48,8 @@ export default function TeacherGrading() {
     const handleSelectPending = (p: PendingSubmission) => {
         setSelectedPending(p);
         setResult(p.aiSuggestedGrade);
-        setEditScore(p.aiSuggestedGrade.score);
-        setEditFeedback(p.aiSuggestedGrade.feedback);
+        setEditScore(p.aiSuggestedGrade?.score ?? '');
+        setEditFeedback(p.aiSuggestedGrade?.feedback || '');
         setErrorMsg('');
     };
 
@@ -58,15 +58,37 @@ export default function TeacherGrading() {
         setIsApproving(true);
         try {
             const finalGrade: ExamGrade = {
-                ...selectedPending.aiSuggestedGrade,
                 score: Number(editScore),
-                feedback: editFeedback
+                maxScore: selectedPending.aiSuggestedGrade?.maxScore ?? 10,
+                feedback: editFeedback || '',
+                details: selectedPending.aiSuggestedGrade?.details || '',
+                errors: selectedPending.aiSuggestedGrade?.errors || [],
+                improvements: selectedPending.aiSuggestedGrade?.improvements || [],
+                weaknesses: selectedPending.aiSuggestedGrade?.weaknesses || [],
+                strengths: selectedPending.aiSuggestedGrade?.strengths || []
             };
+            
             await approveSubmission(selectedPending.uid, finalGrade, selectedPending.submissionId);
             setResult(null);
             setSelectedPending(null);
             await loadPending();
             alert('Đã duyệt điểm thành công! Điểm đã được ghi vào hồ sơ học sinh.');
+        } catch (e: any) {
+            alert('Lỗi: ' + e.message);
+        }
+        setIsApproving(false);
+    };
+
+    const handleReject = async () => {
+        if (!selectedPending) return;
+        if (!window.confirm("Bạn có chắc chắn muốn xóa bài này khỏi hàng chờ duyệt? Hành động này không thể hoàn tác.")) return;
+        setIsApproving(true);
+        try {
+            await rejectSubmission(selectedPending.uid, selectedPending.submissionId);
+            setResult(null);
+            setSelectedPending(null);
+            await loadPending();
+            alert('Đã xóa bài thi khỏi hàng chờ.');
         } catch (e: any) {
             alert('Lỗi: ' + e.message);
         }
@@ -372,14 +394,24 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                             {/* Action Form Footer */}
                             <div className="pt-4 mt-auto border-t border-gray-200">
                                 {selectedPending ? (
-                                    <button
-                                        onClick={handleApprove}
-                                        disabled={isApproving}
-                                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all disabled:opacity-50"
-                                    >
-                                        {isApproving ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} />}
-                                        DUYỆT ĐIỂM & LƯU HỒ SƠ
-                                    </button>
+                                    <div className="flex flex-col gap-2">
+                                        <button
+                                            onClick={handleApprove}
+                                            disabled={isApproving}
+                                            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all disabled:opacity-50"
+                                        >
+                                            {isApproving ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} />}
+                                            DUYỆT ĐIỂM & LƯU HỒ SƠ
+                                        </button>
+                                        <button
+                                            onClick={handleReject}
+                                            disabled={isApproving}
+                                            className="w-full flex items-center justify-center gap-2 bg-white hover:bg-red-50 text-red-500 border border-red-200 font-bold py-3 rounded-xl shadow-sm transition-all disabled:opacity-50"
+                                        >
+                                            <Trash2 size={20} />
+                                            XÓA KHỎI HÀNG CHỜ
+                                        </button>
+                                    </div>
                                 ) : (
                                     <div className="text-center text-sm text-gray-400 bg-gray-100 rounded-lg p-3 border border-gray-200 border-dashed">
                                         Đây là bài chấm Offline. Tính năng lưu hồ sơ cho chức năng này đang được phát triển. Dùng điểm gợi ý để nhập tay.
