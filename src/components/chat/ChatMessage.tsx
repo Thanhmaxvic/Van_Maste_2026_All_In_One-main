@@ -20,8 +20,13 @@ function clean(raw: string): string {
 }
 
 function renderBody(text: string, isUser: boolean): React.ReactNode {
-    const lines = text.split('\n');
-    return lines.map((line, i) => {
+    // Extract [SỬA]...[/SỬA] correction blocks
+    const correctionMatch = text.match(/\[SỬA\]([\s\S]*?)\[\/SỬA\]/);
+    const correctionText = correctionMatch ? correctionMatch[1].trim() : null;
+    const mainText = text.replace(/\[SỬA\][\s\S]*?\[\/SỬA\]\s*/g, '').trim();
+
+    const lines = mainText.split('\n');
+    const bodyElements = lines.map((line, i) => {
         const t = line.trim();
         if (!t) return <div key={i} style={{ height: 4 }} />;
 
@@ -47,6 +52,18 @@ function renderBody(text: string, isUser: boolean): React.ReactNode {
         }
         return <p key={i} style={{ margin: '2px 0', fontSize: 13.5, lineHeight: 1.6 }}>{t}</p>;
     });
+
+    return (
+        <>
+            {correctionText && !isUser && (
+                <div className="spelling-correction">
+                    <span className="spelling-icon">✏️</span>
+                    <span>{correctionText}</span>
+                </div>
+            )}
+            {bodyElements}
+        </>
+    );
 }
 
 function GradeBubble({ grade }: { grade: ExamGrade }) {

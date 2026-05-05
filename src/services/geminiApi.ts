@@ -19,6 +19,16 @@ export async function sendChatMessage(
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
+    // Build [DATETIME] context so AI knows current date/time
+    const now = new Date();
+    const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const dayOfWeek = dayNames[now.getDay()];
+    const dateStr = now.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const examDate = new Date('2026-06-11');
+    const daysLeft = Math.max(0, Math.ceil((examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    const datetimeBlock = `\n[THỜI GIAN HIỆN TẠI]\n- Ngày: ${dayOfWeek}, ${dateStr}\n- Giờ: ${timeStr}\n- Còn ${daysLeft} ngày đến kỳ thi tốt nghiệp THPT (11/06/2026)\n[/THỜI GIAN]\nDựa vào thời gian trên để phản hồi phù hợp. Ví dụ: buổi tối thì nhắc em nghỉ ngơi, sáng sớm thì khen em chăm chỉ, gần thi thì động viên tập trung.`;
+
     // Build [PROFILE] context block for profile-aware AI responses
     let profileBlock = '';
     if (userProfile) {
@@ -31,7 +41,7 @@ export async function sendChatMessage(
         profileBlock = `\n[PROFILE HOC SINH]\n- Ten: ${userProfile.name}\n- Diem TB: ${avg}/10 | Muc tieu: ${target}/10\n- Diem yeu: ${weaknesses}\n- Diem manh: ${strengths}\n- Bai da nop: ${userProfile.submissionCount ?? 0}\n- Xung ho: "${xungHo}" - "em"\n[/PROFILE]\n\nDua vao profile tren, tu dong dieu chinh lo trinh goi y. LUON xung ho la "${xungHo}" khi noi voi hoc sinh.`;
     }
 
-    const parts: unknown[] = [{ text: SYSTEM_PROMPT + profileBlock }];
+    const parts: unknown[] = [{ text: SYSTEM_PROMPT + datetimeBlock + profileBlock }];
 
     messages.slice(-CHAT_HISTORY_LIMIT).forEach((m) => {
         parts.push({ text: `${m.role}: ${m.content}` });

@@ -724,6 +724,28 @@ body,
   color: var(--color-primary);
 }
 
+/* ── Spelling Correction Banner ─────────── */
+.spelling-correction {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #92400E;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.spelling-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  margin-top: 1px;
+}
+
 /* ── Quiz Option Buttons ────────────────── */
 .quiz-options-grid {
   display: grid;

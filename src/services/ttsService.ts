@@ -22,9 +22,11 @@ let queueGeneration = 0;
 
 /**
  * Clean text by removing special markers and markdown characters.
+ * Also strips [SỬA]...[/SỬA] spelling correction blocks so they display but are NOT spoken.
  */
 function cleanTextForTTS(text: string): string {
     return text
+        .replace(/\[SỬA\][\s\S]*?\[\/SỬA\]/g, '')
         .replace(/\[TIMELINE\]|\[GEN_IMAGE\]|\[EXAM_PAPER\]|\[\/EXAM_PAPER\]|\[SECTION_DONE\]|\[QUESTION_CORRECT\]|\[LESSON_DONE\]|[*#_\[\]()]/g, '')
         .replace(/\*\*/g, '')
         .trim();
