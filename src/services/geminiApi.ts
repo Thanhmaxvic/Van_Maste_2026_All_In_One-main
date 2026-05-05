@@ -66,7 +66,7 @@ export async function sendChatMessage(
             const docUrl = KNOWLEDGE_DOCS[docName];
             if (docUrl && docUrl.endsWith('.docx')) {
                 try {
-                    const docRes = await fetch(docUrl);
+                    const docRes = await fetch(encodeURI(docUrl));
                     if (docRes.ok) {
                         const arrayBuffer = await docRes.arrayBuffer();
                         const result = await mammoth.extractRawText({ arrayBuffer });
