@@ -13,6 +13,8 @@ interface TTSQueueItem {
 
 const ttsQueue: TTSQueueItem[] = [];
 let isProcessingQueue = false;
+/** True when playTTS is directly playing chunks (not via queue). Blocks processQueue from starting. */
+let isPlayingDirect = false;
 /** Incremented on every stopCurrentAudio() call — queue loops check this to bail out. */
 let queueGeneration = 0;
 
@@ -155,7 +157,7 @@ function playSingleTTS(
  * Uses queueGeneration to detect cancellation mid-processing.
  */
 async function processQueue(): Promise<void> {
-    if (isProcessingQueue) return;
+    if (isProcessingQueue || isPlayingDirect) return;
     isProcessingQueue = true;
 
     const myGeneration = queueGeneration;
@@ -223,14 +225,27 @@ export async function playTTS(
     const clean = cleanTextForTTS(text);
     if (!clean) { onEnd?.(); return; }
 
-    const chunks = splitTextIntoChunks(clean);
-    for (let i = 0; i < chunks.length; i++) {
-        await playSingleTTS(
-            chunks[i],
-            voiceGender,
-            i === 0 ? onStart : undefined,
-            i === chunks.length - 1 ? onEnd : undefined,
-        );
+    // Block processQueue from starting while we play directly
+    isPlayingDirect = true;
+    const myGeneration = queueGeneration;
+
+    try {
+        const chunks = splitTextIntoChunks(clean);
+        for (let i = 0; i < chunks.length; i++) {
+            // Bail out if stopCurrentAudio was called during our playback
+            if (queueGeneration !== myGeneration) break;
+            await playSingleTTS(
+                chunks[i],
+                voiceGender,
+                i === 0 ? onStart : undefined,
+                i === chunks.length - 1 ? onEnd : undefined,
+            );
+        }
+    } finally {
+        // Only release the flag if we're still the active direct player
+        if (queueGeneration === myGeneration) {
+            isPlayingDirect = false;
+        }
     }
 }
 
@@ -238,12 +253,13 @@ export async function playTTS(
  * Stop the currently playing audio and clear the TTS queue.
  */
 export function stopCurrentAudio(): void {
-    // Increment generation to signal any running processQueue loop to stop
+    // Increment generation to signal any running processQueue/playTTS loop to stop
     queueGeneration++;
 
-    // Clear pending queue items
+    // Clear pending queue items and reset all playback flags
     ttsQueue.length = 0;
     isProcessingQueue = false;
+    isPlayingDirect = false;
 
     if (currentAudio) {
         currentAudio.pause();
