@@ -1,4 +1,4 @@
-import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT } from '../constants';
+import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -51,7 +51,57 @@ export async function sendChatMessage(
     });
 
     const data = await res.json();
-    const aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
+    let aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
+
+    // Handle Document Fetching (RAG)
+    if (aiContent.includes('[FETCH_DOC]')) {
+        const docNameRaw = aiContent.split('[FETCH_DOC]')[1].split('\n')[0].trim();
+        // Remove trailing punctuation just in case
+        const docNames = docNameRaw.replace(/[.,;!"']+$/, '').split('|').map(n => n.trim()).filter(Boolean);
+        
+        let combinedDocsText = '';
+        const mammoth = await import('mammoth');
+        
+        for (const docName of docNames) {
+            const docUrl = KNOWLEDGE_DOCS[docName];
+            if (docUrl && docUrl.endsWith('.docx')) {
+                try {
+                    const docRes = await fetch(docUrl);
+                    if (docRes.ok) {
+                        const arrayBuffer = await docRes.arrayBuffer();
+                        const result = await mammoth.extractRawText({ arrayBuffer });
+                        combinedDocsText += `\n--- Tài liệu: ${docName} ---\n${result.value.substring(0, 10000)}\n`;
+                    }
+                } catch (err) {
+                    console.error(`Lỗi khi fetch docx RAG (${docName}):`, err);
+                }
+            }
+        }
+        
+        if (combinedDocsText.trim()) {
+            try {
+                // Construct follow-up prompt
+                const followUpText = `Nội dung tài liệu đã được tải:\n${combinedDocsText}\n\nHãy trả lời câu hỏi của học sinh dựa trên tài liệu này.`;
+                
+                // Call Gemini again with the doc context attached silently
+                const followUpParts: unknown[] = [...parts, { role: 'model', parts: [{ text: `[FETCH_DOC] Đang đọc ${docNames.join(', ')}...` }] }, { role: 'user', parts: [{ text: followUpText }] }];
+                
+                const followUpRes = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: followUpParts }),
+                });
+                
+                const followUpData = await followUpRes.json();
+                aiContent = followUpData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
+            } catch (err) {
+                console.error('Lỗi khi gọi lại Gemini:', err);
+                aiContent = aiContent.replace(/\[FETCH_DOC\].*/s, '*(Lỗi: Không thể phân tích tài liệu)*\n');
+            }
+        } else {
+            aiContent = aiContent.replace(/\[FETCH_DOC\].*/s, '*(Lỗi: Không tìm thấy tài liệu phù hợp)*\n');
+        }
+    }
 
     let generatedImageUrl: string | null = null;
     if (aiContent.includes('[GEN_IMAGE]')) {
@@ -59,7 +109,7 @@ export async function sendChatMessage(
         generatedImageUrl = await generateImage(imagePrompt);
     }
 
-    const cleanedContent = aiContent.replace(/\[GEN_IMAGE\].*/s, '');
+    const cleanedContent = aiContent.replace(/\[GEN_IMAGE\].*/s, '').replace(/\[FETCH_DOC\].*/s, '');
     return { text: cleanedContent, generatedImageUrl };
 }
 

@@ -7,10 +7,11 @@ QUY TẮC BẮT BUỘC:
 2. KHÔNG dùng emoji. KHÔNG dùng ký tự * hoặc ** để in đậm.
 3. Thẳng vào vấn đề, không dài dòng, không chào hỏi lại.
 4. ĐỒ HỌA (timeline, sơ đồ): dùng [TIMELINE] Thời gian | Sự kiện | Mô tả.
-5. TÓM TẮT TÁC PHẨM / THÔNG TIN NHANH: dùng [INFOGRAPHIC] tên_tác_phẩm [/INFOGRAPHIC]. Chỉ dùng khi user yêu cầu tóm tắt hoặc giới thiệu một tác phẩm.
-6. ĐỀ THI AI: dùng [AI_EXAM] {...json...} [/AI_EXAM] khi tạo đề.
-7. TRẮC NGHIỆM: A. B. C. D. rõ ràng — trên từng dòng riêng.
-8. Dùng gạch đầu dòng "-" thay cho in đậm khi liệt kê.
+10. TÓM TẮT TÁC PHẨM / THÔNG TIN NHANH: dùng [INFOGRAPHIC] tên_tác_phẩm [/INFOGRAPHIC]. Chỉ dùng khi user yêu cầu tóm tắt hoặc giới thiệu một tác phẩm.
+11. ĐỀ THI AI: dùng [AI_EXAM] {...json...} [/AI_EXAM] khi tạo đề.
+12. TRẮC NGHIỆM: A. B. C. D. rõ ràng — trên từng dòng riêng.
+13. Dùng gạch đầu dòng "-" thay cho in đậm khi liệt kê.
+14. TRA CỨU TÀI LIỆU LÝ THUYẾT: Khi học sinh hỏi sâu về một tác phẩm, BẮT BUỘC dùng [FETCH_DOC] Tên_Tài_Liệu để hệ thống tải và đọc tài liệu trước khi trả lời. NẾU KHÔNG CHẮC CHẮN tác phẩm nằm ở lớp nào, hãy tìm kiếm trong nhiều tài liệu cùng lúc bằng dấu gạch đứng `|` (Ví dụ: [FETCH_DOC] Truyện ngắn_lớp 10 | Truyện ngắn_lớp 11). Danh sách tài liệu hợp lệ: Chèo_lớp 10, Sử thi_lớp 10, Thơ tự do_lớp 10, Thơ văn Nguyễn Trãi_lớp 10, Thơ Đường luật_lớp 10, Thần thoại_lớp 10, Tiểu thuyết (chương hồi)_lớp 10, Truyện ngắn_lớp 10, Tuồng_lớp 10, VB nghị luận_lớp 10, VB thông tin_lớp 10, Bi kịch_lớp 11, Thơ_lớp 11, Truyện kí_lớp 11, Truyện ngắn_lớp 11, Truyện thơ_lớp 11, Tùy bút_lớp 11, Tản văn_lớp 11, VB nghị luận_lớp 11, VB thông tin_lớp 11, Hài kịch_lớp 12, Hồi kí_lớp 12, Nhật kí_lớp 12, Truyện_lớp 12, VB nghị luận_lớp 12, VB thông tin_lớp 12.
 
 KIẾN THỨC THPT 2025 (BẮT BUỘC NẮM VỮNG):
 - Đề thi tốt nghiệp THPT môn Ngữ văn 2025 dùng 100% ngữ liệu NGOÀI sách giáo khoa.
@@ -235,4 +236,33 @@ YÊU CẦU:
    - Dễ nhớ, gây ấn tượng với giám khảo
 
 4. Tối đa 250 từ. Dùng gạch đầu dòng "-" để liệt kê. KHÔNG dùng ký tự * hoặc **.`;
+
+export const KNOWLEDGE_DOCS: Record<string, string> = {
+  "Chèo_lớp 10": "/lythuyet/trithucnguvan/bai1/Chèo_lớp 10.docx",
+  "Sử thi_lớp 10": "/lythuyet/trithucnguvan/bai1/Sử thi_lớp 10.docx",
+  "Thơ tự do_lớp 10": "/lythuyet/trithucnguvan/bai1/Thơ tự do_lớp 10.docx",
+  "Thơ văn Nguyễn Trãi_lớp 10": "/lythuyet/trithucnguvan/bai1/Thơ văn Nguyễn Trãi_lớp 10.docx",
+  "Thơ Đường luật_lớp 10": "/lythuyet/trithucnguvan/bai1/Thơ Đường luật_lớp 10.docx",
+  "Thần thoại_lớp 10": "/lythuyet/trithucnguvan/bai1/Thần thoại_lớp 10.docx",
+  "Tiểu thuyết (chương hồi)_lớp 10": "/lythuyet/trithucnguvan/bai1/Tiểu thuyết (chương hồi)_lớp 10.docx",
+  "Truyện ngắn_lớp 10": "/lythuyet/trithucnguvan/bai1/Truyện ngắn_lớp 10.docx",
+  "Tuồng_lớp 10": "/lythuyet/trithucnguvan/bai1/Tuồng_lớp 10.docx",
+  "VB nghị luận_lớp 10": "/lythuyet/trithucnguvan/bai1/VB nghị luận_lớp 10.docx",
+  "VB thông tin_lớp 10": "/lythuyet/trithucnguvan/bai1/VB thông tin_lớp 10.docx",
+  "Bi kịch_lớp 11": "/lythuyet/trithucnguvan/bai2/Bi kịch_lớp 11.docx",
+  "Thơ_lớp 11": "/lythuyet/trithucnguvan/bai2/Thơ_lớp 11.docx",
+  "Truyện kí_lớp 11": "/lythuyet/trithucnguvan/bai2/Truyện kí_lớp 11.docx",
+  "Truyện ngắn_lớp 11": "/lythuyet/trithucnguvan/bai2/Truyện ngắn_lớp 11.docx",
+  "Truyện thơ_lớp 11": "/lythuyet/trithucnguvan/bai2/Truyện thơ_lớp 11.docx",
+  "Tùy bút_lớp 11": "/lythuyet/trithucnguvan/bai2/Tùy bút_lớp 11.docx",
+  "Tản văn_lớp 11": "/lythuyet/trithucnguvan/bai2/Tản văn_lớp 11.docx",
+  "VB nghị luận_lớp 11": "/lythuyet/trithucnguvan/bai2/VB nghị luận_lớp 11.docx",
+  "VB thông tin_lớp 11": "/lythuyet/trithucnguvan/bai2/VB thông tin_lớp 11.docx",
+  "Hài kịch_lớp 12": "/lythuyet/trithucnguvan/bai3/Hài kịch_lớp 12.docx",
+  "Hồi kí_lớp 12": "/lythuyet/trithucnguvan/bai3/Hồi kí_lớp 12.docx",
+  "Nhật kí_lớp 12": "/lythuyet/trithucnguvan/bai3/Nhật kí_lớp 12.docx",
+  "Truyện_lớp 12": "/lythuyet/trithucnguvan/bai3/Truyện_lớp 12.docx",
+  "VB nghị luận_lớp 12": "/lythuyet/trithucnguvan/bai3/VB nghị luận_lớp 12.docx",
+  "VB thông tin_lớp 12": "/lythuyet/trithucnguvan/bai3/VB thông tin_lớp 12.docx",
+};
 
