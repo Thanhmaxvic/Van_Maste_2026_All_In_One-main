@@ -14,11 +14,12 @@ import ExamPage from './components/exam/ExamPage';
 import LearningTimeline from './components/learn/LearningTimeline';
 import StatsTab from './components/stats/StatsTab';
 import TeacherApp from './components/teacher/TeacherApp';
+import MiniGamesHub from './components/games/MiniGamesHub';
 import { incrementTotalVisits, trackOnlinePresence } from './services/firebaseService';
 import type { ExamGrade, AIExamData } from './types';
 import './index.css';
 
-type Tab = 'chat' | 'learn' | 'exam' | 'stats' | 'roadmap';
+type Tab = 'chat' | 'learn' | 'exam' | 'stats' | 'games' | 'roadmap';
 
 function StudentApp() {
   const { user, userProfile } = useAuth();
@@ -242,6 +243,11 @@ function StudentApp() {
           {/* Stats Tab */}
           {activeTab === 'stats' && user && (
             <StatsTab currentUid={user.uid} />
+          )}
+
+          {/* Games Tab */}
+          {activeTab === 'games' && (
+            <MiniGamesHub />
           )}
         </div>
       </div>

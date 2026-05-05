@@ -294,9 +294,10 @@ Em có muốn tiếp tục học bài này không, hay muốn trao đổi về v
         }, PROACTIVE_DELAY_MS); // 25 seconds
     }, [userProfile?.isOnboarded]);
 
-    // Clean up timer on unmount
+    // Clean up timer and stop all audio on unmount
     useEffect(() => () => {
         if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
+        stopCurrentAudio();
     }, []);
 
     const handlePlayTTS = (text: string) => {

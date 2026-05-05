@@ -2,6 +2,8 @@ import { TTS_VOICE_MAP } from '../constants';
 
 // Module-level audio reference (singleton pattern for audio playback)
 let currentAudio: HTMLAudioElement | null = null;
+/** AbortController to cancel in-flight TTS fetch requests */
+let currentAbortController: AbortController | null = null;
 
 // ── TTS Queue ────────────────────────────────────────────────────────────────
 interface TTSQueueItem {
@@ -101,12 +103,17 @@ function playSingleTTS(
 
     return new Promise<void>(async (resolve) => {
         try {
+            // Create an AbortController so in-flight requests can be cancelled
+            const abortController = new AbortController();
+            currentAbortController = abortController;
+
             const API_KEY = import.meta.env.VITE_GOOGLE_TTS_API_KEY || '';
             const voiceName = TTS_VOICE_MAP[voiceGender];
 
             const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${API_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: abortController.signal,
                 body: JSON.stringify({
                     input: { text: clean },
                     voice: {
@@ -120,6 +127,11 @@ function playSingleTTS(
                     },
                 }),
             });
+
+            // Clear the abort controller reference after fetch completes
+            if (currentAbortController === abortController) {
+                currentAbortController = null;
+            }
 
             if (!response.ok) {
                 throw new Error('Google TTS API Error');
@@ -144,6 +156,12 @@ function playSingleTTS(
 
             await currentAudio.play();
         } catch (error) {
+            // Silently resolve if aborted (user stopped audio intentionally)
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                currentAudio = null;
+                resolve();
+                return;
+            }
             console.error('❌ Failed to play Google Cloud TTS:', error);
             onEnd?.();
             currentAudio = null;
@@ -261,10 +279,34 @@ export function stopCurrentAudio(): void {
     isProcessingQueue = false;
     isPlayingDirect = false;
 
+    // Abort any in-flight TTS API fetch request
+    if (currentAbortController) {
+        currentAbortController.abort();
+        currentAbortController = null;
+    }
+
     if (currentAudio) {
         currentAudio.pause();
         currentAudio.currentTime = 0;
+        // Remove event listeners to prevent callbacks firing after stop
+        currentAudio.onended = null;
+        currentAudio.onerror = null;
         currentAudio = null;
     }
+}
+
+// ── Stop audio when user closes / hides the tab ──────────────────────────────
+if (typeof window !== 'undefined') {
+    // Fires when the user closes the tab or navigates away
+    window.addEventListener('beforeunload', () => {
+        stopCurrentAudio();
+    });
+
+    // Fires when the tab becomes hidden (e.g. user switches tabs/apps on mobile)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            stopCurrentAudio();
+        }
+    });
 }
 
