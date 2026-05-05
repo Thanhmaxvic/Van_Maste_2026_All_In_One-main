@@ -135,13 +135,13 @@ export async function sendGradingRequest(prompt: string): Promise<string> {
 }
 
 /**
- * Generate an image using Gemini 3 Pro Image (Nano Banana Pro).
+ * Generate an image using Gemini 3.1 Flash Image Preview.
  */
 export async function generateImage(prompt: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        const res = await fetch(`${GEMINI_BASE_URL}/gemini-3-pro-image-preview:generateContent?key=${apiKey}`, {
+        const res = await fetch(`${GEMINI_BASE_URL}/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -290,7 +290,7 @@ export async function sendProactiveMessage(
 
 /**
  * Generate an educational infographic about a Vietnamese literary work
- * using Nano Banana Pro (gemini-3-pro-image-preview model).
+ * using Gemini 3.1 Flash Image Preview.
  * Returns a base64 data URL string or null on failure.
  */
 export async function generateInfographic(workTitle: string): Promise<string | null> {
@@ -304,8 +304,7 @@ Text must be clear, readable Vietnamese. High contrast. Suitable for high school
 Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
-        // gemini-3-pro-image-preview = Nano Banana Pro (correct REST API identifier)
-        const res = await fetch(`${GEMINI_BASE_URL}/gemini-3-pro-image-preview:generateContent?key=${apiKey}`, {
+        const res = await fetch(`${GEMINI_BASE_URL}/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
