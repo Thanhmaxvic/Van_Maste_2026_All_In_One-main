@@ -57,7 +57,7 @@ export async function sendChatMessage(
     if (aiContent.includes('[FETCH_DOC]')) {
         const docNameRaw = aiContent.split('[FETCH_DOC]')[1].split('\n')[0].trim();
         // Remove trailing punctuation just in case
-        const docNames = docNameRaw.replace(/[.,;!"']+$/, '').split('|').map(n => n.trim()).filter(Boolean);
+        const docNames = docNameRaw.replace(/[.,;!"']+$/, '').split('|').map((n: string) => n.trim()).filter(Boolean);
         
         let combinedDocsText = '';
         const mammoth = await import('mammoth');
