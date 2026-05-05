@@ -84,12 +84,16 @@ export async function sendChatMessage(
                 const followUpText = `Nội dung tài liệu đã được tải:\n${combinedDocsText}\n\nHãy trả lời câu hỏi của học sinh dựa trên tài liệu này.`;
                 
                 // Call Gemini again with the doc context attached silently
-                const followUpParts: unknown[] = [...parts, { role: 'model', parts: [{ text: `[FETCH_DOC] Đang đọc ${docNames.join(', ')}...` }] }, { role: 'user', parts: [{ text: followUpText }] }];
+                const followUpContents = [
+                    { role: 'user', parts: parts },
+                    { role: 'model', parts: [{ text: `[FETCH_DOC] Đang đọc ${docNames.join(', ')}...` }] },
+                    { role: 'user', parts: [{ text: followUpText }] }
+                ];
                 
                 const followUpRes = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: followUpParts }),
+                    body: JSON.stringify({ contents: followUpContents }),
                 });
                 
                 const followUpData = await followUpRes.json();
