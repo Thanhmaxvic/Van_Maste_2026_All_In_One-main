@@ -11,7 +11,6 @@ import {
     PROACTIVE_PROMPT,
     PROACTIVE_DELAY_MS,
     QUIZ_GENERATION_PROMPT,
-    CITATION_GENERATION_PROMPT,
     LESSON_TEACH_PROMPT,
     USER_TRAITS_PROMPT,
 } from '../constants';
@@ -23,7 +22,6 @@ import {
     sendProactiveMessage,
     generateDiagnosticMCQ,
     generateInfographic,
-    generateImage,
     sendGradingRequest,
 } from '../services/geminiApi';
 import type { DiagnosticQuizData } from '../services/geminiApi';
@@ -77,8 +75,6 @@ export function useChat(onStartDiagnosticExam?: () => void) {
     const [awaitingTestChoice, setAwaitingTestChoice] = useState(false);
     const [awaitingExamTypeChoice, setAwaitingExamTypeChoice] = useState(false);
     const [quizState, setQuizState] = useState<QuizState>(QUIZ_INIT);
-    const [pendingGraphicPrompt, setPendingGraphicPrompt] = useState(false);
-    const [pendingCitationPrompt, setPendingCitationPrompt] = useState(false);
     const [awaitingTaskInterrupt, setAwaitingTaskInterrupt] = useState(false);
     const pendingInterruptMsgRef = useRef<string>('');
 
@@ -267,17 +263,6 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         if (speak) autoSpeak(content);
     }, [autoSpeak, resetProactiveTimer, playNotification]);
 
-    const askGraphicTopic = useCallback(() => {
-        const suggestion = [
-            'chân dung nhân vật trong một tác phẩm Văn',
-            'khung cảnh một bài thơ em thích',
-            'poster ôn thi cho một tác phẩm Ngữ văn 12',
-        ].join('\n- ');
-        const msg = `Em muốn tạo ảnh đồ hoạ về chủ đề gì?\n\nMột vài gợi ý:\n- ${suggestion}\n\nEm gõ ngắn gọn: tên tác phẩm, nhân vật hoặc chủ đề Ngữ văn mà em muốn vẽ nhé.`;
-        setPendingGraphicPrompt(true);
-        addAssistant(msg);
-    }, [addAssistant]);
-
     // ── Quiz: show passage and reading prompt ─────────────────────────────────
     const startInlineQuiz = useCallback(async () => {
         startBusy();
@@ -432,83 +417,6 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         // Reset proactive timer on user activity
         if (proactiveTimerRef.current) clearTimeout(proactiveTimerRef.current);
 
-        // ── Đang chờ mô tả chủ đề dẫn chứng ────────────────────────────────────
-        if (pendingCitationPrompt) {
-            setPendingCitationPrompt(false);
-            const topic = val;
-            if (!topic) {
-                addAssistant('Em mô tả rõ hơn chủ đề cần dẫn chứng nhé.');
-                setPendingCitationPrompt(true);
-                return;
-            }
-
-            if (!isApiKeyConfigured()) {
-                addAssistant('API Key chưa được cấu hình. Thêm VITE_GOOGLE_API_KEY vào file .env.');
-                return;
-            }
-
-            addAssistant(`${pronoun.charAt(0).toUpperCase() + pronoun.slice(1)} đang tìm dẫn chứng cho chủ đề: "${topic}"...`);
-            startBusy();
-            try {
-                const citationPrompt = CITATION_GENERATION_PROMPT.replace('{{TOPIC}}', topic);
-                const { text: citationResult } = await sendChatMessage(messages, citationPrompt, null);
-                addAssistant(citationResult || 'Không tìm được dẫn chứng phù hợp. Em thử chủ đề khác nhé.');
-            } catch {
-                addAssistant('Có lỗi khi tìm dẫn chứng. Em thử lại sau nhé.');
-            } finally {
-                endBusy();
-            }
-            return;
-        }
-
-        // ── Đang chờ mô tả chủ đề đồ hoạ ─────────────────────────────────────
-        if (pendingGraphicPrompt) {
-            setPendingGraphicPrompt(false);
-            const topic = val;
-            if (!topic) {
-                addAssistant('Em mô tả rõ hơn chủ đề Ngữ văn mà em muốn vẽ nhé.');
-                setPendingGraphicPrompt(true);
-                return;
-            }
-
-            if (!isApiKeyConfigured()) {
-                addAssistant('API Key chưa được cấu hình. Thêm VITE_GOOGLE_API_KEY vào file .env để tạo ảnh đồ hoạ.');
-                return;
-            }
-
-            // Nhắc xác nhận chủ đề Ngữ văn, rồi tạo ảnh bằng Imagen 3.0
-            addAssistant(`${pronoun.charAt(0).toUpperCase() + pronoun.slice(1)} sẽ tạo một ảnh đồ hoạ minh hoạ cho chủ đề Ngữ văn: "${topic}". Đợi một chút nhé...`);
-            startBusy();
-            try {
-                const prompt = `Tạo một ảnh minh hoạ/đồ hoạ đẹp, hiện đại cho môn Ngữ văn THPT Việt Nam với chủ đề: "${topic}".
-Yêu cầu: phải liên quan rõ ràng đến tác phẩm, nhân vật, bài thơ, chủ đề nghị luận hoặc kiến thức Ngữ văn; nếu chủ đề không thuộc môn Văn thì thay vào đó hãy thể hiện một tấm bảng ghi "Chủ đề này không thuộc môn Văn".
-Phong cách: màu sắc ấm, chữ dễ đọc, phù hợp học sinh ôn thi tốt nghiệp THPT.`;
-                const imgUrl = await generateImage(prompt);
-                if (imgUrl) {
-                    setMessages(p => {
-                        const next = [
-                            ...p,
-                            {
-                                role: 'assistant' as const,
-                                content: `Đồ hoạ cho chủ đề "${topic}":`,
-                                generatedImage: imgUrl,
-                            },
-                        ];
-                        resetProactiveTimer(next);
-                        return next;
-                    });
-                    playNotification();
-                } else {
-                    addAssistant('Thầy chưa tạo được ảnh đồ hoạ cho chủ đề này. Em thử mô tả lại ngắn gọn hơn hoặc thử lại sau nhé.');
-                }
-            } catch {
-                addAssistant('Có lỗi khi tạo ảnh đồ hoạ. Em thử lại sau nhé.');
-            } finally {
-                endBusy();
-            }
-            return;
-        }
-
         // ── Onboarding: awaiting target score ────────────────────────────────
         if (awaitingScore) {
             const score = extractScore(val);
@@ -577,21 +485,6 @@ Phong cách: màu sắc ấm, chữ dễ đọc, phù hợp học sinh ôn thi t
             startExamFlow();
             return;
         }
-
-        // ── Detect graphics request ─────────────────────────────────────────
-        const wantsGraphic = /(đồ hoạ|đồ họa|infographic|poster|ảnh minh hoạ|ảnh minh họa|tạo ảnh|vẽ giúp em)/i.test(lower);
-        if (wantsGraphic) {
-            askGraphicTopic();
-            return;
-        }
-
-        // ── Detect citation request ─────────────────────────────────────────
-        const wantsCitation = /(dẫn chứng|tìm dẫn chứng|cho em dẫn chứng|dẫn chứng cho)/i.test(lower);
-        if (wantsCitation) {
-            askCitationTopic();
-            return;
-        }
-
         // Quiz answers are now handled via handleQuizAnswer (clickable buttons)
         // No need to handle quiz answers from text input
 
@@ -887,29 +780,19 @@ Phong cách: màu sắc ấm, chữ dễ đọc, phù hợp học sinh ôn thi t
     }, [addAssistant, autoSpeak, resetProactiveTimer, playNotification]);
 
     const startGraphicFlow = () => {
-        // Giả lập như user vừa nói "Em muốn tạo ảnh đồ họa ạ"
         const syntheticUser: Message = { role: 'user', content: 'Em muốn tạo ảnh đồ hoạ ạ' };
         setMessages(prev => [...prev, syntheticUser]);
-        askGraphicTopic();
+        const msg = `Em muốn tạo ảnh đồ hoạ về tác phẩm hay nhân vật nào? Gõ tên chủ đề để ${pronoun} vẽ cho em nhé.`;
+        addAssistant(msg);
     };
 
     // ── Citation flow ───────────────────────────────────────────────────────
-    const askCitationTopic = useCallback(() => {
-        const suggestion = [
-            'nghị luận về lòng biết ơn',
-            'nghị luận về ý chí vượt khó',
-            'phân tích một tác phẩm văn học',
-        ].join('\n- ');
-        const msg = `Em muốn tìm dẫn chứng cho chủ đề gì?\n\nMột vài gợi ý:\n- ${suggestion}\n\nEm gõ ngắn gọn chủ đề cần dẫn chứng nhé.`;
-        setPendingCitationPrompt(true);
-        addAssistant(msg);
-    }, [addAssistant]);
-
     const startCitationFlow = useCallback(() => {
         const syntheticUser: Message = { role: 'user', content: 'Em muốn tìm dẫn chứng ạ' };
         setMessages(prev => [...prev, syntheticUser]);
-        askCitationTopic();
-    }, [askCitationTopic]);
+        const msg = `Em muốn tìm dẫn chứng cho chủ đề nghị luận nào? Cứ nhắn chủ đề vào đây nhé.`;
+        addAssistant(msg);
+    }, [addAssistant, pronoun]);
 
     // ── Quiz flow (clickable buttons) ────────────────────────────────────────
     const startQuizFlow = useCallback(() => {
