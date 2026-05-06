@@ -29,7 +29,7 @@ import {
 import type { DiagnosticQuizData } from '../services/geminiApi';
 import { playTTS, queueTTS, stopCurrentAudio } from '../services/ttsService';
 import { useAuth } from '../context/AuthContext';
-import { saveTargetScore, saveChatMemory, loadChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson } from '../services/firebaseService';
+import { saveTargetScore, saveChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson } from '../services/firebaseService';
 import { findLesson, getLessonKey } from '../constants/curriculum';
 import { fetchDocxAsText, estimateSectionCount } from '../services/examService';
 
@@ -79,7 +79,6 @@ export function useChat(onStartDiagnosticExam?: () => void) {
     const [quizState, setQuizState] = useState<QuizState>(QUIZ_INIT);
     const [pendingGraphicPrompt, setPendingGraphicPrompt] = useState(false);
     const [pendingCitationPrompt, setPendingCitationPrompt] = useState(false);
-    const [awaitingResumeChoice, setAwaitingResumeChoice] = useState(false);
     const [awaitingTaskInterrupt, setAwaitingTaskInterrupt] = useState(false);
     const pendingInterruptMsgRef = useRef<string>('');
 
@@ -196,60 +195,13 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 autoSpeak(resumeMsg);
             }, 800);
         } else {
-            // Check if there's an active lesson to resume
-            const activeLesson = userProfile.activeLesson;
-            if (activeLesson && activeLesson.sectionId && activeLesson.lessonId) {
-                // Check if lesson is not completed
-                const lessonKey = `${activeLesson.sectionId}-${activeLesson.lessonId}`;
-                const lessonProgress = userProfile.lessonProgress?.[lessonKey];
-                if (lessonProgress && lessonProgress.status !== 'completed') {
-                    // Find lesson info for greeting
-                    const found = findLesson(activeLesson.sectionId, activeLesson.lessonId);
-                    if (found) {
-                        const { section, lesson } = found;
-                        setAwaitingResumeChoice(true);
-                        const resumeLessonMsg = `Chào ${userProfile.name}! Còn ${diff} ngày nữa là thi.
-
-Trong bài học lần trước, ${pr} và em đã học đến phần "${lesson.title}" trong chủ đề "${section.title}". Em đã hoàn thành ${lessonProgress.sectionsDone}/${lessonProgress.sectionsTotal} phần.
-
-Em có muốn tiếp tục học bài này không, hay muốn trao đổi về vấn đề khác?
-
-**A.** Tiếp tục học bài hôm trước
-**B.** Trao đổi vấn đề khác`;
-                        timerId = setTimeout(() => {
-                            setMessages([{ role: 'assistant', content: resumeLessonMsg }]);
-                            playNotification();
-                            autoSpeak(resumeLessonMsg);
-                        }, 800);
-                    } else {
-                        // Lesson not found, clear it and show normal greeting
-                        if (user) clearActiveLesson(user.uid).catch(console.error);
-                        const returning = `Chào ${userProfile.name}! Còn ${diff} ngày nữa là thi. Hôm nay em muốn ôn gì?`;
-                        timerId = setTimeout(() => {
-                            setMessages([{ role: 'assistant', content: returning }]);
-                            playNotification();
-                            autoSpeak(returning);
-                        }, 800);
-                    }
-                } else {
-                    // Lesson is completed, clear it and show normal greeting
-                    if (user) clearActiveLesson(user.uid).catch(console.error);
-                    const returning = `Chào ${userProfile.name}! Còn ${diff} ngày nữa là thi. Hôm nay em muốn ôn gì?`;
-                    timerId = setTimeout(() => {
-                        setMessages([{ role: 'assistant', content: returning }]);
-                        playNotification();
-                        autoSpeak(returning);
-                    }, 800);
-                }
-            } else {
-                // No active lesson, normal greeting
-                const returning = `Chào ${userProfile.name}! Còn ${diff} ngày nữa là thi. Hôm nay em muốn ôn gì?`;
-                timerId = setTimeout(() => {
-                    setMessages([{ role: 'assistant', content: returning }]);
-                    playNotification();
-                    autoSpeak(returning);
-                }, 800);
-            }
+            // Fully onboarded user - don't push text messages so the Welcome Screen stays visible.
+            // We just play the audio greeting if needed.
+            const returning = `Chào ${userProfile.name}! Còn ${diff} ngày nữa là thi. Hôm nay em muốn ôn gì?`;
+            timerId = setTimeout(() => {
+                playNotification();
+                autoSpeak(returning);
+            }, 800);
         }
 
         return () => clearTimeout(timerId);
@@ -596,54 +548,6 @@ Phong cách: màu sắc ấm, chữ dễ đọc, phù hợp học sinh ôn thi t
                 return;
             }
             addAssistant('Em gõ **A** để làm đề thi hoặc **B** để trả lời trắc nghiệm nhé.');
-            return;
-        }
-
-        // ── Resume lesson choice ──────────────────────────────────────────────
-        if (awaitingResumeChoice) {
-            const choice = val.trim().toUpperCase().slice(0, 1);
-            if (choice === 'A') {
-                // User wants to resume lesson
-                setAwaitingResumeChoice(false);
-                const activeLesson = userProfile?.activeLesson;
-                if (activeLesson && activeLesson.sectionId && activeLesson.lessonId) {
-                    // Load chat memory first
-                    const savedMessages = await loadChatMemory(user!.uid);
-                    if (savedMessages && savedMessages.length > 0) {
-                        setMessages(savedMessages);
-                    }
-                    // Resume lesson in resume mode (don't clear messages, don't show intro)
-                    await startLesson(activeLesson.sectionId, activeLesson.lessonId, true);
-                    // Add a reminder message about where we left off
-                    const found = findLesson(activeLesson.sectionId, activeLesson.lessonId);
-                    if (found) {
-                        const { section, lesson } = found;
-                        const lessonKey = getLessonKey(activeLesson.sectionId, activeLesson.lessonId);
-                        const lp = userProfile?.lessonProgress?.[lessonKey];
-                        if (lp) {
-                            const currentSection = (lp.currentSectionIndex ?? lp.sectionsDone) + 1;
-                            const resumeMsg = `Tiếp tục học bài "${lesson.title}" trong chủ đề "${section.title}". 
-
-Trong bài học lần trước, ${pronoun} và em đã học đến phần thứ ${currentSection}/${lp.sectionsTotal} (đã hoàn thành ${lp.sectionsDone}/${lp.sectionsTotal} phần). ${pronoun.charAt(0).toUpperCase() + pronoun.slice(1)} sẽ nhắc lại ngắn gọn nội dung phần trước rồi tiếp tục giảng phần tiếp theo nhé.`;
-                            addAssistant(resumeMsg);
-                        }
-                    }
-                } else {
-                    addAssistant('Không tìm thấy bài học đang học. Em có thể chọn bài học mới từ tab Tiến Trình nhé.');
-                }
-                return;
-            }
-            if (choice === 'B') {
-                // User wants to discuss other topics
-                setAwaitingResumeChoice(false);
-                // Clear active lesson since user wants to do something else
-                if (user && userProfile?.activeLesson) {
-                    clearActiveLesson(user.uid).catch(console.error);
-                }
-                addAssistant('Được rồi, em muốn trao đổi về vấn đề gì?');
-                return;
-            }
-            addAssistant('Em gõ **A** để tiếp tục học bài hôm trước hoặc **B** để trao đổi vấn đề khác nhé.');
             return;
         }
 
@@ -1017,6 +921,11 @@ Trong bài học lần trước, ${pronoun} và em đã học đến phần th�
     // ── Handle quiz answer from clickable buttons ────────────────────────────
     const handleQuizAnswer = useCallback(async (answer: string) => {
         if (quizState.phase !== 'questioning' || !quizState.data) return;
+
+        // Stop any playing audio from the current question immediately
+        stopCurrentAudio();
+        setIsPlayingAudio(false);
+
         // Add user answer as message
         const labelMap: Record<string, string> = { a: 'A', b: 'B', c: 'C', d: 'D' };
         setMessages(p => [...p, { role: 'user' as const, content: labelMap[answer] || answer }]);
@@ -1175,9 +1084,11 @@ Trong bài học lần trước, ${pronoun} và em đã học đến phần th�
         startGraphicFlow, startExamFlow, handleExamTypeChoice, startLesson, exitLesson,
         startCitationFlow, startQuizFlow, handleQuizAnswer,
         addGradeMsg: (grade: ExamGrade, resolvedWeaknesses?: string[]) => {
-            const scoreOutOf10 = +(grade.score / grade.maxScore * 10).toFixed(1);
+            const safeScore = grade.score ?? 0;
+            const safeMax = grade.maxScore && grade.maxScore > 0 ? grade.maxScore : 10;
+            const scoreOutOf10 = +(safeScore / safeMax * 10).toFixed(1);
             const label = scoreOutOf10 >= 8 ? 'Xuất sắc' : scoreOutOf10 >= 6.5 ? 'Khá' : scoreOutOf10 >= 5 ? 'Trung bình' : 'Cần cố gắng';
-            const summary = `📌 **Hệ thống AI đã chấm nháp bài của em**.\n\nĐiểm gợi ý: ${grade.score}/${grade.maxScore} (${scoreOutOf10}/10) — ${label}.\n\nBài làm đã được gửi vào *Hàng chờ duyệt* để Giáo viên kiểm tra và chốt điểm vòng cuối.\n\nNhận xét (nháp): ${grade.feedback}`;
+            const summary = `📌 **Hệ thống AI đã chấm nháp bài của em**.\n\nĐiểm gợi ý: ${safeScore}/${safeMax} (${scoreOutOf10}/10) — ${label}.\n\nBài làm đã được gửi vào *Hàng chờ duyệt* để Giáo viên kiểm tra và chốt điểm vòng cuối.\n\nNhận xét (nháp): ${grade.feedback || 'Chưa có nhận xét.'}`;
             setMessages(prev => {
                 const gradeMsg = { role: 'assistant' as const, content: summary, examGrade: grade };
                 // If any weaknesses were resolved, append a celebration message
