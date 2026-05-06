@@ -1,8 +1,8 @@
 import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
-const GEMINI_PRIMARY_MODEL = 'gemini-2.5-flash';
-const GEMINI_FALLBACK_MODEL = 'gemini-2.5-flash-lite';
+const GEMINI_PRIMARY_MODEL = 'gemini-3-flash-preview';
+const GEMINI_FALLBACK_MODEL = 'gemini-3.1-flash-lite-preview';
 
 function getApiKey(): string { return 'backend'; }
 
