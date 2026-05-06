@@ -60,6 +60,10 @@ export async function sendChatMessage(
         body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
     });
 
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
+
     const data = await res.json();
     let aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
 
@@ -106,6 +110,10 @@ export async function sendChatMessage(
                     body: JSON.stringify({ contents: followUpContents }),
                 });
                 
+                if (!followUpRes.ok) {
+                    throw new Error(`API error: ${followUpRes.status} ${followUpRes.statusText}`);
+                }
+                
                 const followUpData = await followUpRes.json();
                 aiContent = followUpData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
             } catch (err) {
@@ -140,6 +148,10 @@ export async function sendGradingRequest(prompt: string): Promise<string> {
         body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
     });
 
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
+
     const data = await res.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
 }
@@ -159,6 +171,9 @@ export async function generateImage(prompt: string): Promise<string | null> {
                 generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
             }),
         });
+        if (!res.ok) {
+            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        }
         const data = await res.json();
         const parts = data?.candidates?.[0]?.content?.parts || [];
         for (const part of parts) {
@@ -183,6 +198,9 @@ export async function rewriteText(text: string): Promise<string | null> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }),
     });
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
     const data = await res.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
 }
@@ -198,6 +216,9 @@ export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     });
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
     const data = await res.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Lỗi tạo bài kiểm tra chẩn đoán';
 }
@@ -222,6 +243,9 @@ Yêu cầu:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     });
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
     const data = await res.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
 }
@@ -258,6 +282,9 @@ export async function generateDiagnosticMCQ(prompt: string): Promise<DiagnosticQ
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
         });
+        if (!res.ok) {
+            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        }
         const data = await res.json();
         let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
         // Strip markdown code fences if present
@@ -291,6 +318,9 @@ export async function sendProactiveMessage(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
         });
+        if (!res.ok) {
+            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        }
         const data = await res.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
     } catch {
@@ -322,6 +352,9 @@ Format: vertical infographic, 1024x1536px equivalent proportions.`;
                 generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
             }),
         });
+        if (!res.ok) {
+            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        }
         const data = await res.json();
         const parts = data.candidates?.[0]?.content?.parts || [];
         for (const part of parts) {
@@ -349,6 +382,9 @@ export async function generateAIExam(prompt: string): Promise<AIExamData | null>
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
         });
+        if (!res.ok) {
+            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        }
         const data = await res.json();
         let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
         raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
@@ -393,6 +429,9 @@ export async function generateChatAutoResponse(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
         });
+        if (!res.ok) {
+            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        }
         const data = await res.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
     } catch (err) {
