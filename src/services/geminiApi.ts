@@ -78,14 +78,26 @@ export async function sendChatMessage(
 
     parts.push({ text: userText });
 
-    const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${GEMINI_PRIMARY_MODEL}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
     });
 
     if (!res.ok) {
-        throw new Error(`API error: ${res.status} ${res.statusText}`);
+        // Fallback to lite model
+        console.warn(`[Chat] Primary model returned ${res.status}, trying fallback...`);
+        const fallbackRes = await fetchWithRetry(`${GEMINI_BASE_URL}/${GEMINI_FALLBACK_MODEL}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
+        });
+        if (!fallbackRes.ok) {
+            throw new Error(`API error: ${fallbackRes.status} ${fallbackRes.statusText}`);
+        }
+        const fbData = await fallbackRes.json();
+        let fbContent = fbData.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
+        return { text: fbContent, generatedImageUrl: null };
     }
 
     const data = await res.json();
@@ -128,18 +140,30 @@ export async function sendChatMessage(
                     { role: 'user', parts: [{ text: followUpText }] }
                 ];
                 
-                const followUpRes = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                const followUpRes = await fetchWithRetry(`${GEMINI_BASE_URL}/${GEMINI_PRIMARY_MODEL}:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: followUpContents }),
                 });
                 
                 if (!followUpRes.ok) {
-                    throw new Error(`API error: ${followUpRes.status} ${followUpRes.statusText}`);
+                    // Try fallback model for RAG follow-up
+                    console.warn(`[RAG] Primary model returned ${followUpRes.status}, trying fallback...`);
+                    const fbRes = await fetchWithRetry(`${GEMINI_BASE_URL}/${GEMINI_FALLBACK_MODEL}:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: followUpContents }),
+                    });
+                    if (fbRes.ok) {
+                        const fbData = await fbRes.json();
+                        aiContent = fbData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
+                    } else {
+                        throw new Error(`API error: ${fbRes.status} ${fbRes.statusText}`);
+                    }
+                } else {
+                    const followUpData = await followUpRes.json();
+                    aiContent = followUpData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
                 }
-                
-                const followUpData = await followUpRes.json();
-                aiContent = followUpData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
             } catch (err) {
                 console.error('Lỗi khi gọi lại Gemini:', err);
                 aiContent = aiContent.replace(/\[FETCH_DOC\].*/s, '*(Lỗi: Không thể phân tích tài liệu)*\n');
@@ -166,18 +190,25 @@ export async function sendGradingRequest(prompt: string): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
-    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
-    });
-
-    if (!res.ok) {
-        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    for (const model of modelsToTry) {
+        try {
+            const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
+            }, 4, 3000);
+            if (!res.ok) {
+                console.warn(`[Grading] Model ${model} returned ${res.status}, trying next...`);
+                continue;
+            }
+            const data = await res.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+        } catch (err) {
+            console.error(`[Grading] Error with model ${model}:`, err);
+        }
     }
-
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    return '{}';
 }
 
 /**
@@ -217,16 +248,27 @@ export async function generateImage(prompt: string): Promise<string | null> {
 export async function rewriteText(text: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }),
-    });
-    if (!res.ok) {
-        throw new Error(`API error: ${res.status} ${res.statusText}`);
+
+    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    for (const model of modelsToTry) {
+        try {
+            const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }),
+            });
+            if (!res.ok) {
+                console.warn(`[Rewrite] Model ${model} returned ${res.status}, trying next...`);
+                continue;
+            }
+            const data = await res.json();
+            const result = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (result) return result;
+        } catch (err) {
+            console.error(`[Rewrite] Error with model ${model}:`, err);
+        }
     }
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    return null;
 }
 
 /**
@@ -501,16 +543,26 @@ export async function generateChatAutoResponse(
 
         const fullPrompt = `${CHAT_AUTO_RESPONDER_PROMPT}\n\nLịch sử chat gần đây:\n${historyText}\n\nHọc sinh vừa gửi: "${userMessage}"\n\nTrả lời ngắn gọn:`;
 
-        const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
-        });
-        if (!res.ok) {
-            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+        for (const model of modelsToTry) {
+            try {
+                const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
+                });
+                if (!res.ok) {
+                    console.warn(`[AutoResponse] Model ${model} returned ${res.status}, trying next...`);
+                    continue;
+                }
+                const data = await res.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+                if (text) return text;
+            } catch (err) {
+                console.error(`[AutoResponse] Error with model ${model}:`, err);
+            }
         }
-        const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+        return null;
     } catch (err) {
         console.error('Chat auto-response error:', err);
         return null;
@@ -592,46 +644,59 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
         }
     }
 
-    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            contents: [{ role: 'user', parts }],
-            generationConfig: {
-                temperature: 0.2,
+    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    let lastError: Error | null = null;
+
+    for (const model of modelsToTry) {
+        try {
+            const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts }],
+                    generationConfig: {
+                        temperature: 0.2,
+                    }
+                }),
+            }, 4, 3000);
+
+            if (!res.ok) {
+                console.warn(`[GradeSubmission] Model ${model} returned ${res.status}, trying next...`);
+                continue;
             }
-        }),
-    });
 
-    if (!res.ok) {
-        throw new Error(`API error: ${res.status} ${res.statusText}`);
-    }
+            const data = await res.json();
+            const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    const data = await res.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    try {
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]) as ExamGrade;
-            parsed.errors = parsed.errors || [];
-            parsed.improvements = parsed.improvements || [];
-            parsed.weaknesses = parsed.weaknesses || [];
-            parsed.strengths = parsed.strengths || [];
-            if (parsed.score > parsed.maxScore) parsed.score = parsed.maxScore;
-            // Cap at 95% of maxScore to match exam grading standard (no perfect 10)
-            const capScore = parsed.maxScore * 0.95;
-            if (parsed.score > capScore) parsed.score = capScore;
-            return parsed;
+            try {
+                const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    let cleanJson = jsonMatch[0].replace(/,\s*([}\]])/g, '$1');
+                    const parsed = JSON.parse(cleanJson) as ExamGrade;
+                    parsed.errors = parsed.errors || [];
+                    parsed.improvements = parsed.improvements || [];
+                    parsed.weaknesses = parsed.weaknesses || [];
+                    parsed.strengths = parsed.strengths || [];
+                    if (parsed.score > parsed.maxScore) parsed.score = parsed.maxScore;
+                    const capScore = parsed.maxScore * 0.95;
+                    if (parsed.score > capScore) parsed.score = capScore;
+                    return parsed;
+                }
+            } catch (e) {
+                console.error(`[GradeSubmission] Failed to parse JSON from model ${model}:`, e);
+            }
+        } catch (err) {
+            console.error(`[GradeSubmission] Error with model ${model}:`, err);
+            lastError = err as Error;
         }
-    } catch (e) {
-        console.error('Failed to parse AI grading JSON:', e, 'RawText:', rawText);
     }
+
+    if (lastError) throw lastError;
 
     return {
         score: 0,
         maxScore: 10,
-        feedback: rawText || 'Không thể đọc được kết quả hoặc có lỗi.',
+        feedback: 'Không thể đọc được kết quả hoặc có lỗi.',
         details: 'Không có chi tiết.',
         errors: [],
         improvements: [],
