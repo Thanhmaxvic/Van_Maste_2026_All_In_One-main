@@ -2,9 +2,33 @@ import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants'
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_PRIMARY_MODEL = 'gemini-2.5-flash';
+const GEMINI_FALLBACK_MODEL = 'gemini-2.5-flash-lite';
 
 function getApiKey(): string {
     return import.meta.env.VITE_GOOGLE_API_KEY || '';
+}
+
+/**
+ * Helper: Fetch with exponential backoff for 503/429/529 errors.
+ */
+async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, baseDelayMs = 2000): Promise<Response> {
+    let lastRes: Response | null = null;
+    for (let i = 0; i <= retries; i++) {
+        try {
+            const res = await fetch(url, options);
+            lastRes = res;
+            if (res.ok || (res.status !== 503 && res.status !== 529 && res.status !== 429)) {
+                return res;
+            }
+            if (i === retries) break;
+            await new Promise(resolve => setTimeout(resolve, baseDelayMs * Math.pow(2, i)));
+        } catch (err) {
+            if (i === retries) throw err;
+            await new Promise(resolve => setTimeout(resolve, baseDelayMs * Math.pow(2, i)));
+        }
+    }
+    return lastRes!;
 }
 
 /**
@@ -104,7 +128,7 @@ export async function sendChatMessage(
                     { role: 'user', parts: [{ text: followUpText }] }
                 ];
                 
-                const followUpRes = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                const followUpRes = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: followUpContents }),
@@ -142,7 +166,7 @@ export async function sendGradingRequest(prompt: string): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
-    const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
@@ -163,7 +187,7 @@ export async function generateImage(prompt: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        const res = await fetch(`${GEMINI_BASE_URL}/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
+        const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -193,7 +217,7 @@ export async function generateImage(prompt: string): Promise<string | null> {
 export async function rewriteText(text: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }),
@@ -211,16 +235,31 @@ export async function rewriteText(text: string): Promise<string | null> {
 export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    });
-    if (!res.ok) {
-        throw new Error(`API error: ${res.status} ${res.statusText}`);
+
+    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    for (const model of modelsToTry) {
+        try {
+            const res = await fetchWithRetry(
+                `${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+                },
+                4, 3000
+            );
+            if (!res.ok) {
+                console.warn(`[DiagnosticQuiz] Model ${model} returned ${res.status}, trying next...`);
+                continue;
+            }
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) return text;
+        } catch (err) {
+            console.error(`[DiagnosticQuiz] Error with model ${model}:`, err);
+        }
     }
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Lỗi tạo bài kiểm tra chẩn đoán';
+    return 'Lỗi tạo bài kiểm tra chẩn đoán';
 }
 
 /**
@@ -238,7 +277,7 @@ Yêu cầu:
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
 
-    const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
@@ -276,24 +315,49 @@ export interface DiagnosticQuizData {
 export async function generateDiagnosticMCQ(prompt: string): Promise<DiagnosticQuizData | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
-    try {
-        const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-        });
-        if (!res.ok) {
-            throw new Error(`API error: ${res.status} ${res.statusText}`);
+
+    // Try primary model first, then fallback
+    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+
+    for (const model of modelsToTry) {
+        try {
+            console.log(`[Quiz] Trying model: ${model}`);
+            const res = await fetchWithRetry(
+                `${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.7 },
+                    }),
+                },
+                4,   // more retries for quiz generation
+                3000 // longer base delay (3s, 6s, 12s, 24s)
+            );
+            if (!res.ok) {
+                console.warn(`[Quiz] Model ${model} returned ${res.status}, trying next...`);
+                continue; // try fallback model
+            }
+            const data = await res.json();
+            let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (!raw) {
+                console.warn(`[Quiz] Model ${model} returned empty text, trying next...`);
+                continue;
+            }
+            // Strip markdown code fences if present (handles ```json, ```JSON, ``` etc.)
+            raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+            // Fix trailing commas before } or ] (common AI output issue)
+            raw = raw.replace(/,\s*([}\]])/g, '$1');
+            return JSON.parse(raw) as DiagnosticQuizData;
+        } catch (err) {
+            console.error(`[Quiz] Error with model ${model}:`, err);
+            // Continue to next model
         }
-        const data = await res.json();
-        let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        // Strip markdown code fences if present
-        raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-        return JSON.parse(raw) as DiagnosticQuizData;
-    } catch (err) {
-        console.error('generateDiagnosticMCQ error:', err);
-        return null;
     }
+
+    console.error('[Quiz] All models failed to generate quiz.');
+    return null;
 }
 
 /**
@@ -313,7 +377,7 @@ export async function sendProactiveMessage(
             .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
-        const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
@@ -344,7 +408,7 @@ Text must be clear, readable Vietnamese. High contrast. Suitable for high school
 Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
-        const res = await fetch(`${GEMINI_BASE_URL}/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
+        const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -376,23 +440,36 @@ Format: vertical infographic, 1024x1536px equivalent proportions.`;
 export async function generateAIExam(prompt: string): Promise<AIExamData | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
-    try {
-        const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-        });
-        if (!res.ok) {
-            throw new Error(`API error: ${res.status} ${res.statusText}`);
+
+    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    for (const model of modelsToTry) {
+        try {
+            console.log(`[AIExam] Trying model: ${model}`);
+            const res = await fetchWithRetry(
+                `${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+                },
+                4, 3000
+            );
+            if (!res.ok) {
+                console.warn(`[AIExam] Model ${model} returned ${res.status}, trying next...`);
+                continue;
+            }
+            const data = await res.json();
+            let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (!raw) continue;
+            raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+            raw = raw.replace(/,\s*([}\]])/g, '$1');
+            return JSON.parse(raw) as AIExamData;
+        } catch (err) {
+            console.error(`[AIExam] Error with model ${model}:`, err);
         }
-        const data = await res.json();
-        let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-        return JSON.parse(raw) as AIExamData;
-    } catch (err) {
-        console.error('generateAIExam error:', err);
-        return null;
     }
+    console.error('[AIExam] All models failed.');
+    return null;
 }
 
 const CHAT_AUTO_RESPONDER_PROMPT = `Bạn là trợ lý AI hỗ trợ tự động của hệ thống "Ngữ Văn Master" – một nền tảng ôn thi tốt nghiệp THPT môn Ngữ Văn.
@@ -424,7 +501,7 @@ export async function generateChatAutoResponse(
 
         const fullPrompt = `${CHAT_AUTO_RESPONDER_PROMPT}\n\nLịch sử chat gần đây:\n${historyText}\n\nHọc sinh vừa gửi: "${userMessage}"\n\nTrả lời ngắn gọn:`;
 
-        const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
@@ -515,7 +592,7 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
         }
     }
 
-    const res = await fetch(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

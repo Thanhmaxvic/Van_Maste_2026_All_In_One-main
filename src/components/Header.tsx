@@ -87,7 +87,7 @@ export default function Header({ onOpenPanel }: HeaderProps) {
             <header className="app-header !relative !top-0 !z-auto h-[60px] shrink-0 border-b border-white/5 shadow-none" style={{ position: 'relative', top: 'unset', zIndex: 'unset' }}>
                 {/* Logo */}
                 <div className="app-header-logo">
-                    <img src="/images/logo.png" alt="Văn Master Logo" className="logo-img" />
+                    <img src="/images/logo.webp" alt="Văn Master Logo" className="logo-img" />
                 </div>
 
                 {/* Countdown chip */}

@@ -29,7 +29,7 @@ export default function TeacherApp() {
             {/* Sidebar Navigation */}
             <nav className="teacher-nav">
                 <div className="teacher-nav-logo">
-                    <img src="/images/logo.png" alt="Logo" className="teacher-nav-logo-img" />
+                    <img src="/images/logo.webp" alt="Logo" className="teacher-nav-logo-img" />
                     <span className="teacher-nav-logo-text">Ngữ văn Master</span>
                     <span className="teacher-nav-badge">Giáo viên</span>
                 </div>

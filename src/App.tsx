@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { Send, Mic, MicOff, Camera, Loader2, X, BookOpen, GraduationCap, ArrowRight } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { useChat } from './hooks/useChat';
@@ -9,16 +9,27 @@ import TabNav from './components/TabNav';
 import Sidebar from './components/Sidebar';
 import ChatMessage from './components/chat/ChatMessage';
 import ChatBubble from './components/chat/ChatBubble';
-import SettingsPanel from './components/settings/SettingsPanel';
-import ExamPage from './components/exam/ExamPage';
-import LearningTimeline from './components/learn/LearningTimeline';
-import StatsTab from './components/stats/StatsTab';
-import TeacherApp from './components/teacher/TeacherApp';
-import MiniGamesHub from './components/games/MiniGamesHub';
 import { incrementTotalVisits, trackOnlinePresence } from './services/firebaseService';
 import { findLesson, CURRICULUM } from './constants/curriculum';
 import type { ExamGrade, AIExamData } from './types';
 import './index.css';
+
+// ── Lazy-loaded heavy components (code-split) ────────────────────────────────
+const ExamPage = React.lazy(() => import('./components/exam/ExamPage'));
+const LearningTimeline = React.lazy(() => import('./components/learn/LearningTimeline'));
+const StatsTab = React.lazy(() => import('./components/stats/StatsTab'));
+const MiniGamesHub = React.lazy(() => import('./components/games/MiniGamesHub'));
+const TeacherApp = React.lazy(() => import('./components/teacher/TeacherApp'));
+const SettingsPanel = React.lazy(() => import('./components/settings/SettingsPanel'));
+
+/** Shared loading fallback for lazy components */
+function LazyFallback() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0', flex: 1 }}>
+      <div className="loading-dots"><span /><span /><span /></div>
+    </div>
+  );
+}
 
 type Tab = 'chat' | 'learn' | 'exam' | 'stats' | 'games' | 'roadmap';
 
@@ -359,10 +370,12 @@ function StudentApp() {
 
           {/* Learn Tab (Timeline) */}
           {activeTab === 'learn' && (
-            <LearningTimeline
-              lessonProgress={userProfile?.lessonProgress || {}}
-              onSelectLesson={handleSelectLesson}
-            />
+            <Suspense fallback={<LazyFallback />}>
+              <LearningTimeline
+                lessonProgress={userProfile?.lessonProgress || {}}
+                onSelectLesson={handleSelectLesson}
+              />
+            </Suspense>
           )}
 
           {/* Roadmap Tab (mobile: chứa nội dung sidebar) */}
@@ -374,30 +387,38 @@ function StudentApp() {
 
           {/* Exam Tab */}
           {activeTab === 'exam' && (
-            <ExamPage
-              diagnosticMode={isDiagnosing}
-              onDiagnosticDone={() => { setIsDiagnosing(false); setActiveTab('chat'); }}
-              onGradeComplete={(grade, resolved) => {
-                setActiveAIExam(null);
-                handleGradeComplete(grade, resolved);
-              }}
-              aiExam={activeAIExam ?? undefined}
-            />
+            <Suspense fallback={<LazyFallback />}>
+              <ExamPage
+                diagnosticMode={isDiagnosing}
+                onDiagnosticDone={() => { setIsDiagnosing(false); setActiveTab('chat'); }}
+                onGradeComplete={(grade, resolved) => {
+                  setActiveAIExam(null);
+                  handleGradeComplete(grade, resolved);
+                }}
+                aiExam={activeAIExam ?? undefined}
+              />
+            </Suspense>
           )}
 
           {/* Stats Tab */}
           {activeTab === 'stats' && user && (
-            <StatsTab currentUid={user.uid} />
+            <Suspense fallback={<LazyFallback />}>
+              <StatsTab currentUid={user.uid} />
+            </Suspense>
           )}
 
           {/* Games Tab */}
           {activeTab === 'games' && (
-            <MiniGamesHub />
+            <Suspense fallback={<LazyFallback />}>
+              <MiniGamesHub />
+            </Suspense>
           )}
         </div>
       </div>
 
-      <SettingsPanel open={!!panelMode} mode={panelMode || 'settings'} onClose={() => setPanelMode(null)} />
+      <Suspense fallback={null}>
+        <SettingsPanel open={!!panelMode} mode={panelMode || 'settings'} onClose={() => setPanelMode(null)} />
+      </Suspense>
       <ChatBubble />
     </div>
   );
@@ -417,7 +438,7 @@ function AppContent() {
   if (!user) return <SplashScreen />;
 
   // Teacher gets a completely different UI
-  if (isTeacher) return <TeacherApp />;
+  if (isTeacher) return <Suspense fallback={<LazyFallback />}><TeacherApp /></Suspense>;
 
   return <StudentApp />;
 }

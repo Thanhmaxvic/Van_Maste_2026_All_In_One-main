@@ -47,7 +47,7 @@ export default function SplashScreen() {
     return (
         <div className="splash">
             <div className="splash-logo-wrap">
-                <img src="/images/logo.png" alt="Văn Master Logo" className="splash-logo-img" />
+                <img src="/images/logo.webp" alt="Văn Master Logo" className="splash-logo-img" />
             </div>
 
             <form className="splash-card" onSubmit={handleSubmit}>

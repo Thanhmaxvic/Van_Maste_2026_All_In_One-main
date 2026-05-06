@@ -201,7 +201,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAI
     const isUser = message.role === 'user';
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const { userProfile } = useAuth();
-    const botAvatar = userProfile?.voiceGender === 'female' ? '/images/female.png' : '/images/male.png';
+    const botAvatar = userProfile?.voiceGender === 'female' ? '/images/female.webp' : '/images/male.webp';
 
     if (message.examGrade) {
         return (
