@@ -11,10 +11,10 @@ export default function TrueFalseGame({ onBack }: Props) {
     const [current, setCurrent] = useState(0);
     const [score, setScore] = useState(0);
     const [timeLeft, setTimeLeft] = useState(TIME_PER_Q);
-    const [feedback, setFeedback] = useState<'correct'|'wrong'|'timeout'|null>(null);
+    const [feedback, setFeedback] = useState<'correct' | 'wrong' | 'timeout' | null>(null);
     const [gameOver, setGameOver] = useState(false);
-    const [results, setResults] = useState<{correct: boolean; item: typeof TRUE_FALSE_ITEMS[0]}[]>([]);
-    const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
+    const [results, setResults] = useState<{ correct: boolean; item: typeof TRUE_FALSE_ITEMS[0] }[]>([]);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const initGame = useCallback(() => {
         const sel = shuffle(TRUE_FALSE_ITEMS).slice(0, TOTAL);
@@ -58,7 +58,7 @@ export default function TrueFalseGame({ onBack }: Props) {
         }
 
         setTimeout(() => {
-            if (current + 1 >= TOTAL) { setGameOver(true); } 
+            if (current + 1 >= TOTAL) { setGameOver(true); }
             else {
                 setCurrent(c => c + 1);
                 setFeedback(null);
@@ -73,10 +73,10 @@ export default function TrueFalseGame({ onBack }: Props) {
     return (
         <div className="minigame-container">
             <div className="minigame-header">
-                <button className="mg-back-btn" onClick={onBack}><ArrowLeft size={18}/> Quay lại</button>
-                <h2 className="mg-title">Đúng hay Sai</h2>
+                <button className="mg-back-btn" onClick={onBack}><ArrowLeft size={18} /> Quay lại</button>
+                <h2 className="mg-title">Đúng hay sai</h2>
                 <div className="mg-stats">
-                    <span className="mg-stat">Câu: <strong>{Math.min(current+1,TOTAL)}/{TOTAL}</strong></span>
+                    <span className="mg-stat">Câu: <strong>{Math.min(current + 1, TOTAL)}/{TOTAL}</strong></span>
                     <span className="mg-stat">Đúng: <strong>{score}</strong></span>
                 </div>
             </div>
@@ -100,18 +100,18 @@ export default function TrueFalseGame({ onBack }: Props) {
                         </div>
                     )}
 
-                    <button className="mg-play-btn" onClick={initGame}><RotateCcw size={16}/> Chơi lại</button>
+                    <button className="mg-play-btn" onClick={initGame}><RotateCcw size={16} /> Chơi lại</button>
                 </div>
             ) : q ? (
                 <div className="tf-game-body">
                     <div className="scramble-timer-bar">
                         <div className="scramble-timer-track">
-                            <div className="scramble-timer-fill" style={{width:`${timerPct}%`,background:timerColor,transition:'width 1s linear'}}/>
+                            <div className="scramble-timer-fill" style={{ width: `${timerPct}%`, background: timerColor, transition: 'width 1s linear' }} />
                         </div>
-                        <span className="scramble-timer-text" style={{color:timerColor}}>{timeLeft}s</span>
+                        <span className="scramble-timer-text" style={{ color: timerColor }}>{timeLeft}s</span>
                     </div>
 
-                    <div className={`tf-statement ${feedback==='correct'?'correct':feedback==='wrong'||feedback==='timeout'?'wrong':''}`}>
+                    <div className={`tf-statement ${feedback === 'correct' ? 'correct' : feedback === 'wrong' || feedback === 'timeout' ? 'wrong' : ''}`}>
                         {q.statement}
                     </div>
 
@@ -123,10 +123,10 @@ export default function TrueFalseGame({ onBack }: Props) {
 
                     <div className="tf-buttons">
                         <button className="tf-btn tf-true" onClick={() => handleAnswer(true)} disabled={!!feedback}>
-                            <Check size={22}/> Đúng
+                            <Check size={22} /> Đúng
                         </button>
                         <button className="tf-btn tf-false" onClick={() => handleAnswer(false)} disabled={!!feedback}>
-                            <X size={22}/> Sai
+                            <X size={22} /> Sai
                         </button>
                     </div>
                 </div>

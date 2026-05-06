@@ -14,9 +14,9 @@ export default function WordScrambleGame({ onBack }: Props) {
     const [score, setScore] = useState(0);
     const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
     const [showHint, setShowHint] = useState(false);
-    const [feedback, setFeedback] = useState<'correct'|'wrong'|'timeout'|null>(null);
+    const [feedback, setFeedback] = useState<'correct' | 'wrong' | 'timeout' | null>(null);
     const [gameOver, setGameOver] = useState(false);
-    const timerRef = useRef<ReturnType<typeof setInterval>|null>(null);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     const initGame = useCallback(() => {
@@ -78,10 +78,10 @@ export default function WordScrambleGame({ onBack }: Props) {
     return (
         <div className="minigame-container">
             <div className="minigame-header">
-                <button className="mg-back-btn" onClick={onBack}><ArrowLeft size={18}/> Quay lại</button>
-                <h2 className="mg-title">Ai Nhanh Hơn</h2>
+                <button className="mg-back-btn" onClick={onBack}><ArrowLeft size={18} /> Quay lại</button>
+                <h2 className="mg-title">Ai nhanh hơn</h2>
                 <div className="mg-stats">
-                    <span className="mg-stat">Từ: <strong>{current+1}/{TOTAL}</strong></span>
+                    <span className="mg-stat">Từ: <strong>{current + 1}/{TOTAL}</strong></span>
                     <span className="mg-stat">Đúng: <strong>{score}</strong></span>
                 </div>
             </div>
@@ -91,35 +91,35 @@ export default function WordScrambleGame({ onBack }: Props) {
                     <div className="mg-win-stars">{score >= 8 ? '⭐⭐⭐' : score >= 5 ? '⭐⭐' : '⭐'}</div>
                     <h3>{score >= 8 ? 'Siêu nhanh!' : score >= 5 ? 'Khá lắm!' : 'Tập thêm nhé!'}</h3>
                     <p>Giải đúng {score}/{TOTAL} thuật ngữ</p>
-                    <button className="mg-play-btn" onClick={initGame}><RotateCcw size={16}/> Chơi lại</button>
+                    <button className="mg-play-btn" onClick={initGame}><RotateCcw size={16} /> Chơi lại</button>
                 </div>
             ) : (
                 <div className="scramble-game-body">
                     <div className="scramble-timer-bar">
-                        <Timer size={14} style={{color:timerColor}}/>
+                        <Timer size={14} style={{ color: timerColor }} />
                         <div className="scramble-timer-track">
-                            <div className="scramble-timer-fill" style={{width:`${timerPct}%`,background:timerColor}}/>
+                            <div className="scramble-timer-fill" style={{ width: `${timerPct}%`, background: timerColor }} />
                         </div>
-                        <span className="scramble-timer-text" style={{color:timerColor}}>{timeLeft}s</span>
+                        <span className="scramble-timer-text" style={{ color: timerColor }}>{timeLeft}s</span>
                     </div>
                     <div className="scramble-letters">
-                        {displayScrambled.split('').map((ch,i) => (
-                            <span key={i} className={`scramble-letter ${ch===' '?'space':''}`}>{ch===' '?'\u00A0':ch}</span>
+                        {displayScrambled.split('').map((ch, i) => (
+                            <span key={i} className={`scramble-letter ${ch === ' ' ? 'space' : ''}`}>{ch === ' ' ? '\u00A0' : ch}</span>
                         ))}
                     </div>
-                    {showHint && <div className="poetry-hint"><Lightbulb size={14}/> {w.hint}</div>}
-                    {feedback==='timeout' && <div className="scramble-timeout">Hết giờ! Đáp án: <strong>{w.answer}</strong></div>}
+                    {showHint && <div className="poetry-hint"><Lightbulb size={14} /> {w.hint}</div>}
+                    {feedback === 'timeout' && <div className="scramble-timeout">Hết giờ! Đáp án: <strong>{w.answer}</strong></div>}
                     <div className="poetry-input-row">
-                        <input ref={inputRef} className={`poetry-input ${feedback==='correct'?'correct':feedback==='wrong'?'wrong':''}`}
+                        <input ref={inputRef} className={`poetry-input ${feedback === 'correct' ? 'correct' : feedback === 'wrong' ? 'wrong' : ''}`}
                             type="text" placeholder="Gõ thuật ngữ đúng..."
-                            value={feedback==='correct'?w.answer:userInput}
-                            onChange={e=>setUserInput(e.target.value)}
-                            onKeyDown={e=>{if(e.key==='Enter')handleSubmit()}}
-                            disabled={feedback==='correct'||feedback==='timeout'}/>
-                        <button className="mg-submit-btn" onClick={handleSubmit} disabled={!userInput.trim()||feedback==='correct'||feedback==='timeout'}>OK</button>
+                            value={feedback === 'correct' ? w.answer : userInput}
+                            onChange={e => setUserInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
+                            disabled={feedback === 'correct' || feedback === 'timeout'} />
+                        <button className="mg-submit-btn" onClick={handleSubmit} disabled={!userInput.trim() || feedback === 'correct' || feedback === 'timeout'}>OK</button>
                     </div>
                     <div className="poetry-actions">
-                        {!showHint && <button className="mg-hint-btn" onClick={()=>setShowHint(true)}><Lightbulb size={14}/> Gợi ý</button>}
+                        {!showHint && <button className="mg-hint-btn" onClick={() => setShowHint(true)}><Lightbulb size={14} /> Gợi ý</button>}
                         <button className="mg-skip-btn" onClick={nextWord}>Bỏ qua</button>
                     </div>
                 </div>

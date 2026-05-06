@@ -90,7 +90,7 @@ export default function MatchingGame({ onBack }: Props) {
         <div className="minigame-container">
             <div className="minigame-header">
                 <button className="mg-back-btn" onClick={onBack}><ArrowLeft size={18} /> Quay lại</button>
-                <h2 className="mg-title">Nối Đôi</h2>
+                <h2 className="mg-title">Nối đôi</h2>
                 <div className="mg-stats">
                     <span className="mg-stat">Lượt: <strong>{moves}</strong></span>
                     <span className="mg-stat">Đã nối: <strong>{matchedCount}/6</strong></span>

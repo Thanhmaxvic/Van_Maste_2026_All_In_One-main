@@ -1,6 +1,6 @@
 // ── Dữ liệu Mini Games ─────────────────────────────────────────────────────
 
-/** Nối Đôi: cặp tác phẩm ↔ tác giả */
+/** Nối đôi: cặp tác phẩm ↔ tác giả */
 export interface MatchPair {
     work: string;
     author: string;
@@ -39,7 +39,7 @@ export const MATCH_PAIRS: MatchPair[] = [
     { work: 'Ánh Trăng', author: 'Nguyễn Duy' },
 ];
 
-/** Điền Câu Thơ: câu thơ nổi tiếng, bỏ trống 1-2 từ */
+/** Điền câu thơ: câu thơ nổi tiếng, bỏ trống 1-2 từ */
 export interface PoetryFill {
     line: string;       // câu thơ với ___ thay chỗ trống
     answer: string;     // từ cần điền (viết thường)
@@ -75,7 +75,7 @@ export const POETRY_FILLS: PoetryFill[] = [
     { line: 'Bác nằm trong giấc ngủ bình ___', answer: 'yên', source: 'Viếng Lăng Bác — Viễn Phương', hint: 'Thanh thản' },
 ];
 
-/** Ai Nhanh Hơn: thuật ngữ văn học bị xáo trộn chữ cái */
+/** Ai nhanh hơn: thuật ngữ văn học bị xáo trộn chữ cái */
 export interface WordScramble {
     scrambled: string;  // chữ cái đã xáo
     answer: string;     // đáp án gốc
@@ -110,7 +110,7 @@ export const WORD_SCRAMBLES: WordScramble[] = [
     { scrambled: 'hủc ềđ', answer: 'chủ đề', hint: 'Vấn đề chính được đặt ra trong tác phẩm' },
 ];
 
-/** Đúng hay Sai: mệnh đề kiến thức văn học */
+/** Đúng hay sai: mệnh đề kiến thức văn học */
 export interface TrueFalseItem {
     statement: string;
     isTrue: boolean;

@@ -10,7 +10,7 @@ type GameId = 'matching' | 'poetry' | 'scramble' | 'truefalse' | null;
 const GAMES = [
     {
         id: 'matching' as GameId,
-        title: 'Nối Đôi',
+        title: 'Nối đôi',
         desc: 'Lật thẻ nối tác phẩm với tác giả',
         icon: <Layers size={28} />,
         color: '#1565C0',
@@ -18,7 +18,7 @@ const GAMES = [
     },
     {
         id: 'poetry' as GameId,
-        title: 'Điền Câu Thơ',
+        title: 'Điền câu thơ',
         desc: 'Điền từ còn thiếu trong câu thơ nổi tiếng',
         icon: <PenTool size={28} />,
         color: '#7B1FA2',
@@ -26,7 +26,7 @@ const GAMES = [
     },
     {
         id: 'scramble' as GameId,
-        title: 'Ai Nhanh Hơn',
+        title: 'Ai nhanh hơn',
         desc: 'Giải mã chữ cái xáo trộn thành thuật ngữ văn học',
         icon: <Zap size={28} />,
         color: '#E65100',
@@ -34,7 +34,7 @@ const GAMES = [
     },
     {
         id: 'truefalse' as GameId,
-        title: 'Đúng hay Sai',
+        title: 'Đúng hay sai',
         desc: 'Phản xạ nhanh với kiến thức văn học',
         icon: <HelpCircle size={28} />,
         color: '#2E7D32',
