@@ -109,10 +109,9 @@ function playSingleTTS(
             const abortController = new AbortController();
             currentAbortController = abortController;
 
-            const API_KEY = import.meta.env.VITE_GOOGLE_TTS_API_KEY || '';
             const voiceName = TTS_VOICE_MAP[voiceGender];
 
-            const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${API_KEY}`, {
+            const response = await fetch('/api/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 signal: abortController.signal,

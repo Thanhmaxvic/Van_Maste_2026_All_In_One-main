@@ -1,13 +1,10 @@
 import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
-const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const GEMINI_PRIMARY_MODEL = 'gemini-2.5-flash';
 const GEMINI_FALLBACK_MODEL = 'gemini-2.5-flash-lite';
 
-function getApiKey(): string {
-    return import.meta.env.VITE_GOOGLE_API_KEY || '';
-}
+function getApiKey(): string { return 'backend'; }
 
 /**
  * Helper: Fetch with exponential backoff for 503/429/529 errors.
@@ -78,7 +75,7 @@ export async function sendChatMessage(
 
     parts.push({ text: userText });
 
-    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${GEMINI_PRIMARY_MODEL}:generateContent?key=${apiKey}`, {
+    const res = await fetchWithRetry(`/api/gemini?model=${GEMINI_PRIMARY_MODEL}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
@@ -87,7 +84,7 @@ export async function sendChatMessage(
     if (!res.ok) {
         // Fallback to lite model
         console.warn(`[Chat] Primary model returned ${res.status}, trying fallback...`);
-        const fallbackRes = await fetchWithRetry(`${GEMINI_BASE_URL}/${GEMINI_FALLBACK_MODEL}:generateContent?key=${apiKey}`, {
+        const fallbackRes = await fetchWithRetry(`/api/gemini?model=${GEMINI_FALLBACK_MODEL}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
@@ -140,7 +137,7 @@ export async function sendChatMessage(
                     { role: 'user', parts: [{ text: followUpText }] }
                 ];
                 
-                const followUpRes = await fetchWithRetry(`${GEMINI_BASE_URL}/${GEMINI_PRIMARY_MODEL}:generateContent?key=${apiKey}`, {
+                const followUpRes = await fetchWithRetry(`/api/gemini?model=${GEMINI_PRIMARY_MODEL}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: followUpContents }),
@@ -149,7 +146,7 @@ export async function sendChatMessage(
                 if (!followUpRes.ok) {
                     // Try fallback model for RAG follow-up
                     console.warn(`[RAG] Primary model returned ${followUpRes.status}, trying fallback...`);
-                    const fbRes = await fetchWithRetry(`${GEMINI_BASE_URL}/${GEMINI_FALLBACK_MODEL}:generateContent?key=${apiKey}`, {
+                    const fbRes = await fetchWithRetry(`/api/gemini?model=${GEMINI_FALLBACK_MODEL}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: followUpContents }),
@@ -193,7 +190,7 @@ export async function sendGradingRequest(prompt: string): Promise<string> {
     const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
     for (const model of modelsToTry) {
         try {
-            const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`, {
+            const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
@@ -218,7 +215,7 @@ export async function generateImage(prompt: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
+        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -252,7 +249,7 @@ export async function rewriteText(text: string): Promise<string | null> {
     const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
     for (const model of modelsToTry) {
         try {
-            const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`, {
+            const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }),
@@ -282,7 +279,7 @@ export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
     for (const model of modelsToTry) {
         try {
             const res = await fetchWithRetry(
-                `${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`,
+                `/api/gemini?model=${model}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -319,7 +316,7 @@ Yêu cầu:
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
 
-    const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+    const res = await fetchWithRetry(`/api/gemini?model=gemini-2.5-flash`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
@@ -365,7 +362,7 @@ export async function generateDiagnosticMCQ(prompt: string): Promise<DiagnosticQ
         try {
             console.log(`[Quiz] Trying model: ${model}`);
             const res = await fetchWithRetry(
-                `${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`,
+                `/api/gemini?model=${model}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -419,7 +416,7 @@ export async function sendProactiveMessage(
             .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
-        const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const res = await fetchWithRetry(`/api/gemini?model=gemini-2.5-flash`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
@@ -450,7 +447,7 @@ Text must be clear, readable Vietnamese. High contrast. Suitable for high school
 Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
-        const res = await fetchWithRetry(`${GEMINI_BASE_URL}/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
+        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -488,7 +485,7 @@ export async function generateAIExam(prompt: string): Promise<AIExamData | null>
         try {
             console.log(`[AIExam] Trying model: ${model}`);
             const res = await fetchWithRetry(
-                `${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`,
+                `/api/gemini?model=${model}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -546,7 +543,7 @@ export async function generateChatAutoResponse(
         const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
         for (const model of modelsToTry) {
             try {
-                const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`, {
+                const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
@@ -649,7 +646,7 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
 
     for (const model of modelsToTry) {
         try {
-            const res = await fetchWithRetry(`${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`, {
+            const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
