@@ -180,6 +180,111 @@ export default function LearningTimeline({ lessonProgress, onSelectLesson }: Lea
                 flexDirection: 'column',
                 gap: 8,
             }}>
+                {/* ── Welcome / Guide Banner ── */}
+                {(() => {
+                    const hasAnyProgress = Object.keys(lessonProgress).length > 0;
+                    const sectionLessons = currentSection.lessons;
+                    const inProgressLesson = sectionLessons.find(l => {
+                        const k = `${currentSection.id}-${l.id}`;
+                        return lessonProgress[k]?.status === 'in_progress';
+                    });
+                    const nextNotStarted = sectionLessons.find(l => {
+                        const k = `${currentSection.id}-${l.id}`;
+                        return !lessonProgress[k] || lessonProgress[k].status === 'not_started';
+                    });
+
+                    const clickTarget = inProgressLesson || nextNotStarted;
+                    const isClickable = !!clickTarget;
+
+                    return (
+                        <div
+                            style={{
+                                background: 'linear-gradient(135deg, #EFF6FF, #DBEAFE)',
+                                border: '1px solid #93C5FD',
+                                borderRadius: 12,
+                                padding: '14px 16px',
+                                marginBottom: 4,
+                                display: 'flex',
+                                gap: 12,
+                                alignItems: 'flex-start',
+                                cursor: isClickable ? 'pointer' : 'default',
+                                transition: 'all 0.2s',
+                            }}
+                            onClick={isClickable ? () => onSelectLesson(currentSection.id, clickTarget!.id) : undefined}
+                            onMouseEnter={isClickable ? (e) => {
+                                e.currentTarget.style.borderColor = '#3B82F6';
+                                e.currentTarget.style.boxShadow = '0 3px 12px rgba(59, 130, 246, .15)';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                            } : undefined}
+                            onMouseLeave={isClickable ? (e) => {
+                                e.currentTarget.style.borderColor = '#93C5FD';
+                                e.currentTarget.style.boxShadow = 'none';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                            } : undefined}
+                        >
+                            <div style={{
+                                width: 36, height: 36, borderRadius: 10,
+                                background: '#3B82F6',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0, marginTop: 2,
+                            }}>
+                                <Play size={16} color="#fff" fill="#fff" />
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                {!hasAnyProgress ? (
+                                    <>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F', marginBottom: 4 }}>
+                                            Chào em! Bắt đầu học từ đây nhé
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
+                                            Chọn bất kỳ bài học nào bên dưới để bắt đầu. Gia sư AI sẽ giảng bài từng phần,
+                                            hỏi kiểm tra sau mỗi phần, và lưu tiến trình tự động. Em có thể thoát bài
+                                            bất cứ lúc nào — tiến trình sẽ được lưu lại.
+                                        </div>
+                                    </>
+                                ) : inProgressLesson ? (
+                                    <>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F', marginBottom: 4 }}>
+                                            Tiếp tục học: {inProgressLesson.title}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
+                                            Em đang học dang dở bài này. Nhấn vào để tiếp tục từ chỗ đã dừng,
+                                            hoặc chọn bài khác nếu muốn chuyển chủ đề.
+                                        </div>
+                                    </>
+                                ) : nextNotStarted ? (
+                                    <>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F', marginBottom: 4 }}>
+                                            Bài tiếp theo: {nextNotStarted.title}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
+                                            Chọn bài tiếp theo để học, hoặc quay lại ôn bất kỳ bài nào đã hoàn thành.
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: '#166534', marginBottom: 4 }}>
+                                            Tuyệt vời! Em đã hoàn thành phần này
+                                        </div>
+                                        <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
+                                            Chuyển sang phần khác hoặc nhấn vào bài đã học để ôn tập lại.
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                            {isClickable && (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center',
+                                    color: '#3B82F6', fontWeight: 600, fontSize: 12,
+                                    flexShrink: 0, marginTop: 8, gap: 4,
+                                }}>
+                                    <span>Bắt đầu</span>
+                                    <ChevronRight size={14} />
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
                 {currentSection.lessons.map((lesson, idx) => {
                     const key = `${currentSection.id}-${lesson.id}`;
                     const lp = lessonProgress[key];

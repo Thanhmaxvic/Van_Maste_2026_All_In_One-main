@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Mic, MicOff, Camera, Loader2, X } from 'lucide-react';
+import { Send, Mic, MicOff, Camera, Loader2, X, BookOpen, GraduationCap, ArrowRight } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { useChat } from './hooks/useChat';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
@@ -16,6 +16,7 @@ import StatsTab from './components/stats/StatsTab';
 import TeacherApp from './components/teacher/TeacherApp';
 import MiniGamesHub from './components/games/MiniGamesHub';
 import { incrementTotalVisits, trackOnlinePresence } from './services/firebaseService';
+import { findLesson, CURRICULUM } from './constants/curriculum';
 import type { ExamGrade, AIExamData } from './types';
 import './index.css';
 
@@ -38,8 +39,14 @@ function StudentApp() {
     messages, input, setInput, isLoading,
     previewImage, setPreviewImage, chatEndRef, fileInputRef,
     handleSend, handlePlayTTS, addGradeMsg, startGraphicFlow, startExamFlow,
-    startLesson, startCitationFlow, startQuizFlow, handleQuizAnswer,
+    startLesson, exitLesson, activeLesson: activeLessonState,
+    startCitationFlow, startQuizFlow, handleQuizAnswer,
   } = useChat(onStartDiagnosticExam);
+
+  // Resolve active lesson title for the banner
+  const activeLessonInfo = activeLessonState
+    ? findLesson(activeLessonState.sectionId, activeLessonState.lessonId)
+    : null;
 
   // ── Select lesson from timeline ──────────────────────────────────────
   const handleSelectLesson = useCallback((sectionId: string, lessonId: string) => {
@@ -117,7 +124,145 @@ function StudentApp() {
           {/* Chat Tab */}
           {activeTab === 'chat' && (
             <>
+              {/* Lesson mode banner */}
+              {activeLessonState && activeLessonInfo && (
+                <div className="lesson-banner">
+                  <div className="lesson-banner-info">
+                    <BookOpen size={16} />
+                    <span className="lesson-banner-title">
+                      Đang học: {activeLessonInfo.lesson.title}
+                    </span>
+                    {(() => {
+                      const key = `${activeLessonState.sectionId}-${activeLessonState.lessonId}`;
+                      const lp = userProfile?.lessonProgress?.[key];
+                      if (lp && lp.sectionsTotal > 0) {
+                        return (
+                          <span className="lesson-banner-progress">
+                            {lp.sectionsDone}/{lp.sectionsTotal} phần
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  <button
+                    className="lesson-banner-exit"
+                    onClick={exitLesson}
+                    title="Thoát bài học"
+                  >
+                    <X size={14} />
+                    <span>Thoát bài</span>
+                  </button>
+                </div>
+              )}
+
               <div className="chat-scroll">
+                {/* ── Welcome empty state when no messages ── */}
+                {messages.length === 0 && !isLoading && (() => {
+                  const lp = userProfile?.lessonProgress || {};
+                  const allLessons: { sectionId: string; lessonId: string; title: string }[] = [];
+                  CURRICULUM.forEach(sec => sec.lessons.forEach(l => allLessons.push({ sectionId: sec.id, lessonId: l.id, title: l.title })));
+
+                  const inProgress = allLessons.find(l => lp[`${l.sectionId}-${l.lessonId}`]?.status === 'in_progress');
+                  const nextNew = allLessons.find(l => !lp[`${l.sectionId}-${l.lessonId}`] || lp[`${l.sectionId}-${l.lessonId}`]?.status === 'not_started');
+                  const completedCount = allLessons.filter(l => lp[`${l.sectionId}-${l.lessonId}`]?.status === 'completed').length;
+                  const hasAnyProgress = Object.keys(lp).length > 0;
+                  const allDone = completedCount === allLessons.length && allLessons.length > 0;
+
+                  return (
+                    <div className="chat-welcome">
+                      <div className="chat-welcome-icon">
+                        <GraduationCap size={32} />
+                      </div>
+
+                      {!hasAnyProgress ? (
+                        <>
+                          <h2 className="chat-welcome-title">Chào em! Gia sư Ngữ văn AI sẵn sàng hỗ trợ em</h2>
+                          <p className="chat-welcome-desc">
+                            Em có thể hỏi bất kỳ câu hỏi nào về Ngữ văn, hoặc bắt đầu học bài theo lộ trình.
+                            Hãy chọn một trong các cách bên dưới để bắt đầu nhé!
+                          </p>
+                          <div className="chat-welcome-actions">
+                            <button className="chat-welcome-btn primary" onClick={() => setActiveTab('learn')}>
+                              <BookOpen size={16} />
+                              <span>Bắt đầu học bài</span>
+                              <ArrowRight size={14} />
+                            </button>
+                            <button className="chat-welcome-btn" onClick={startQuizFlow}>
+                              Quiz trắc nghiệm
+                            </button>
+                            <button className="chat-welcome-btn" onClick={startExamFlow}>
+                              Tạo đề thi thử
+                            </button>
+                          </div>
+                          <div className="chat-welcome-hint">
+                            Hoặc gõ câu hỏi vào ô chat bên dưới — ví dụ: "Phân tích nhân vật Chí Phèo"
+                          </div>
+                        </>
+                      ) : inProgress ? (
+                        <>
+                          <h2 className="chat-welcome-title">Chào em! Em đang học dang dở bài này</h2>
+                          <p className="chat-welcome-desc">
+                            Tiếp tục bài "{inProgress.title}" từ chỗ đã dừng, hoặc chọn bài mới nếu muốn chuyển chủ đề.
+                          </p>
+                          <div className="chat-welcome-actions">
+                            <button className="chat-welcome-btn primary" onClick={() => startLesson(inProgress.sectionId, inProgress.lessonId, true)}>
+                              <BookOpen size={16} />
+                              <span>Tiếp tục: {inProgress.title}</span>
+                              <ArrowRight size={14} />
+                            </button>
+                            <button className="chat-welcome-btn" onClick={() => setActiveTab('learn')}>
+                              Chọn bài khác
+                            </button>
+                          </div>
+                          <div className="chat-welcome-hint">
+                            Hoặc hỏi bất kỳ câu hỏi Ngữ văn nào — em không bắt buộc phải theo bài học
+                          </div>
+                        </>
+                      ) : allDone ? (
+                        <>
+                          <h2 className="chat-welcome-title">Tuyệt vời! Em đã hoàn thành tất cả bài học</h2>
+                          <p className="chat-welcome-desc">
+                            Em có thể ôn lại bất kỳ bài nào, làm quiz, hoặc hỏi thêm câu hỏi để củng cố kiến thức.
+                          </p>
+                          <div className="chat-welcome-actions">
+                            <button className="chat-welcome-btn primary" onClick={() => setActiveTab('learn')}>
+                              <BookOpen size={16} />
+                              <span>Ôn tập lại</span>
+                            </button>
+                            <button className="chat-welcome-btn" onClick={startQuizFlow}>
+                              Quiz trắc nghiệm
+                            </button>
+                            <button className="chat-welcome-btn" onClick={startExamFlow}>
+                              Tạo đề thi thử
+                            </button>
+                          </div>
+                        </>
+                      ) : nextNew ? (
+                        <>
+                          <h2 className="chat-welcome-title">Chào em! Đã hoàn thành {completedCount} bài</h2>
+                          <p className="chat-welcome-desc">
+                            Bài tiếp theo trong lộ trình: "{nextNew.title}". Tiếp tục học hoặc hỏi bất kỳ câu hỏi nào.
+                          </p>
+                          <div className="chat-welcome-actions">
+                            <button className="chat-welcome-btn primary" onClick={() => startLesson(nextNew.sectionId, nextNew.lessonId)}>
+                              <BookOpen size={16} />
+                              <span>Học bài tiếp: {nextNew.title}</span>
+                              <ArrowRight size={14} />
+                            </button>
+                            <button className="chat-welcome-btn" onClick={() => setActiveTab('learn')}>
+                              Xem lộ trình
+                            </button>
+                          </div>
+                          <div className="chat-welcome-hint">
+                            Hoặc gõ câu hỏi vào ô chat bên dưới
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                  );
+                })()}
+
                 {messages.map((msg, i) => (
                   <ChatMessage
                     key={i}

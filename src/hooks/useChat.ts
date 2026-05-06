@@ -691,6 +691,28 @@ Trong bài học lần trước, ${pronoun} và em đã học đến phần th�
         // Quiz answers are now handled via handleQuizAnswer (clickable buttons)
         // No need to handle quiz answers from text input
 
+        // ── Detect lesson exit / switch intent while in lesson mode ────────
+        if (activeLesson) {
+            const wantsExit = /muốn học bài khác|chuyển bài|dừng bài|không muốn học (bài )?này|thoát bài|em muốn dừng|đổi bài|bỏ bài này|học bài mới/i.test(lower);
+            if (wantsExit) {
+                // Save progress and exit lesson
+                if (user) {
+                    const lessonKey = getLessonKey(activeLesson.sectionId, activeLesson.lessonId);
+                    const lp = userProfile?.lessonProgress?.[lessonKey];
+                    if (lp) {
+                        updateLessonProgress(user.uid, lessonKey, lp).catch(console.error);
+                    }
+                }
+                const found = findLesson(activeLesson.sectionId, activeLesson.lessonId);
+                const lessonTitle = found ? found.lesson.title : 'bài học';
+                setActiveLesson(null);
+                if (user) clearActiveLesson(user.uid).catch(console.error);
+                addAssistant(`Được rồi, tiến trình bài "${lessonTitle}" đã được lưu lại. Em có thể quay lại học tiếp bất cứ lúc nào nhé!\n\nEm muốn ${pronoun} giúp gì tiếp? Hoặc em có thể chọn bài mới từ tab **Tiến Trình**.`);
+                setInput('');
+                return;
+            }
+        }
+
         // ── Normal chat ───────────────────────────────────────────────────────
         if (!isApiKeyConfigured()) {
             addAssistant('API Key chưa được cấu hình. Thêm VITE_GOOGLE_API_KEY vào file .env.');
@@ -1011,16 +1033,77 @@ Trong bài học lần trước, ${pronoun} và em đã học đến phần th�
         }
     }, [quizState, finishQuiz, askQuizQuestion]);
 
+    // ── Exit lesson flow ────────────────────────────────────────────────────
+    const exitLesson = useCallback(() => {
+        if (!activeLesson) return;
+
+        // 1. Stop any playing audio immediately
+        stopCurrentAudio();
+        setIsPlayingAudio(false);
+
+        // 2. Cancel busy/loading state (in case AI is mid-response)
+        busyRef.current = false;
+        lastTaskEndRef.current = 0;
+        setIsLoading(false);
+
+        // 3. Save current progress before exiting
+        if (user) {
+            const lessonKey = getLessonKey(activeLesson.sectionId, activeLesson.lessonId);
+            const lp = userProfile?.lessonProgress?.[lessonKey];
+            if (lp) {
+                updateLessonProgress(user.uid, lessonKey, lp).catch(console.error);
+            }
+            clearActiveLesson(user.uid).catch(console.error);
+        }
+
+        const found = findLesson(activeLesson.sectionId, activeLesson.lessonId);
+        const lessonTitle = found ? found.lesson.title : 'bài học';
+
+        // 4. Clear active lesson state FIRST (so handleSend won't inject lesson context)
+        setActiveLesson(null);
+
+        // 5. Clear ALL messages to remove lesson context from chat history,
+        //    then show a fresh exit message. This prevents the AI from
+        //    continuing the lesson based on chat history.
+        const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
+        setMessages([{
+            role: 'assistant' as const,
+            content: `Đã lưu tiến trình bài "${lessonTitle}". Em có thể quay lại học tiếp bất cứ lúc nào nhé!\n\nBây giờ em muốn ${Pronoun} giúp gì? Em có thể:\n- Chọn bài mới từ tab Tiến Trình\n- Hỏi bất kỳ câu hỏi nào về Ngữ văn\n- Làm đề thi, quiz, hoặc tạo đồ hoạ`,
+        }]);
+        playNotification();
+    }, [activeLesson, user, userProfile, pronoun, playNotification]);
+
     // ── Start lesson flow ───────────────────────────────────────────────────
     const startLesson = useCallback(async (sectionId: string, lessonId: string, resumeMode = false) => {
         const found = findLesson(sectionId, lessonId);
         if (!found) return;
         const { lesson } = found;
 
-        // Clear existing messages and show intro (only if not resuming)
+        // If switching from another active lesson, save progress of old lesson first
+        if (activeLesson && !resumeMode) {
+            const oldKey = getLessonKey(activeLesson.sectionId, activeLesson.lessonId);
+            const isSameLesson = activeLesson.sectionId === sectionId && activeLesson.lessonId === lessonId;
+            if (!isSameLesson && user) {
+                const oldLp = userProfile?.lessonProgress?.[oldKey];
+                if (oldLp) {
+                    updateLessonProgress(user.uid, oldKey, oldLp).catch(console.error);
+                }
+                await clearActiveLesson(user.uid);
+                const oldFound = findLesson(activeLesson.sectionId, activeLesson.lessonId);
+                const oldTitle = oldFound ? oldFound.lesson.title : 'bài trước';
+                addAssistant(`Đã lưu tiến trình bài "${oldTitle}".`);
+            }
+        }
+
+        // Clear existing messages and show intro
         if (!resumeMode) {
             setMessages([]);
             addAssistant(`Sau đây ${pronoun} sẽ cùng em bắt đầu học bài: "${lesson.title}" nhé. Em đã sẵn sàng chưa?`);
+        } else {
+            // Resume mode: add a welcome-back message so chat area isn't empty
+            if (messages.length === 0) {
+                addAssistant(`Chào em! Mình tiếp tục bài "${lesson.title}" nhé. Em gõ "sẵn sàng" hoặc bất kỳ câu hỏi nào để bắt đầu.`);
+            }
         }
 
         // Fetch DOCX content
@@ -1028,12 +1111,8 @@ Trong bài học lần trước, ${pronoun} và em đã học đến phần th�
             const docxContent = await fetchDocxAsText(lesson.docxPath);
             setActiveLesson({ sectionId, lessonId, docxContent });
 
-            // Save active lesson to Firebase (clear old one first if starting new lesson)
+            // Save active lesson to Firebase
             if (user) {
-                // If starting a new lesson (not resuming), clear any old active lesson first
-                if (!resumeMode && userProfile?.activeLesson) {
-                    await clearActiveLesson(user.uid);
-                }
                 await saveActiveLesson(user.uid, sectionId, lessonId);
 
                 const key = getLessonKey(sectionId, lessonId);
@@ -1075,11 +1154,12 @@ Trong bài học lần trước, ${pronoun} và em đã học đến phần th�
             console.error('Failed to load lesson DOCX:', e);
             addAssistant('Lỗi tải tài liệu bài học. Em thử lại sau nhé.');
         }
-    }, [addAssistant, user, userProfile, setUserProfile]);
+    }, [activeLesson, addAssistant, user, userProfile, setUserProfile]);
 
     return {
         messages, input, isLoading, isRewriting, isDiagnosing, isPlayingAudio, previewImage,
         quizPhase: quizState.phase,
+        activeLesson,
         userData: {
             level: userProfile?.level || 'Tan Binh',
             status: 'San sang chien',
@@ -1092,7 +1172,7 @@ Trong bài học lần trước, ${pronoun} và em đã học đến phần th�
         chatEndRef, fileInputRef,
         setInput, setPreviewImage,
         handleSend, handleMagicRewrite, handlePlayTTS, startDiagnosis, handleFileSelect,
-        startGraphicFlow, startExamFlow, handleExamTypeChoice, startLesson,
+        startGraphicFlow, startExamFlow, handleExamTypeChoice, startLesson, exitLesson,
         startCitationFlow, startQuizFlow, handleQuizAnswer,
         addGradeMsg: (grade: ExamGrade, resolvedWeaknesses?: string[]) => {
             const scoreOutOf10 = +(grade.score / grade.maxScore * 10).toFixed(1);
