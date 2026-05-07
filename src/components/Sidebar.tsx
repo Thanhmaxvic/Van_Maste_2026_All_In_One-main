@@ -120,6 +120,34 @@ export default function Sidebar({ profile }: SidebarProps) {
                 <div className="ai-tip-box">{aiTip}</div>
             </div>
 
+            {/* Custom AI Timeline (Bảng Lộ trình cá nhân hoá) */}
+            {profile.customTimeline && profile.customTimeline.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                    <div className="sidebar-section-title" style={{ color: '#059669', marginTop: 12 }}>Lộ trình cá nhân hoá</div>
+                    <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
+                        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: 'var(--color-surface-hover)', borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
+                                    <th style={{ padding: '8px', color: 'var(--color-text-secondary)', fontWeight: 600, width: '30%' }}>Thời gian</th>
+                                    <th style={{ padding: '8px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>Nội dung trọng tâm</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {profile.customTimeline.map((ev, i) => (
+                                    <tr key={i} style={{ borderBottom: i < profile.customTimeline!.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                                        <td style={{ padding: '8px', verticalAlign: 'top', color: '#059669', fontWeight: 700 }}>{ev.time}</td>
+                                        <td style={{ padding: '8px', verticalAlign: 'top' }}>
+                                            <div style={{ fontWeight: 700, color: 'var(--color-text)', marginBottom: 2 }}>{ev.title}</div>
+                                            {ev.desc && <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.4 }}>{ev.desc}</div>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
             {/* Weaknesses */}
             {weaknesses.length > 0 && (
                 <div>

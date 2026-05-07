@@ -87,6 +87,8 @@ export interface UserProfile {
     sectionId: string;
     lessonId: string;
   } | null;
+  /** Custom AI generated timeline for the student */
+  customTimeline?: { time: string; title: string; desc: string }[];
 }
 
 /** Teacher display profile shown to students in chat */

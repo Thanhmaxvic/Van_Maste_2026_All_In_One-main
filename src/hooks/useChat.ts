@@ -27,7 +27,7 @@ import {
 import type { DiagnosticQuizData } from '../services/geminiApi';
 import { playTTS, queueTTS, stopCurrentAudio } from '../services/ttsService';
 import { useAuth } from '../context/AuthContext';
-import { saveTargetScore, saveChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson } from '../services/firebaseService';
+import { saveTargetScore, saveChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson, updateUserProfile } from '../services/firebaseService';
 import { findLesson, getLessonKey } from '../constants/curriculum';
 import { fetchDocxAsText, estimateSectionCount } from '../services/examService';
 
@@ -614,6 +614,32 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                         aiExamData = JSON.parse(examMatch[1].trim());
                     } catch { /* ignore malformed */ }
                     cleanContent = cleanContent.replace(/\[AI_EXAM\][\s\S]*?\[\/AI_EXAM\]/, '').trim();
+                }
+
+                // Parse [TIMELINE]
+                if (cleanContent.includes('[TIMELINE]')) {
+                    const lines = cleanContent.split('\n');
+                    const timelineEvents: { time: string; title: string; desc: string }[] = [];
+                    const remainingLines: string[] = [];
+                    for (const line of lines) {
+                        if (line.includes('[TIMELINE]')) {
+                            const p = line.replace(/\[TIMELINE\]/g, '').split('|');
+                            if (p.length >= 2) {
+                                timelineEvents.push({
+                                    time: p[0]?.trim() || '',
+                                    title: p[1]?.trim() || '',
+                                    desc: p[2]?.trim() || ''
+                                });
+                            }
+                        } else {
+                            remainingLines.push(line);
+                        }
+                    }
+                    cleanContent = remainingLines.join('\n').trim();
+                    if (timelineEvents.length > 0 && user) {
+                        updateUserProfile(user.uid, { customTimeline: timelineEvents }).catch(console.error);
+                        setUserProfile(p => p ? { ...p, customTimeline: timelineEvents } : p);
+                    }
                 }
 
                 // ── Lesson progress tags ──
