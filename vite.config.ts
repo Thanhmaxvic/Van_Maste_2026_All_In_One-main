@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
           configure: (proxy, options) => {
             proxy.on('proxyReq', (proxyReq, req, res) => {
               const url = new URL(req.url || '', 'http://localhost');
-              const model = url.searchParams.get('model') || 'gemini-2.5-flash';
+              const model = url.searchParams.get('model') || 'gemini-3-flash-preview';
               const newUrl = new URL(`/v1beta/models/${model}:generateContent`, 'https://generativelanguage.googleapis.com');
 
               const apiKey = env.GOOGLE_API_KEY || env.VITE_GOOGLE_API_KEY || '';

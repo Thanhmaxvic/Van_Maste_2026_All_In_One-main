@@ -320,7 +320,7 @@ Yêu cầu:
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
 
-    const res = await fetchWithRetry(`/api/gemini?model=gemini-2.5-flash`, {
+    const res = await fetchWithRetry(`/api/gemini?model=${GEMINI_PRIMARY_MODEL}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
@@ -420,7 +420,7 @@ export async function sendProactiveMessage(
             .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
-        const res = await fetchWithRetry(`/api/gemini?model=gemini-2.5-flash`, {
+        const res = await fetchWithRetry(`/api/gemini?model=${GEMINI_PRIMARY_MODEL}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),

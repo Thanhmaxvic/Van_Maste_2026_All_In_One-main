@@ -21,32 +21,40 @@ function clean(raw: string): string {
         .replace(/_([^_]+)_/g, '$1');
 }
 
-function renderBody(text: string, isUser: boolean, mcqState?: { selected: string | null, onSelect: (letter: string) => void } | null): React.ReactNode {
+function renderBody(text: string, isUser: boolean, mcqState?: { selected: Record<number, string>, onSelect: (qIdx: number, letter: string) => void } | null): React.ReactNode {
     // Extract [SỬA]...[/SỬA] correction blocks
     const correctionMatch = text.match(/\[SỬA\]([\s\S]*?)\[\/SỬA\]/);
     const correctionText = correctionMatch ? correctionMatch[1].trim() : null;
     const mainText = text.replace(/\[SỬA\][\s\S]*?\[\/SỬA\]\s*/g, '').trim();
 
     const lines = mainText.split('\n');
+    let currentQIdx = -1; // Track which question we're in
     const bodyElements = lines.map((line, i) => {
         const t = line.trim();
         if (!t) return <div key={i} style={{ height: 4 }} />;
+
+        // Detect question header like "Câu 1:", "Câu 2:", etc.
+        if (/^Câu\s*\d+/i.test(t)) {
+            currentQIdx++;
+        }
 
         // MCQ options: A. B. C. D.
         if (/^[A-D]\.\s/.test(t)) {
             const letter = t[0];
             const rest = t.slice(3);
+            const qIdx = Math.max(0, currentQIdx); // fallback to 0 if no question header found
             const isClickable = mcqState && !isUser;
-            const isSelected = mcqState?.selected === letter;
-            const isDimmed = mcqState?.selected && mcqState.selected !== letter;
+            const selectedForQ = mcqState?.selected[qIdx];
+            const isSelected = selectedForQ === letter;
+            const isDimmed = selectedForQ && selectedForQ !== letter;
             return (
                 <button
                     key={i}
                     type="button"
                     className={`bubble mcq-opt mcq-clickable ${isSelected ? 'mcq-selected' : ''} ${isDimmed ? 'mcq-dimmed' : ''}`}
-                    onClick={() => isClickable && !mcqState?.selected && mcqState?.onSelect(letter)}
-                    disabled={!isClickable || !!mcqState?.selected}
-                    style={{ cursor: isClickable && !mcqState?.selected ? 'pointer' : 'default', width: '100%', textAlign: 'left', border: 'none', fontFamily: 'inherit' }}
+                    onClick={() => isClickable && !selectedForQ && mcqState?.onSelect(qIdx, letter)}
+                    disabled={!isClickable || !!selectedForQ}
+                    style={{ cursor: isClickable && !selectedForQ ? 'pointer' : 'default', width: '100%', textAlign: 'left', border: 'none', fontFamily: 'inherit' }}
                 >
                     <span className="mcq-badge">{letter}</span>
                     <span style={{ fontSize: 13.5 }}>{rest}</span>
@@ -232,17 +240,30 @@ function QuickReplyBtns({ replies, onReply }: { replies: string[]; onReply?: (t:
 const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAIExam, onQuizAnswer, onMCQSelect, onQuickReply }) => {
     const isUser = message.role === 'user';
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [mcqSelected, setMcqSelected] = useState<string | null>(null);
+    const [mcqSelected, setMcqSelected] = useState<Record<number, string>>({});
     const { userProfile } = useAuth();
     const botAvatar = userProfile?.voiceGender === 'female' ? '/images/female.webp' : '/images/male.webp';
 
     // Detect if this message contains inline MCQ options (A. B. C. D.)
     const hasMCQ = !isUser && /^[A-D]\.\s/m.test(message.content);
 
-    const handleMCQClick = (letter: string) => {
-        if (mcqSelected) return;
-        setMcqSelected(letter);
-        onMCQSelect?.(letter);
+    const handleMCQClick = (qIdx: number, letter: string) => {
+        if (mcqSelected[qIdx]) return; // Already answered this question
+        setMcqSelected(prev => ({ ...prev, [qIdx]: letter }));
+
+        // Build answer string like "Câu 1: A, Câu 2: B" once all questions are answered
+        const updated = { ...mcqSelected, [qIdx]: letter };
+        // Count total questions in this message
+        const totalQs = (message.content.match(/^Câu\s*\d+/gim) || []).length || 1;
+        const answeredCount = Object.keys(updated).length;
+        if (answeredCount >= totalQs) {
+            // All questions answered — send combined answer
+            const answerText = Object.entries(updated)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([idx, l]) => `Câu ${Number(idx) + 1}: ${l}`)
+                .join(', ');
+            onMCQSelect?.(answerText);
+        }
     };
 
     if (message.examGrade) {
