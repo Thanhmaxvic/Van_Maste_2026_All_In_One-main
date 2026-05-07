@@ -90,6 +90,10 @@ export async function sendChatMessage(
             body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
         });
         if (!fallbackRes.ok) {
+            // Read response body for detailed error info
+            let errorDetail = '';
+            try { errorDetail = await fallbackRes.text(); } catch { /* ignore */ }
+            console.error(`[Chat] Fallback also failed: ${fallbackRes.status} — ${errorDetail}`);
             throw new Error(`API error: ${fallbackRes.status} ${fallbackRes.statusText}`);
         }
         const fbData = await fallbackRes.json();

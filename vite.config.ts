@@ -18,7 +18,9 @@ export default defineConfig(({ mode }) => {
               const url = new URL(req.url || '', 'http://localhost');
               const model = url.searchParams.get('model') || 'gemini-2.5-flash';
               const newUrl = new URL(`/v1beta/models/${model}:generateContent`, 'https://generativelanguage.googleapis.com');
-              newUrl.searchParams.append('key', env.GOOGLE_API_KEY || '');
+
+              const apiKey = env.GOOGLE_API_KEY || env.VITE_GOOGLE_API_KEY || '';
+              newUrl.searchParams.append('key', apiKey);
               proxyReq.path = newUrl.pathname + newUrl.search;
             });
           }
@@ -30,7 +32,8 @@ export default defineConfig(({ mode }) => {
           configure: (proxy, options) => {
             proxy.on('proxyReq', (proxyReq, req, res) => {
               const url = new URL(proxyReq.path, 'http://localhost');
-              url.searchParams.append('key', env.GOOGLE_TTS_API_KEY || '');
+              const ttsKey = env.GOOGLE_TTS_API_KEY || env.VITE_GOOGLE_TTS_API_KEY || '';
+              url.searchParams.append('key', ttsKey);
               proxyReq.path = url.pathname + url.search;
             });
           }

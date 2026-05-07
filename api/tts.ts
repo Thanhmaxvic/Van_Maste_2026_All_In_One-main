@@ -8,7 +8,7 @@ export default async function handler(req: Request) {
   }
 
   try {
-    const apiKey = process.env.GOOGLE_TTS_API_KEY;
+    const apiKey = process.env.GOOGLE_TTS_API_KEY || process.env.VITE_GOOGLE_TTS_API_KEY;
     if (!apiKey) {
       return new Response(JSON.stringify({ error: 'Missing API Key' }), {
         status: 500,

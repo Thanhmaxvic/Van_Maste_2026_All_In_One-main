@@ -685,9 +685,21 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 });
                 setUserProfile(p => p ? { ...p, xp: p.xp + 50, progress: Math.min(p.progress + 2, 100) } : p);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('API error:', err);
-            addAssistant('Lỗi kết nối AI. Kiểm tra kết nối và API Key rồi thử lại.');
+            // Provide specific error feedback
+            const msg = err?.message || '';
+            if (msg.includes('API_KEY_MISSING') || msg.includes('Missing API Key')) {
+                addAssistant('API Key chưa được cấu hình trên server. Vui lòng kiểm tra biến môi trường GOOGLE_API_KEY.');
+            } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch')) {
+                addAssistant('Không thể kết nối đến server AI. Kiểm tra kết nối mạng rồi thử lại nhé em.');
+            } else if (msg.includes('503') || msg.includes('overloaded')) {
+                addAssistant('Server AI đang quá tải. Em đợi vài giây rồi gửi lại nhé.');
+            } else if (msg.includes('429') || msg.includes('quota') || msg.includes('rate')) {
+                addAssistant('Đã vượt giới hạn gọi API. Em đợi một chút rồi thử lại nhé.');
+            } else {
+                addAssistant(`Lỗi xử lý: ${msg || 'Không xác định'}. Em thử gửi lại nhé.`);
+            }
         } finally {
             endBusy();
         }
