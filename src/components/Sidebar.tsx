@@ -44,17 +44,19 @@ export default function Sidebar({ profile }: SidebarProps) {
     const lp = profile.lessonProgress || {};
     const allLessons = CURRICULUM.flatMap(s => s.lessons.map(l => ({ sectionId: s.id, lessonId: l.id })));
     const completedCount = allLessons.filter(l => lp[getLessonKey(l.sectionId, l.lessonId)]?.status === 'completed').length;
-    const overallPct = allLessons.length > 0 ? Math.round((completedCount / allLessons.length) * 100) : 0;
-    
+
+    const inProgressCount = allLessons.filter(l => lp[getLessonKey(l.sectionId, l.lessonId)]?.status === 'in_progress').length;
+    const hasInteracted = completedCount > 0 || inProgressCount > 0 || (profile.submissionCount && profile.submissionCount > 0);
+
     // Lọc bỏ những dòng tiêu đề vô nghĩa do AI tự sinh ra (ví dụ: Thời gian | Nội dung)
     const validCustomTimeline = profile.customTimeline?.filter(
         ev => ev.time.toLowerCase() !== 'thời gian' && !ev.title.toLowerCase().includes('nội dung') && !ev.title.toLowerCase().includes('sự kiện')
     );
 
-    // Use custom timeline if it exists and has real content, otherwise generate a default one if progress >= 1%
+    // Use custom timeline if it exists and has real content, otherwise generate a default one if user has interacted
     const timelineToDisplay = validCustomTimeline && validCustomTimeline.length > 0 
         ? validCustomTimeline 
-        : (overallPct >= 1 ? generateDefaultTimeline(profile) : null);
+        : (hasInteracted ? generateDefaultTimeline(profile) : null);
 
     useEffect(() => {
         const baseTip = () => {
