@@ -134,6 +134,8 @@ export interface LessonProgress {
   questionsAsked: number;
   /** Practice questions answered correctly */
   questionsCorrect: number;
+  /** Timestamp when lesson was completed (for spaced repetition) */
+  completedAt?: number;
 }
 
 export interface ExamError {

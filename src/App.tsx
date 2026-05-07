@@ -11,6 +11,7 @@ import ChatMessage from './components/chat/ChatMessage';
 import ChatBubble from './components/chat/ChatBubble';
 import { incrementTotalVisits, trackOnlinePresence } from './services/firebaseService';
 import { findLesson, CURRICULUM } from './constants/curriculum';
+import { getSpacedRepetitionLessons } from './services/recommendationService';
 import type { ExamGrade, AIExamData } from './types';
 import './index.css';
 
@@ -21,6 +22,7 @@ const StatsTab = React.lazy(() => import('./components/stats/StatsTab'));
 const MiniGamesHub = React.lazy(() => import('./components/games/MiniGamesHub'));
 const TeacherApp = React.lazy(() => import('./components/teacher/TeacherApp'));
 const SettingsPanel = React.lazy(() => import('./components/settings/SettingsPanel'));
+const ProgressDashboard = React.lazy(() => import('./components/dashboard/ProgressDashboard'));
 
 /** Shared loading fallback for lazy components */
 function LazyFallback() {
@@ -179,6 +181,7 @@ function StudentApp() {
                   const completedCount = allLessons.filter(l => lp[`${l.sectionId}-${l.lessonId}`]?.status === 'completed').length;
                   const hasAnyProgress = Object.keys(lp).length > 0;
                   const allDone = completedCount === allLessons.length && allLessons.length > 0;
+                  const reviewLessons = userProfile ? getSpacedRepetitionLessons(userProfile).slice(0, 1) : [];
 
                   return (
                     <div className="chat-welcome">
@@ -265,6 +268,19 @@ function StudentApp() {
                               Xem lộ trình
                             </button>
                           </div>
+                          {reviewLessons.length > 0 && (
+                            <div style={{
+                              background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 10,
+                              padding: '10px 14px', marginTop: 8, fontSize: 12, color: '#0C4A6E',
+                              display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                            }} onClick={() => startLesson(reviewLessons[0].sectionId, reviewLessons[0].lessonId)}>
+                              <span style={{ fontSize: 14 }}>🔄</span>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600 }}>Nên ôn lại: {reviewLessons[0].title}</div>
+                                <div style={{ fontSize: 11, color: '#075985', marginTop: 2 }}>{reviewLessons[0].reason}</div>
+                              </div>
+                            </div>
+                          )}
                           <div className="chat-welcome-hint">
                             Hoặc gõ câu hỏi vào ô chat bên dưới
                           </div>
@@ -376,14 +392,23 @@ function StudentApp() {
               <LearningTimeline
                 lessonProgress={userProfile?.lessonProgress || {}}
                 onSelectLesson={handleSelectLesson}
+                userProfile={userProfile}
               />
             </Suspense>
           )}
 
-          {/* Roadmap Tab (mobile: chứa nội dung sidebar) */}
+          {/* Roadmap Tab (mobile: chứa dashboard năng lực + nội dung sidebar) */}
           {activeTab === 'roadmap' && userProfile && (
-            <div className="roadmap-page">
-              <Sidebar profile={userProfile} />
+            <div className="roadmap-page" style={{ overflowY: 'auto', height: '100%' }}>
+              <Suspense fallback={<LazyFallback />}>
+                <ProgressDashboard
+                  userProfile={userProfile}
+                  onGoToLesson={(sId, lId) => { startLesson(sId, lId); setActiveTab('chat'); }}
+                />
+              </Suspense>
+              <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
+                <Sidebar profile={userProfile} />
+              </div>
             </div>
           )}
 

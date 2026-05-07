@@ -1,11 +1,13 @@
-import { useState } from 'react';
-import { CheckCircle, Lock, Play, ChevronRight } from 'lucide-react';
-import { CURRICULUM } from '../../constants/curriculum';
-import type { LessonProgress } from '../../types';
+import { useState, useMemo } from 'react';
+import { CheckCircle, Lock, Play, ChevronRight, Star, RefreshCw } from 'lucide-react';
+import { CURRICULUM, getLessonKey } from '../../constants/curriculum';
+import type { LessonProgress, UserProfile } from '../../types';
+import { getWeaknessRecommendations, getSpacedRepetitionLessons } from '../../services/recommendationService';
 
 interface LearningTimelineProps {
     lessonProgress: Record<string, LessonProgress>;
     onSelectLesson: (sectionId: string, lessonId: string) => void;
+    userProfile?: UserProfile | null;
 }
 
 function getProgressPct(lp: LessonProgress | undefined): number {
@@ -28,9 +30,24 @@ function getSectionPct(sectionId: string, progress: Record<string, LessonProgres
     return Math.round(total / section.lessons.length);
 }
 
-export default function LearningTimeline({ lessonProgress, onSelectLesson }: LearningTimelineProps) {
+export default function LearningTimeline({ lessonProgress, onSelectLesson, userProfile }: LearningTimelineProps) {
     const [activeSection, setActiveSection] = useState(CURRICULUM[0].id);
     const currentSection = CURRICULUM.find(s => s.id === activeSection) || CURRICULUM[0];
+
+    // Compute recommendation badges
+    const badges = useMemo(() => {
+        const map: Record<string, { type: 'weakness' | 'review'; reason: string }> = {};
+        if (!userProfile) return map;
+        for (const r of getWeaknessRecommendations(userProfile)) {
+            const k = getLessonKey(r.sectionId, r.lessonId);
+            if (!map[k]) map[k] = { type: 'weakness', reason: r.reason };
+        }
+        for (const r of getSpacedRepetitionLessons(userProfile)) {
+            const k = getLessonKey(r.sectionId, r.lessonId);
+            if (!map[k]) map[k] = { type: 'review', reason: r.reason };
+        }
+        return map;
+    }, [userProfile]);
 
     return (
         <div style={{
@@ -292,31 +309,47 @@ export default function LearningTimeline({ lessonProgress, onSelectLesson }: Lea
                     const status = lp?.status || 'not_started';
                     const isCompleted = status === 'completed';
                     const isInProgress = status === 'in_progress';
+                    const badge = badges[key];
+                    const isRecommended = badge?.type === 'weakness';
+                    const needsReview = badge?.type === 'review';
 
                     return (
                         <div
                             key={lesson.id}
                             style={{
-                                background: 'var(--color-surface)',
+                                background: isRecommended ? '#FFFBEB' : needsReview ? '#F0F9FF' : 'var(--color-surface)',
                                 border: '1px solid',
-                                borderColor: isCompleted ? '#bbf7d0' : isInProgress ? 'var(--color-primary-light)' : 'var(--color-border)',
+                                borderColor: isRecommended ? '#FCD34D' : needsReview ? '#7DD3FC' : isCompleted ? '#bbf7d0' : isInProgress ? 'var(--color-primary-light)' : 'var(--color-border)',
                                 borderRadius: 12,
                                 padding: '12px 16px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
-                                opacity: status === 'not_started' && idx > 0 ? 0.7 : 1,
+                                opacity: status === 'not_started' && idx > 0 && !isRecommended ? 0.7 : 1,
                             }}
                             className="hover-card"
                             onClick={() => onSelectLesson(currentSection.id, lesson.id)}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.borderColor = isCompleted ? '#86efac' : isInProgress ? 'var(--color-primary)' : 'var(--color-border-hover)';
-                                e.currentTarget.style.background = 'var(--color-surface-hover)';
+                                e.currentTarget.style.borderColor = isRecommended ? '#F59E0B' : needsReview ? '#38BDF8' : isCompleted ? '#86efac' : isInProgress ? 'var(--color-primary)' : 'var(--color-border-hover)';
+                                e.currentTarget.style.background = isRecommended ? '#FEF3C7' : needsReview ? '#E0F2FE' : 'var(--color-surface-hover)';
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.borderColor = isCompleted ? '#bbf7d0' : isInProgress ? 'var(--color-primary-light)' : 'var(--color-border)';
-                                e.currentTarget.style.background = 'var(--color-surface)';
+                                e.currentTarget.style.borderColor = isRecommended ? '#FCD34D' : needsReview ? '#7DD3FC' : isCompleted ? '#bbf7d0' : isInProgress ? 'var(--color-primary-light)' : 'var(--color-border)';
+                                e.currentTarget.style.background = isRecommended ? '#FFFBEB' : needsReview ? '#F0F9FF' : 'var(--color-surface)';
                             }}
                         >
+                            {/* Recommendation badge */}
+                            {badge && (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 4,
+                                    fontSize: 11, fontWeight: 700, marginBottom: 6,
+                                    color: isRecommended ? '#B45309' : '#0369A1',
+                                    background: isRecommended ? '#FEF3C7' : '#E0F2FE',
+                                    padding: '3px 8px', borderRadius: 6, width: 'fit-content',
+                                }}>
+                                    {isRecommended ? <Star size={11} /> : <RefreshCw size={11} />}
+                                    {isRecommended ? 'Khuyến nghị cho em' : 'Nên ôn lại'}
+                                </div>
+                            )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 {/* Status icon */}
                                 <div style={{
@@ -351,14 +384,21 @@ export default function LearningTimeline({ lessonProgress, onSelectLesson }: Lea
                                             {lp.questionsAsked > 0 && ` • ${lp.questionsCorrect}/${lp.questionsAsked} câu`}
                                         </div>
                                     )}
+                                    {badge && (
+                                        <div style={{ fontSize: 11, color: isRecommended ? '#92400E' : '#075985', marginTop: 3, lineHeight: 1.4 }}>
+                                            {badge.reason}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Action / badge */}
                                 <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                                     {isCompleted ? (
-                                        <span style={{ fontSize: 13, color: 'var(--color-success)', fontWeight: 600 }}>Xong</span>
+                                        <span style={{ fontSize: 13, color: needsReview ? '#0369A1' : 'var(--color-success)', fontWeight: 600 }}>{needsReview ? 'Ôn lại' : 'Xong'}</span>
                                     ) : isInProgress ? (
                                         <span style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 600 }}>Tiếp tục</span>
+                                    ) : isRecommended ? (
+                                        <span style={{ fontSize: 13, color: '#B45309', fontWeight: 600 }}>Học ngay</span>
                                     ) : null}
                                     <ChevronRight size={18} color="var(--color-text-muted)" />
                                 </div>

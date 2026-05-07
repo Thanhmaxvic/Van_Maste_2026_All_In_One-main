@@ -642,6 +642,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                         lp.status = 'completed';
                         lp.sectionsDone = lp.sectionsTotal;
                         lp.currentSectionIndex = lp.sectionsTotal;
+                        lp.completedAt = Date.now();
                         setActiveLesson(null);
                         // Clear active lesson from Firebase when completed
                         if (user) {
