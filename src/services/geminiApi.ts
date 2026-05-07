@@ -225,7 +225,7 @@ export async function generateImage(prompt: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        const res = await fetchWithRetry(`/api/gemini?model=gemini-2.5-flash-image`, {
+        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -457,7 +457,7 @@ Text must be clear, readable Vietnamese. High contrast. Suitable for high school
 Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
-        const res = await fetchWithRetry(`/api/gemini?model=gemini-2.5-flash-image`, {
+        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
