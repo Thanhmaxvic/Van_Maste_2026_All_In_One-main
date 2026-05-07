@@ -9,6 +9,8 @@ interface ChatMessageProps {
     onPlayTTS: (text: string) => void;
     onStartAIExam?: (exam: AIExamData) => void;
     onQuizAnswer?: (answer: string) => void;
+    onMCQSelect?: (answer: string) => void;
+    onQuickReply?: (text: string) => void;
 }
 
 function clean(raw: string): string {
@@ -19,7 +21,7 @@ function clean(raw: string): string {
         .replace(/_([^_]+)_/g, '$1');
 }
 
-function renderBody(text: string, isUser: boolean): React.ReactNode {
+function renderBody(text: string, isUser: boolean, mcqState?: { selected: string | null, onSelect: (letter: string) => void } | null): React.ReactNode {
     // Extract [SỬA]...[/SỬA] correction blocks
     const correctionMatch = text.match(/\[SỬA\]([\s\S]*?)\[\/SỬA\]/);
     const correctionText = correctionMatch ? correctionMatch[1].trim() : null;
@@ -34,11 +36,21 @@ function renderBody(text: string, isUser: boolean): React.ReactNode {
         if (/^[A-D]\.\s/.test(t)) {
             const letter = t[0];
             const rest = t.slice(3);
+            const isClickable = mcqState && !isUser;
+            const isSelected = mcqState?.selected === letter;
+            const isDimmed = mcqState?.selected && mcqState.selected !== letter;
             return (
-                <div key={i} className="bubble mcq-opt">
+                <button
+                    key={i}
+                    type="button"
+                    className={`bubble mcq-opt mcq-clickable ${isSelected ? 'mcq-selected' : ''} ${isDimmed ? 'mcq-dimmed' : ''}`}
+                    onClick={() => isClickable && !mcqState?.selected && mcqState?.onSelect(letter)}
+                    disabled={!isClickable || !!mcqState?.selected}
+                    style={{ cursor: isClickable && !mcqState?.selected ? 'pointer' : 'default', width: '100%', textAlign: 'left', border: 'none', fontFamily: 'inherit' }}
+                >
                     <span className="mcq-badge">{letter}</span>
                     <span style={{ fontSize: 13.5 }}>{rest}</span>
-                </div>
+                </button>
             );
         }
         // Bullet
@@ -197,11 +209,41 @@ function AIExamCard({ exam, onStart }: { exam: AIExamData; onStart: () => void }
     );
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAIExam, onQuizAnswer }) => {
+/** Quick-reply pill buttons under AI messages */
+function QuickReplyBtns({ replies, onReply }: { replies: string[]; onReply?: (t: string) => void }) {
+    const [used, setUsed] = useState(false);
+    if (used || !replies.length) return null;
+    return (
+        <div className="quick-reply-row">
+            {replies.map((r, i) => (
+                <button
+                    key={i}
+                    type="button"
+                    className="quick-reply-btn"
+                    onClick={() => { setUsed(true); onReply?.(r); }}
+                >
+                    {r}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAIExam, onQuizAnswer, onMCQSelect, onQuickReply }) => {
     const isUser = message.role === 'user';
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [mcqSelected, setMcqSelected] = useState<string | null>(null);
     const { userProfile } = useAuth();
     const botAvatar = userProfile?.voiceGender === 'female' ? '/images/female.webp' : '/images/male.webp';
+
+    // Detect if this message contains inline MCQ options (A. B. C. D.)
+    const hasMCQ = !isUser && /^[A-D]\.\s/m.test(message.content);
+
+    const handleMCQClick = (letter: string) => {
+        if (mcqSelected) return;
+        setMcqSelected(letter);
+        onMCQSelect?.(letter);
+    };
 
     if (message.examGrade) {
         return (
@@ -227,6 +269,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAI
         );
     }
 
+    // Build mcqState for clickable inline MCQ options
+    const mcqState = hasMCQ ? { selected: mcqSelected, onSelect: handleMCQClick } : null;
+
     return (
         <>
             <div className={`msg-row ${isUser ? 'user' : 'assistant'} slide-up`}>
@@ -250,7 +295,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAI
                                 />
                             </button>
                         )}
-                        {renderBody(cleaned, isUser)}
+                        {renderBody(cleaned, isUser, mcqState)}
                         {message.generatedImage && (
                             <button
                                 type="button"
@@ -271,6 +316,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAI
                     )}
                     {message.aiExam && onStartAIExam && (
                         <AIExamCard exam={message.aiExam} onStart={() => onStartAIExam(message.aiExam!)} />
+                    )}
+                    {/* Quick-reply buttons */}
+                    {message.quickReplies && message.quickReplies.length > 0 && (
+                        <QuickReplyBtns replies={message.quickReplies} onReply={onQuickReply} />
                     )}
                     {!isUser && (
                         <button className="tts-btn" onClick={() => onPlayTTS(cleaned)}>

@@ -186,7 +186,7 @@ ${pr} cần đánh giá năng lực của em trước khi bắt đầu. Em chọ
 A. Làm bài kiểm tra đề thi thật (120 phút)
 B. Trả lời 10 câu trắc nghiệm nhanh`;
             timerId = setTimeout(() => {
-                setMessages([{ role: 'assistant', content: resumeMsg }]);
+                setMessages([{ role: 'assistant', content: resumeMsg, quickReplies: ['A', 'B'] }]);
                 playNotification();
                 autoSpeak(resumeMsg);
             }, 800);
@@ -253,9 +253,9 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
     };
 
     // ── addAssistantMsg helper ────────────────────────────────────────────────
-    const addAssistant = useCallback((content: string, speak = true) => {
+    const addAssistant = useCallback((content: string, speak = true, extras?: Partial<Message>) => {
         setMessages(p => {
-            const next = [...p, { role: 'assistant' as const, content }];
+            const next = [...p, { role: 'assistant' as const, content, ...extras }];
             resetProactiveTimer(next);
             return next;
         });
@@ -274,8 +274,8 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             return;
         }
         setQuizState({ phase: 'reading', data, currentQ: 0, userAnswers: [] });
-        const msg = `📖 **${data.source}**\n\n${data.passage}\n\n---\nSau khi đọc kĩ văn bản, ${pronoun} sẽ bắt đầu hỏi. Hãy đọc thật kĩ nhé. Nếu em đã sẵn sàng hãy gõ **"Bắt đầu"**.`;
-        addAssistant(msg);
+        const msg = `📖 **${data.source}**\n\n${data.passage}\n\n---\nSau khi đọc kĩ văn bản, ${pronoun} sẽ bắt đầu hỏi. Hãy đọc thật kĩ nhé!`;
+        addAssistant(msg, true, { quickReplies: ['Bắt đầu', 'Từ chối'] });
     }, [addAssistant]);
 
     // ── Quiz: ask next question (with clickable options) ──────────────────────
@@ -461,11 +461,15 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
         // ── Inline quiz flow ──────────────────────────────────────────────────
         if (quizState.phase === 'reading') {
-            if (val.toLowerCase().includes('bắt đầu') || val.toLowerCase() === 'bt' || val === '1') {
+            const lowerQ = val.toLowerCase();
+            if (lowerQ.includes('bắt đầu') || lowerQ === 'bt' || val === '1' || lowerQ.includes('sẵn sàng')) {
                 setQuizState(p => ({ ...p, phase: 'questioning' }));
                 askQuizQuestion(quizState.data!, 0);
+            } else if (lowerQ.includes('từ chối') || lowerQ.includes('không') || lowerQ.includes('thôi') || lowerQ.includes('bỏ')) {
+                setQuizState(QUIZ_INIT);
+                addAssistant('Được rồi, em có thể làm quiz bất cứ lúc nào nhé. Tiếp tục nào!');
             } else {
-                addAssistant('Gõ **"Bắt đầu"** khi em đã đọc xong nhé.');
+                addAssistant('Em bấm **Bắt đầu** để làm quiz, hoặc **Từ chối** nếu chưa muốn nhé.', true, { quickReplies: ['Bắt đầu', 'Từ chối'] });
             }
             return;
         }
@@ -913,11 +917,11 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         // Clear existing messages and show intro
         if (!resumeMode) {
             setMessages([]);
-            addAssistant(`Sau đây ${pronoun} sẽ cùng em bắt đầu học bài: "${lesson.title}" nhé. Em đã sẵn sàng chưa?`);
+            addAssistant(`Sau đây ${pronoun} sẽ cùng em bắt đầu học bài: "${lesson.title}" nhé.`, true, { quickReplies: ['Sẵn sàng'] });
         } else {
             // Resume mode: add a welcome-back message so chat area isn't empty
             if (messages.length === 0) {
-                addAssistant(`Chào em! Mình tiếp tục bài "${lesson.title}" nhé. Em gõ "sẵn sàng" hoặc bất kỳ câu hỏi nào để bắt đầu.`);
+                addAssistant(`Chào em! Mình tiếp tục bài "${lesson.title}" nhé.`, true, { quickReplies: ['Tiếp tục', 'Bắt đầu'] });
             }
         }
 

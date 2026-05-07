@@ -9,6 +9,8 @@ export interface Message {
   quizOptions?: { a: string; b: string; c: string; d: string };
   /** 0-based index of the quiz question this message represents */
   quizQuestionIndex?: number;
+  /** Quick-reply buttons shown below the message bubble */
+  quickReplies?: string[];
 }
 
 export interface AIExamQuestion {

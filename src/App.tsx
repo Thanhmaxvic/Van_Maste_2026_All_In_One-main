@@ -281,6 +281,8 @@ function StudentApp() {
                     onPlayTTS={handlePlayTTS}
                     onStartAIExam={handleStartAIExam}
                     onQuizAnswer={handleQuizAnswer}
+                    onMCQSelect={(letter) => handleSend(letter)}
+                    onQuickReply={(text) => handleSend(text)}
                   />
                 ))}
                 {isLoading && (
