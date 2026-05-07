@@ -3,8 +3,7 @@ import type { UserProfile } from '../types';
 import { PRONOUN_MAP } from '../constants';
 import { generateWeaknessAdvice, isApiKeyConfigured } from '../services/geminiApi';
 import { CURRICULUM, getLessonKey } from '../constants/curriculum';
-import { generateDefaultTimeline, calculateSkillScores } from '../services/recommendationService';
-import { RadarChart } from './dashboard/RadarChart';
+import { generateDefaultTimeline } from '../services/recommendationService';
 
 interface SidebarProps {
     profile: UserProfile;
@@ -47,12 +46,15 @@ export default function Sidebar({ profile }: SidebarProps) {
     const completedCount = allLessons.filter(l => lp[getLessonKey(l.sectionId, l.lessonId)]?.status === 'completed').length;
     const overallPct = allLessons.length > 0 ? Math.round((completedCount / allLessons.length) * 100) : 0;
     
-    // Use custom timeline if it exists, otherwise generate a default one if progress >= 1%
-    const timelineToDisplay = profile.customTimeline?.length 
-        ? profile.customTimeline 
+    // Lọc bỏ những dòng tiêu đề vô nghĩa do AI tự sinh ra (ví dụ: Thời gian | Nội dung)
+    const validCustomTimeline = profile.customTimeline?.filter(
+        ev => ev.time.toLowerCase() !== 'thời gian' && !ev.title.toLowerCase().includes('nội dung') && !ev.title.toLowerCase().includes('sự kiện')
+    );
+
+    // Use custom timeline if it exists and has real content, otherwise generate a default one if progress >= 1%
+    const timelineToDisplay = validCustomTimeline && validCustomTimeline.length > 0 
+        ? validCustomTimeline 
         : (overallPct >= 1 ? generateDefaultTimeline(profile) : null);
-        
-    const skills = calculateSkillScores(profile);
 
     useEffect(() => {
         const baseTip = () => {
@@ -135,22 +137,6 @@ export default function Sidebar({ profile }: SidebarProps) {
                 <div className="sidebar-section-title">Gợi ý từ AI</div>
                 <div className="ai-tip-box">{aiTip}</div>
             </div>
-
-            {/* Năng lực của em (Radar Chart) */}
-            {Object.keys(skills).length >= 3 && (
-                <div style={{ marginBottom: 16 }}>
-                    <div className="sidebar-section-title" style={{ color: '#4F46E5', marginTop: 12 }}>Năng lực của em</div>
-                    <div style={{
-                        background: 'var(--color-surface)',
-                        borderRadius: 8,
-                        border: '1px solid var(--color-border)',
-                        padding: '12px',
-                        boxShadow: 'var(--shadow-sm)',
-                    }}>
-                        <RadarChart scores={skills} />
-                    </div>
-                </div>
-            )}
 
             {/* Custom AI Timeline (Lộ trình cá nhân hoá) */}
             {timelineToDisplay && timelineToDisplay.length > 0 && (
