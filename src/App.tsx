@@ -386,29 +386,31 @@ function StudentApp() {
             </>
           )}
 
-          {/* Learn Tab (Timeline) */}
+          {/* Learn Tab (Timeline & Dashboard) */}
           {activeTab === 'learn' && (
-            <Suspense fallback={<LazyFallback />}>
-              <LearningTimeline
-                lessonProgress={userProfile?.lessonProgress || {}}
-                onSelectLesson={handleSelectLesson}
-                userProfile={userProfile}
-              />
-            </Suspense>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+              <Suspense fallback={<LazyFallback />}>
+                {userProfile && (
+                  <ProgressDashboard
+                    userProfile={userProfile}
+                    onGoToLesson={(sId, lId) => { startLesson(sId, lId); setActiveTab('chat'); }}
+                  />
+                )}
+                <div style={{ borderTop: '4px solid var(--color-surface-hover)', flex: 1, minHeight: 400 }}>
+                  <LearningTimeline
+                    lessonProgress={userProfile?.lessonProgress || {}}
+                    onSelectLesson={handleSelectLesson}
+                    userProfile={userProfile}
+                  />
+                </div>
+              </Suspense>
+            </div>
           )}
 
-          {/* Roadmap Tab (mobile: chứa dashboard năng lực + nội dung sidebar) */}
+          {/* Roadmap Tab (mobile: chứa nội dung sidebar) */}
           {activeTab === 'roadmap' && userProfile && (
-            <div className="roadmap-page" style={{ overflowY: 'auto', height: '100%' }}>
-              <Suspense fallback={<LazyFallback />}>
-                <ProgressDashboard
-                  userProfile={userProfile}
-                  onGoToLesson={(sId, lId) => { startLesson(sId, lId); setActiveTab('chat'); }}
-                />
-              </Suspense>
-              <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
-                <Sidebar profile={userProfile} />
-              </div>
+            <div className="roadmap-page">
+              <Sidebar profile={userProfile} />
             </div>
           )}
 
