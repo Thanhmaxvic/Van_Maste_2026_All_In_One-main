@@ -120,16 +120,6 @@ export default function ProgressDashboard({ userProfile, onGoToLesson }: Progres
                     ))}
                 </div>
             )}
-
-            {/* Empty state */}
-            {weaknessRecs.length === 0 && reviewRecs.length === 0 && completedCount === 0 && (
-                <div style={{
-                    textAlign: 'center', padding: '24px 16px',
-                    color: 'var(--color-text-muted)', fontSize: 13,
-                }}>
-                    Bắt đầu học bài và làm bài kiểm tra để xem gợi ý lộ trình chi tiết!
-                </div>
-            )}
         </div>
     );
 }
