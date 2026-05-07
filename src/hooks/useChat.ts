@@ -921,7 +921,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         } else {
             // Resume mode: add a welcome-back message so chat area isn't empty
             if (messages.length === 0) {
-                addAssistant(`Chào em! Mình tiếp tục bài "${lesson.title}" nhé.`, true, { quickReplies: ['Tiếp tục', 'Bắt đầu'] });
+                addAssistant(`Chào em! Mình tiếp tục bài "${lesson.title}" nhé.`, true, { quickReplies: ['Sẵn sàng'] });
             }
         }
 
