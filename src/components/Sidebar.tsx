@@ -3,7 +3,8 @@ import type { UserProfile } from '../types';
 import { PRONOUN_MAP } from '../constants';
 import { generateWeaknessAdvice, isApiKeyConfigured } from '../services/geminiApi';
 import { CURRICULUM, getLessonKey } from '../constants/curriculum';
-import { generateDefaultTimeline } from '../services/recommendationService';
+import { generateDefaultTimeline, calculateSkillScores } from '../services/recommendationService';
+import { RadarChart } from './dashboard/RadarChart';
 
 interface SidebarProps {
     profile: UserProfile;
@@ -46,10 +47,12 @@ export default function Sidebar({ profile }: SidebarProps) {
     const completedCount = allLessons.filter(l => lp[getLessonKey(l.sectionId, l.lessonId)]?.status === 'completed').length;
     const overallPct = allLessons.length > 0 ? Math.round((completedCount / allLessons.length) * 100) : 0;
     
-    // Use custom timeline if it exists, otherwise generate a default one if progress >= 20%
+    // Use custom timeline if it exists, otherwise generate a default one if progress >= 1%
     const timelineToDisplay = profile.customTimeline?.length 
         ? profile.customTimeline 
-        : (overallPct >= 20 ? generateDefaultTimeline(profile) : null);
+        : (overallPct >= 1 ? generateDefaultTimeline(profile) : null);
+        
+    const skills = calculateSkillScores(profile);
 
     useEffect(() => {
         const baseTip = () => {
@@ -133,30 +136,53 @@ export default function Sidebar({ profile }: SidebarProps) {
                 <div className="ai-tip-box">{aiTip}</div>
             </div>
 
-            {/* Custom AI Timeline (Bảng Lộ trình cá nhân hoá) */}
+            {/* Năng lực của em (Radar Chart) */}
+            {Object.keys(skills).length >= 3 && (
+                <div style={{ marginBottom: 16 }}>
+                    <div className="sidebar-section-title" style={{ color: '#4F46E5', marginTop: 12 }}>Năng lực của em</div>
+                    <div style={{
+                        background: 'var(--color-surface)',
+                        borderRadius: 8,
+                        border: '1px solid var(--color-border)',
+                        padding: '12px',
+                        boxShadow: 'var(--shadow-sm)',
+                    }}>
+                        <RadarChart scores={skills} />
+                    </div>
+                </div>
+            )}
+
+            {/* Custom AI Timeline (Lộ trình cá nhân hoá) */}
             {timelineToDisplay && timelineToDisplay.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                     <div className="sidebar-section-title" style={{ color: '#059669', marginTop: 12 }}>Lộ trình cá nhân hoá</div>
-                    <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
-                        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ background: 'var(--color-surface-hover)', borderBottom: '1px solid var(--color-border)', textAlign: 'left' }}>
-                                    <th style={{ padding: '8px', color: 'var(--color-text-secondary)', fontWeight: 600, width: '30%' }}>Thời gian</th>
-                                    <th style={{ padding: '8px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>Nội dung trọng tâm</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {timelineToDisplay.map((ev, i) => (
-                                    <tr key={i} style={{ borderBottom: i < timelineToDisplay.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                                        <td style={{ padding: '8px', verticalAlign: 'top', color: '#059669', fontWeight: 700 }}>{ev.time}</td>
-                                        <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                                            <div style={{ fontWeight: 700, color: 'var(--color-text)', marginBottom: 2 }}>{ev.title}</div>
-                                            {ev.desc && <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.4 }}>{ev.desc}</div>}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {timelineToDisplay.map((ev, i) => (
+                            <div key={i} style={{
+                                background: 'var(--color-surface)',
+                                borderLeft: '4px solid #10B981',
+                                borderTop: '1px solid var(--color-border)',
+                                borderRight: '1px solid var(--color-border)',
+                                borderBottom: '1px solid var(--color-border)',
+                                borderRadius: '0 8px 8px 0',
+                                padding: '10px 12px',
+                                boxShadow: 'var(--shadow-sm)'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#047857', background: '#D1FAE5', padding: '2px 6px', borderRadius: 4 }}>
+                                        {ev.time}
+                                    </span>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2 }}>
+                                        {ev.title}
+                                    </span>
+                                </div>
+                                {ev.desc && (
+                                    <div style={{ color: 'var(--color-text-muted)', fontSize: 12, lineHeight: 1.4 }}>
+                                        {ev.desc}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
