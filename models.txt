@@ -1,0 +1,130 @@
+Tìm thấy 50 models:
+==================================
+- Tên Model: models/gemini-2.5-flash
+  Hiển thị: Gemini 2.5 Flash
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-2.5-pro
+  Hiển thị: Gemini 2.5 Pro
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-2.0-flash
+  Hiển thị: Gemini 2.0 Flash
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-2.0-flash-001
+  Hiển thị: Gemini 2.0 Flash 001
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-2.0-flash-lite-001
+  Hiển thị: Gemini 2.0 Flash-Lite 001
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-2.0-flash-lite
+  Hiển thị: Gemini 2.0 Flash-Lite
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-2.5-flash-preview-tts
+  Hiển thị: Gemini 2.5 Flash Preview TTS
+  Phương thức hỗ trợ: countTokens, generateContent
+
+- Tên Model: models/gemini-2.5-pro-preview-tts
+  Hiển thị: Gemini 2.5 Pro Preview TTS
+  Phương thức hỗ trợ: countTokens, generateContent, batchGenerateContent
+
+- Tên Model: models/gemini-flash-latest
+  Hiển thị: Gemini Flash Latest
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-flash-lite-latest
+  Hiển thị: Gemini Flash-Lite Latest
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-pro-latest
+  Hiển thị: Gemini Pro Latest
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-2.5-flash-lite
+  Hiển thị: Gemini 2.5 Flash-Lite
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-2.5-flash-image
+  Hiển thị: Nano Banana
+  Phương thức hỗ trợ: generateContent, countTokens, batchGenerateContent
+
+- Tên Model: models/gemini-3-pro-preview
+  Hiển thị: Gemini 3 Pro Preview
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-3-flash-preview
+  Hiển thị: Gemini 3 Flash Preview
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-3.1-pro-preview
+  Hiển thị: Gemini 3.1 Pro Preview
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-3.1-pro-preview-customtools
+  Hiển thị: Gemini 3.1 Pro Preview Custom Tools
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-3.1-flash-lite-preview
+  Hiển thị: Gemini 3.1 Flash Lite Preview
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-3.1-flash-lite
+  Hiển thị: Gemini 3.1 Flash Lite
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-3-pro-image-preview
+  Hiển thị: Nano Banana Pro
+  Phương thức hỗ trợ: generateContent, countTokens, batchGenerateContent
+
+- Tên Model: models/gemini-3.1-flash-image-preview
+  Hiển thị: Nano Banana 2
+  Phương thức hỗ trợ: generateContent, countTokens, batchGenerateContent
+
+- Tên Model: models/gemini-3.1-flash-tts-preview
+  Hiển thị: Gemini 3.1 Flash TTS Preview
+  Phương thức hỗ trợ: generateContent, countTokens, batchGenerateContent
+
+- Tên Model: models/gemini-robotics-er-1.5-preview
+  Hiển thị: Gemini Robotics-ER 1.5 Preview
+  Phương thức hỗ trợ: generateContent, countTokens
+
+- Tên Model: models/gemini-robotics-er-1.6-preview
+  Hiển thị: Gemini Robotics-ER 1.6 Preview
+  Phương thức hỗ trợ: generateContent, countTokens, createCachedContent, batchGenerateContent
+
+- Tên Model: models/gemini-2.5-computer-use-preview-10-2025
+  Hiển thị: Gemini 2.5 Computer Use Preview 10-2025
+  Phương thức hỗ trợ: generateContent, countTokens
+
+- Tên Model: models/gemini-embedding-001
+  Hiển thị: Gemini Embedding 001
+  Phương thức hỗ trợ: embedContent, countTextTokens, countTokens, asyncBatchEmbedContent
+
+- Tên Model: models/gemini-embedding-2-preview
+  Hiển thị: Gemini Embedding 2 Preview
+  Phương thức hỗ trợ: embedContent, countTextTokens, countTokens, asyncBatchEmbedContent
+
+- Tên Model: models/gemini-embedding-2
+  Hiển thị: Gemini Embedding 2
+  Phương thức hỗ trợ: embedContent, countTextTokens, countTokens, asyncBatchEmbedContent
+
+- Tên Model: models/gemini-2.5-flash-native-audio-latest
+  Hiển thị: Gemini 2.5 Flash Native Audio Latest
+  Phương thức hỗ trợ: countTokens, bidiGenerateContent
+
+- Tên Model: models/gemini-2.5-flash-native-audio-preview-09-2025
+  Hiển thị: Gemini 2.5 Flash Native Audio Preview 09-2025
+  Phương thức hỗ trợ: countTokens, bidiGenerateContent
+
+- Tên Model: models/gemini-2.5-flash-native-audio-preview-12-2025
+  Hiển thị: Gemini 2.5 Flash Native Audio Preview 12-2025
+  Phương thức hỗ trợ: countTokens, bidiGenerateContent
+
+- Tên Model: models/gemini-3.1-flash-live-preview
+  Hiển thị: Gemini 3.1 Flash Live Preview
+  Phương thức hỗ trợ: bidiGenerateContent
+
