@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Missing API Key' });
     }
 
-    const model = (req.query.model as string) || 'gemini-3.1-pro-preview';
+    const model = (req.query.model as string) || 'gemini-3.1-flash-preview';
 
     // Body is already parsed by Vercel for JSON content-type
     const body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
