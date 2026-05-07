@@ -1,8 +1,8 @@
 import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
-const GEMINI_PRIMARY_MODEL = 'gemini-3.1-flash-preview';
-const GEMINI_FALLBACK_MODEL = 'gemini-3.1-flash-lite';
+const GEMINI_PRIMARY_MODEL = 'gemini-2.5-flash';
+const GEMINI_FALLBACK_MODEL = 'gemini-2.5-flash-lite';
 
 function getApiKey(): string { return 'backend'; }
 
@@ -225,7 +225,7 @@ export async function generateImage(prompt: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
+        const res = await fetchWithRetry(`/api/gemini?model=gemini-2.5-flash-image`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -457,7 +457,7 @@ Text must be clear, readable Vietnamese. High contrast. Suitable for high school
 Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
-        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
+        const res = await fetchWithRetry(`/api/gemini?model=gemini-2.5-flash-image`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
