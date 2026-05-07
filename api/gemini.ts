@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+b import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = {
   maxDuration: 120,   // Node.js Serverless: up to 120s (requires Vercel Pro or sufficient tier)

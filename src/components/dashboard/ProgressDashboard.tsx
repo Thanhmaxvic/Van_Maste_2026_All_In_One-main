@@ -33,25 +33,27 @@ export default function ProgressDashboard({ userProfile, onGoToLesson }: Progres
         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* ── Overall Progress Bar ── */}
             <div style={{
-                background: 'var(--color-surface)',
+                background: 'linear-gradient(135deg, #1e1b4b 0%, #4c1d95 50%, #be185d 100%)',
                 borderRadius: 12,
-                border: '1px solid var(--color-border)',
-                padding: '12px 16px',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                boxShadow: '0 4px 15px rgba(190, 24, 93, 0.3)',
+                padding: '10px 16px',
             }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>Tiến độ học tập</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: overallPct === 100 ? '#10B981' : '#6366F1' }}>{overallPct}%</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', letterSpacing: '0.3px' }}>🎮 Tiến độ học tập</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: overallPct === 100 ? '#4ade80' : '#fef08a' }}>{overallPct}%</span>
                 </div>
-                <div style={{ height: 8, borderRadius: 4, background: 'var(--color-border)', overflow: 'hidden' }}>
+                <div style={{ height: 6, borderRadius: 3, background: 'rgba(255, 255, 255, 0.2)', overflow: 'hidden' }}>
                     <div style={{
-                        height: '100%', borderRadius: 4,
+                        height: '100%', borderRadius: 3,
                         width: `${overallPct}%`,
-                        background: overallPct === 100 ? '#10B981' : 'linear-gradient(90deg, #6366F1, #8B5CF6)',
+                        background: overallPct === 100 ? '#4ade80' : 'linear-gradient(90deg, #fde047, #f97316)',
                         transition: 'width 0.5s ease',
+                        boxShadow: '0 0 10px rgba(253, 224, 71, 0.5)',
                     }} />
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6 }}>
-                    {completedCount} hoàn thành • {inProgressCount} đang học • {totalLessons - completedCount - inProgressCount} chưa bắt đầu
+                <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.85)', marginTop: 5, fontWeight: 500 }}>
+                    <span style={{ color: '#4ade80', fontWeight: 700 }}>{completedCount}</span> hoàn thành • <span style={{ color: '#fcd34d', fontWeight: 700 }}>{inProgressCount}</span> đang học • {totalLessons - completedCount - inProgressCount} chưa bắt đầu
                 </div>
             </div>
 
