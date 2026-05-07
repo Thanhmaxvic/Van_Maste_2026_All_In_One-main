@@ -219,30 +219,13 @@ export async function sendGradingRequest(prompt: string): Promise<string> {
 }
 
 /**
- * Generate an image using Gemini 3.1 Flash Image Preview.
+ * Generate an image using Pollinations AI (Fast, Free, No 504 Timeouts).
  */
 export async function generateImage(prompt: string): Promise<string | null> {
-    const apiKey = getApiKey();
-    if (!apiKey) return null;
     try {
-        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
-            }),
-        });
-        if (!res.ok) {
-            throw new Error(`API error: ${res.status} ${res.statusText}`);
-        }
-        const data = await res.json();
-        const parts = data?.candidates?.[0]?.content?.parts || [];
-        for (const part of parts) {
-            if (part.inlineData?.mimeType?.startsWith('image/')) {
-                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            }
-        }
+        const encodedPrompt = encodeURIComponent(prompt + " beautiful, educational infographic style, high quality");
+        // Pollinations.ai returns the image directly, bypassing Vercel's 10s timeout
+        return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=600&nologo=true`;
     } catch (error) {
         console.error('Image generation error:', error);
     }
@@ -443,39 +426,16 @@ export async function sendProactiveMessage(
 
 /**
  * Generate an educational infographic about a Vietnamese literary work
- * using Gemini 3.1 Flash Image Preview.
- * Returns a base64 data URL string or null on failure.
+ * using Pollinations AI (Fast, Free, No 504 timeouts).
+ * Returns a URL string or null on failure.
  */
 export async function generateInfographic(workTitle: string): Promise<string | null> {
-    const apiKey = getApiKey();
-    if (!apiKey) return null;
-
-    const prompt = `Create a beautiful, professional educational infographic in Vietnamese about the Vietnamese literary work "${workTitle}". 
-Include: author name, publication year, literary genre, main themes (3-4), plot summary (brief), main characters, literary devices used, significance in Vietnamese literature curriculum.
-Style: Modern educational poster, clean layout, rich warm colors (gold, deep red, cream), Vietnamese cultural aesthetic.
-Text must be clear, readable Vietnamese. High contrast. Suitable for high school students studying for university entrance exam.
-Format: vertical infographic, 1024x1536px equivalent proportions.`;
-
+    const prompt = `Beautiful professional educational infographic poster about Vietnamese literature "${workTitle}", clean layout, warm colors, Vietnamese cultural aesthetic, high quality illustration`;
+    
     try {
-        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
-            }),
-        });
-        if (!res.ok) {
-            throw new Error(`API error: ${res.status} ${res.statusText}`);
-        }
-        const data = await res.json();
-        const parts = data.candidates?.[0]?.content?.parts || [];
-        for (const part of parts) {
-            if (part.inlineData?.mimeType?.startsWith('image/')) {
-                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            }
-        }
-        return null;
+        const encodedPrompt = encodeURIComponent(prompt);
+        // Bypassing the Vercel 10s Serverless timeout by using a fast image generation service
+        return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=1200&nologo=true`;
     } catch (err) {
         console.error('generateInfographic error:', err);
         return null;
