@@ -479,8 +479,19 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             return;
         }
 
+        // ── Detect quiz / trắc nghiệm requests from chat ─────────────────────
+        // Chỉ dùng quiz flow chính thức (10 câu) khi NGOÀI bài học.
+        // Khi đang trong bài học, để AI tự tạo câu trắc nghiệm inline linh hoạt (1-5 câu).
+        const wantsQuiz = /trắc\s*nghiệm|quiz|kiểm\s*tra\s*trắc|bài\s*tập\s*trắc|làm\s*trắc|câu\s*hỏi\s*trắc|test\s*trắc/i.test(lower)
+            && !/đề\s*thi|thi\s*thử|120\s*phút|90\s*phút/i.test(lower);
+        if (wantsQuiz && !activeLesson) {
+            startQuizFlow();
+            return;
+        }
+
         // ── Detect exam generation requests from chat ─────────────────────────
-        const wantsExam = /tạo\s*đề|ra\s*đề|cho em\s*đề|đề thi ngữ văn|(?:thầy|cô)\s*ra\s*đề/i.test(lower);
+        const wantsExam = /tạo\s*đề|ra\s*đề|cho em\s*đề|đề thi ngữ văn|(?:thầy|cô)\s*ra\s*đề/i.test(lower)
+            && !/trắc\s*nghiệm/i.test(lower);
         if (wantsExam) {
             startExamFlow();
             return;
