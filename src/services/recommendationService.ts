@@ -278,9 +278,6 @@ export function calculateSkillScores(profile: UserProfile): Record<string, numbe
     return scores;
 }
 
-/**
- * Get a summary of all recommendations for the welcome screen.
- */
 export function getAllRecommendations(profile: UserProfile): {
     weakness: LessonRecommendation[];
     review: LessonRecommendation[];
@@ -291,4 +288,73 @@ export function getAllRecommendations(profile: UserProfile): {
         review: getSpacedRepetitionLessons(profile).slice(0, 3),
         next: getNextRecommendedLesson(profile),
     };
+}
+
+/**
+ * Generate a default personalized timeline for users who have engaged >= 20%
+ * but haven't received a custom timeline from the AI yet.
+ */
+export function generateDefaultTimeline(profile: UserProfile): { time: string; title: string; desc: string }[] {
+    const recs = getAllRecommendations(profile);
+    const timeline = [];
+    
+    // Tuần 1: Khắc phục điểm yếu
+    if (recs.weakness.length > 0) {
+        timeline.push({
+            time: 'Tuần 1',
+            title: `Cải thiện: ${profile.weaknesses?.[0] || 'Điểm yếu'}`,
+            desc: `Tập trung vào bài "${recs.weakness[0].title}" để lấp lỗ hổng kiến thức nền tảng.`
+        });
+    } else {
+        timeline.push({
+            time: 'Tuần 1',
+            title: 'Củng cố kiến thức nền tảng',
+            desc: 'Ôn tập lại các khái niệm cơ bản đã học để xây dựng gốc rễ vững chắc.'
+        });
+    }
+
+    // Tuần 2: Ôn tập ngắt quãng hoặc Điểm yếu thứ 2
+    if (recs.review.length > 0) {
+        timeline.push({
+            time: 'Tuần 2',
+            title: 'Ôn tập ngắt quãng (Spaced Repetition)',
+            desc: `Hệ thống nhận thấy em cần ôn lại "${recs.review[0].title}" để nhớ lâu hơn.`
+        });
+    } else if (recs.weakness.length > 1) {
+        timeline.push({
+            time: 'Tuần 2',
+            title: `Cải thiện: ${profile.weaknesses?.[1]}`,
+            desc: `Học bài "${recs.weakness[1].title}" để nâng cao kỹ năng xử lý đề.`
+        });
+    } else {
+        timeline.push({
+            time: 'Tuần 2',
+            title: 'Nâng cao kỹ năng phân tích',
+            desc: 'Luyện tập tư duy sâu và các biện pháp nghệ thuật trong văn bản.'
+        });
+    }
+
+    // Tuần 3: Bài học tiếp theo
+    if (recs.next) {
+        timeline.push({
+            time: 'Tuần 3',
+            title: `Học mới: ${recs.next.title}`,
+            desc: `Tiếp tục lộ trình với bài học phù hợp với trình độ hiện tại của em.`
+        });
+    } else {
+        timeline.push({
+            time: 'Tuần 3',
+            title: 'Thực hành nâng cao',
+            desc: 'Chuyển sang các bài học có độ khó cao hơn để bứt phá điểm số.'
+        });
+    }
+
+    // Tuần 4: Đề thi thử
+    timeline.push({
+        time: 'Tuần 4',
+        title: 'Thực chiến đề thi thử',
+        desc: 'Làm đề kiểm tra tổng hợp 120 phút để rèn áp lực thời gian và tâm lý phòng thi.'
+    });
+
+    return timeline;
 }

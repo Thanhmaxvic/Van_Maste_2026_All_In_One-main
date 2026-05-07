@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { UserProfile } from '../types';
 import { PRONOUN_MAP } from '../constants';
 import { generateWeaknessAdvice, isApiKeyConfigured } from '../services/geminiApi';
+import { CURRICULUM, getLessonKey } from '../constants/curriculum';
+import { generateDefaultTimeline } from '../services/recommendationService';
 
 interface SidebarProps {
     profile: UserProfile;
@@ -37,6 +39,17 @@ export default function Sidebar({ profile }: SidebarProps) {
     const pronoun = PRONOUN_MAP[profile.voiceGender || 'male'];
     const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
     const [aiTip, setAiTip] = useState<string>('');
+
+    // Calculate progress percentage to determine if we should show the default timeline
+    const lp = profile.lessonProgress || {};
+    const allLessons = CURRICULUM.flatMap(s => s.lessons.map(l => ({ sectionId: s.id, lessonId: l.id })));
+    const completedCount = allLessons.filter(l => lp[getLessonKey(l.sectionId, l.lessonId)]?.status === 'completed').length;
+    const overallPct = allLessons.length > 0 ? Math.round((completedCount / allLessons.length) * 100) : 0;
+    
+    // Use custom timeline if it exists, otherwise generate a default one if progress >= 20%
+    const timelineToDisplay = profile.customTimeline?.length 
+        ? profile.customTimeline 
+        : (overallPct >= 20 ? generateDefaultTimeline(profile) : null);
 
     useEffect(() => {
         const baseTip = () => {
@@ -121,7 +134,7 @@ export default function Sidebar({ profile }: SidebarProps) {
             </div>
 
             {/* Custom AI Timeline (Bảng Lộ trình cá nhân hoá) */}
-            {profile.customTimeline && profile.customTimeline.length > 0 && (
+            {timelineToDisplay && timelineToDisplay.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                     <div className="sidebar-section-title" style={{ color: '#059669', marginTop: 12 }}>Lộ trình cá nhân hoá</div>
                     <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-sm)' }}>
@@ -133,8 +146,8 @@ export default function Sidebar({ profile }: SidebarProps) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {profile.customTimeline.map((ev, i) => (
-                                    <tr key={i} style={{ borderBottom: i < profile.customTimeline!.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                                {timelineToDisplay.map((ev, i) => (
+                                    <tr key={i} style={{ borderBottom: i < timelineToDisplay.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                                         <td style={{ padding: '8px', verticalAlign: 'top', color: '#059669', fontWeight: 700 }}>{ev.time}</td>
                                         <td style={{ padding: '8px', verticalAlign: 'top' }}>
                                             <div style={{ fontWeight: 700, color: 'var(--color-text)', marginBottom: 2 }}>{ev.title}</div>
