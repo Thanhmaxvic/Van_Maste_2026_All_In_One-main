@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = {
-  maxDuration: 60,   // Node.js Serverless: up to 60s on Hobby tier (vs 10s on Edge)
+  maxDuration: 120,   // Node.js Serverless: up to 120s (requires Vercel Pro or sufficient tier)
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

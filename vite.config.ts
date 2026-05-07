@@ -13,8 +13,8 @@ export default defineConfig(({ mode }) => {
         '/api/gemini': {
           target: 'https://generativelanguage.googleapis.com',
           changeOrigin: true,
-          timeout: 60000,
-          proxyTimeout: 60000,
+          timeout: 120000,
+          proxyTimeout: 120000,
           configure: (proxy, options) => {
             proxy.on('proxyReq', (proxyReq, req, res) => {
               const url = new URL(req.url || '', 'http://localhost');
