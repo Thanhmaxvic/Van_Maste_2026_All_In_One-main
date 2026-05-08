@@ -82,11 +82,23 @@ export function useChat(onStartDiagnosticExam?: () => void) {
     const busyRef = useRef(false);
     const lastTaskEndRef = useRef(0); // timestamp of last task completion
     const TASK_COOLDOWN_MS = 3000; // cooldown window to catch rapid requests
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    const abortCurrentTask = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        busyRef.current = false;
+        setIsLoading(false);
+        setAwaitingTaskInterrupt(false);
+    }, []);
 
     /** Call instead of setIsLoading(true) — updates both state and synchronous ref */
     const startBusy = useCallback(() => {
         busyRef.current = true;
         setIsLoading(true);
+        abortControllerRef.current = new AbortController();
     }, []);
 
     /** Call instead of setIsLoading(false) — updates state, ref, and records timestamp */
@@ -94,6 +106,7 @@ export function useChat(onStartDiagnosticExam?: () => void) {
         busyRef.current = false;
         lastTaskEndRef.current = Date.now();
         setIsLoading(false);
+        abortControllerRef.current = null;
     }, []);
 
     // ── Lesson mode state ─────────────────────────────────────────────────────────
@@ -267,16 +280,23 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
     const startInlineQuiz = useCallback(async () => {
         startBusy();
         addAssistant(`Đợi ${pronoun} chọn một đoạn trích nhé...`);
-        const data = await generateDiagnosticMCQ(QUIZ_GENERATION_PROMPT);
-        endBusy();
-        if (!data) {
-            addAssistant('Lỗi tạo câu hỏi. Em thử lại sau nhé.');
-            return;
+        try {
+            const data = await generateDiagnosticMCQ(QUIZ_GENERATION_PROMPT, abortControllerRef.current?.signal);
+            endBusy();
+            if (!data) {
+                addAssistant('Lỗi tạo câu hỏi. Em thử lại sau nhé.');
+                return;
+            }
+            setQuizState({ phase: 'reading', data, currentQ: 0, userAnswers: [] });
+            const msg = `📖 **${data.source}**\n\n${data.passage}\n\n---\nSau khi đọc kĩ văn bản, ${pronoun} sẽ bắt đầu hỏi. Hãy đọc thật kĩ nhé!`;
+            addAssistant(msg, true, { quickReplies: ['Bắt đầu', 'Từ chối'] });
+        } catch (err: any) {
+            endBusy();
+            if (err.name !== 'AbortError') {
+                addAssistant('Lỗi tạo câu hỏi. Em thử lại sau nhé.');
+            }
         }
-        setQuizState({ phase: 'reading', data, currentQ: 0, userAnswers: [] });
-        const msg = `📖 **${data.source}**\n\n${data.passage}\n\n---\nSau khi đọc kĩ văn bản, ${pronoun} sẽ bắt đầu hỏi. Hãy đọc thật kĩ nhé!`;
-        addAssistant(msg, true, { quickReplies: ['Bắt đầu', 'Từ chối'] });
-    }, [addAssistant]);
+    }, [addAssistant, pronoun]);
 
     // ── Quiz: ask next question (with clickable options) ──────────────────────
     const askQuizQuestion = useCallback((data: DiagnosticQuizData, qIndex: number) => {
@@ -556,7 +576,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             if (traits && traits.length > 0) {
                 effectiveInput = `[TRÍ NHỚ VỀ HỌC SINH]: ${traits.join('; ')}\n\n${effectiveInput}`;
             }
-            const { text: aiContent, generatedImageUrl } = await sendChatMessage(messages, effectiveInput, previewImage);
+            const { text: aiContent, generatedImageUrl } = await sendChatMessage(messages, effectiveInput, previewImage, userProfile, abortControllerRef.current?.signal);
 
             // ── Detect [INFOGRAPHIC] tag → tạo ảnh infographic im lặng ─────────
             const infMatch = aiContent.match(/\[INFOGRAPHIC\]([^\[]*)\[\/INFOGRAPHIC\]/);
@@ -728,6 +748,9 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 setUserProfile(p => p ? { ...p, xp: p.xp + 50, progress: Math.min(p.progress + 2, 100) } : p);
             }
         } catch (err: any) {
+            if (err.name === 'AbortError') {
+                return; // Silently ignore aborts
+            }
             console.error('API error:', err);
             // Provide specific error feedback
             const msg = err?.message || '';
@@ -769,9 +792,11 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             setMessages([{ role: 'assistant', content: `BÀI KIỂM TRA CHẨN ĐOÁN\n\n${aiContent}\n\nTrả lời: A, B, C hoặc D cho từng câu.` }]);
             playNotification();
             autoSpeak('Bắt đầu bài kiểm tra chẩn đoán.');
-        } catch {
-            setMessages([{ role: 'assistant', content: 'Lỗi tạo bài kiểm tra. Thử lại sau.' }]);
-            playNotification();
+        } catch (err: any) {
+            if (err.name !== 'AbortError') {
+                setMessages([{ role: 'assistant', content: 'Lỗi tạo bài kiểm tra. Thử lại sau.' }]);
+                playNotification();
+            }
         } finally {
             setIsDiagnosing(false);
         }
@@ -790,11 +815,12 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
     // ── Awaiting exam type choice ─────────────────────────────────────────────
     const startExamFlow = useCallback(() => {
+        if (isLoading || busyRef.current) return;
         setAwaitingExamTypeChoice(true);
         const syntheticUser: Message = { role: 'user', content: 'Thầy ơi, tạo đề thi cho em với' };
         setMessages(prev => [...prev, syntheticUser]);
         addAssistant(`Em muốn luyện đề loại nào?\n\nA. Đọc hiểu (30 phút)\nB. Phần Viết (90 phút)\nC. Đề tổng hợp Đọc hiểu + Viết (120 phút)`);
-    }, [addAssistant]);
+    }, [addAssistant, isLoading]);
 
     const handleExamTypeChoice = useCallback(async (choice: string) => {
         setAwaitingExamTypeChoice(false);
@@ -808,7 +834,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         startBusy();
         try {
             const { buildExamFromPool } = await import('../services/examPoolService');
-            const exam = await buildExamFromPool(examType);
+            const exam = await buildExamFromPool(examType, abortControllerRef.current?.signal);
             endBusy();
             if (!exam) {
                 addAssistant('Lỗi tạo đề thi, em thử lại sau nhé.');
@@ -826,14 +852,17 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             });
             playNotification();
             autoSpeak(msg);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Exam pool error:', err);
             endBusy();
-            addAssistant('Lỗi tạo đề thi, em thử lại sau nhé.');
+            if (err.name !== 'AbortError') {
+                addAssistant('Lỗi tạo đề thi, em thử lại sau nhé.');
+            }
         }
     }, [addAssistant, autoSpeak, resetProactiveTimer, playNotification]);
 
     const startGraphicFlow = () => {
+        if (isLoading || busyRef.current) return;
         const syntheticUser: Message = { role: 'user', content: 'Em muốn tạo ảnh đồ hoạ ạ' };
         setMessages(prev => [...prev, syntheticUser]);
         const msg = `Em muốn tạo ảnh đồ hoạ về tác phẩm hay nhân vật nào? Gõ tên chủ đề để ${pronoun} vẽ cho em nhé.`;
@@ -842,18 +871,20 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
     // ── Citation flow ───────────────────────────────────────────────────────
     const startCitationFlow = useCallback(() => {
+        if (isLoading || busyRef.current) return;
         const syntheticUser: Message = { role: 'user', content: 'Em muốn tìm dẫn chứng ạ' };
         setMessages(prev => [...prev, syntheticUser]);
         const msg = `Em muốn tìm dẫn chứng cho chủ đề nghị luận nào? Cứ nhắn chủ đề vào đây nhé.`;
         addAssistant(msg);
-    }, [addAssistant, pronoun]);
+    }, [addAssistant, pronoun, isLoading]);
 
     // ── Quiz flow (clickable buttons) ────────────────────────────────────────
     const startQuizFlow = useCallback(() => {
+        if (isLoading || busyRef.current) return;
         const syntheticUser: Message = { role: 'user', content: 'Em muốn làm quiz trắc nghiệm ạ' };
         setMessages(prev => [...prev, syntheticUser]);
         startInlineQuiz();
-    }, [startInlineQuiz]);
+    }, [startInlineQuiz, isLoading]);
 
     // ── Handle quiz answer from clickable buttons ────────────────────────────
     const handleQuizAnswer = useCallback(async (answer: string) => {
@@ -921,6 +952,11 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
     // ── Start lesson flow ───────────────────────────────────────────────────
     const startLesson = useCallback(async (sectionId: string, lessonId: string, resumeMode = false) => {
+        if (isLoading || busyRef.current) {
+            // Prevent starting a lesson if AI is currently answering another question.
+            // But we can interrupt if needed. For now, just block to prevent race condition.
+            return;
+        }
         const found = findLesson(sectionId, lessonId);
         if (!found) return;
         const { lesson } = found;
@@ -1019,7 +1055,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         setInput, setPreviewImage,
         handleSend, handleMagicRewrite, handlePlayTTS, startDiagnosis, handleFileSelect,
         startGraphicFlow, startExamFlow, handleExamTypeChoice, startLesson, exitLesson,
-        startCitationFlow, startQuizFlow, handleQuizAnswer,
+        startCitationFlow, startQuizFlow, handleQuizAnswer, abortCurrentTask,
         addGradeMsg: (grade: ExamGrade, resolvedWeaknesses?: string[]) => {
             const safeScore = grade.score ?? 0;
             const safeMax = grade.maxScore && grade.maxScore > 0 ? grade.maxScore : 10;

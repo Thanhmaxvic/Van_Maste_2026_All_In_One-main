@@ -15,6 +15,18 @@ import { getSpacedRepetitionLessons } from './services/recommendationService';
 import type { ExamGrade, AIExamData } from './types';
 import './index.css';
 
+function RotatingLoadingText() {
+  const [idx, setIdx] = React.useState(0);
+  const msgs = ['Đang phân tích yêu cầu...', 'Đang tìm kiếm thông tin...', 'Đang suy nghĩ...', 'Đang tổng hợp kiến thức...'];
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setIdx(i => (i + 1) % msgs.length);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
+  return <div style={{ fontSize: 13, color: 'var(--color-text-muted)', fontStyle: 'italic', marginLeft: 12 }}>{msgs[idx]}</div>;
+}
+
 // ── Lazy-loaded heavy components (code-split) ────────────────────────────────
 const ExamPage = React.lazy(() => import('./components/exam/ExamPage'));
 const LearningTimeline = React.lazy(() => import('./components/learn/LearningTimeline'));
@@ -53,7 +65,7 @@ function StudentApp() {
     previewImage, setPreviewImage, chatEndRef, fileInputRef,
     handleSend, handlePlayTTS, addGradeMsg, startGraphicFlow, startExamFlow,
     startLesson, exitLesson, activeLesson: activeLessonState,
-    startCitationFlow, startQuizFlow, handleQuizAnswer,
+    startCitationFlow, startQuizFlow, handleQuizAnswer, abortCurrentTask,
   } = useChat(onStartDiagnosticExam);
 
   // Resolve active lesson title for the banner
@@ -72,6 +84,22 @@ function StudentApp() {
     setActiveAIExam(exam);
     setActiveTab('exam');
   }, []);
+
+  const handleTabChange = useCallback((t: typeof activeTab) => {
+    if (isLoading) {
+      const confirm = window.confirm('AI đang xử lý tác vụ ở tab này. Em có muốn hủy tác vụ đang xử lý để chuyển cửa sổ không?\n(Nếu nhấn "Cancel/Hủy", em sẽ ở lại tab này để chờ xử lý xong)');
+      if (confirm) {
+        abortCurrentTask();
+        setActiveTab(t);
+      }
+    } else {
+      setActiveTab(t);
+    }
+  }, [isLoading, abortCurrentTask]);
+
+  // Handle visibility change (Option B: let background tasks run, so no action needed on visibility change)
+  // The user selected Option B: "Cứ để AI chạy ngầm. Khi họ quay lại thì AI đã làm xong và có sẵn kết quả".
+  // So we don't need to do anything for visibilitychange! We just let it run.
 
   // ── Exam grade callback: switch to chat and post result in chat ─────────
   const handleGradeComplete = useCallback((grade: ExamGrade, resolvedWeaknesses?: string[]) => {
@@ -132,7 +160,7 @@ function StudentApp() {
 
         {/* Main Area */}
         <div className="main-area">
-          <TabNav active={activeTab} onChange={setActiveTab} />
+          <TabNav active={activeTab} onChange={handleTabChange} />
 
           {/* Chat Tab */}
           {activeTab === 'chat' && (
@@ -304,7 +332,10 @@ function StudentApp() {
                 {isLoading && (
                   <div className="msg-row assistant slide-up">
                     <div className="msg-avatar">VM</div>
-                    <div className="loading-dots"><span /><span /><span /></div>
+                    <div style={{ display: 'flex', alignItems: 'center', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px 20px 20px 20px', padding: '10px 16px', boxShadow: 'var(--shadow-sm)' }}>
+                      <div className="loading-dots" style={{ margin: 0 }}><span /><span /><span /></div>
+                      <RotatingLoadingText />
+                    </div>
                   </div>
                 )}
                 {/* Sentinel div for smooth auto-scroll to latest message */}
@@ -325,6 +356,8 @@ function StudentApp() {
                               : label === 'Quiz' ? startQuizFlow
                                 : undefined
                       }
+                      disabled={isLoading}
+                      style={{ opacity: isLoading ? 0.6 : 1, cursor: isLoading ? 'not-allowed' : 'pointer' }}
                     >
                       {label}
                     </button>

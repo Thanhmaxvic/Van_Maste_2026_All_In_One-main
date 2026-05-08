@@ -23,7 +23,7 @@ interface ParsedExamParts {
  * Use AI to extract questions from raw exam text + answer key text.
  * Returns structured JSON with reading and writing parts.
  */
-async function parseExamWithAI(examText: string, answerKeyText: string): Promise<ParsedExamParts | null> {
+async function parseExamWithAI(examText: string, answerKeyText: string, signal?: AbortSignal): Promise<ParsedExamParts | null> {
     const prompt = `Phân tích đề thi Ngữ văn THPT và hướng dẫn chấm bên dưới. Trích xuất NGUYÊN VĂN các câu hỏi (không thay đổi từ nào).
 
 ĐỀ THI:
@@ -52,7 +52,7 @@ LƯU Ý QUAN TRỌNG:
 - NẾU câu viết (writingQuestions) có tham chiếu đến ngữ liệu/đoạn trích ở phần đọc hiểu (ví dụ: "ở phần đọc hiểu", "đoạn trích trên", "văn bản trên"), thì PHẢI gắn nguyên văn đoạn trích/ngữ liệu đó VÀO CUỐI prompt của câu viết. Ví dụ: nếu câu viết yêu cầu phân tích "hai khổ thơ đầu trong đoạn trích ở phần đọc hiểu", prompt phải chứa cả đoạn trích đó để câu hỏi tự đầy đủ.`;
 
     try {
-        const raw = await sendGradingRequest(prompt);
+        const raw = await sendGradingRequest(prompt, signal);
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         if (!jsonMatch) return null;
         const parsed = JSON.parse(jsonMatch[0]);
@@ -75,7 +75,8 @@ LƯU Ý QUAN TRỌNG:
  * @returns AIExamData with answerKey, or null on failure
  */
 export async function buildExamFromPool(
-    type: 'reading' | 'writing' | 'full'
+    type: 'reading' | 'writing' | 'full',
+    signal?: AbortSignal
 ): Promise<AIExamData | null> {
     const totalExams = await detectAvailableExams();
     
@@ -101,7 +102,7 @@ export async function buildExamFromPool(
     if (validSources.length === 0) return null;
 
     // Parse the first valid source with AI to extract structured questions
-    const parsed = await parseExamWithAI(validSources[0].examText, validSources[0].answerKeyText);
+    const parsed = await parseExamWithAI(validSources[0].examText, validSources[0].answerKeyText, signal);
     if (!parsed) {
         // Fallback: use raw text directly
         return buildFallbackExam(validSources[0], type);
@@ -131,7 +132,7 @@ export async function buildExamFromPool(
     if (type === 'writing' || type === 'full') {
         // If full type, get writing from second source if available
         const writingSource = type === 'full' && validSources.length > 1
-            ? await parseExamWithAI(validSources[1].examText, validSources[1].answerKeyText)
+            ? await parseExamWithAI(validSources[1].examText, validSources[1].answerKeyText, signal)
             : parsed;
 
         const wSource = writingSource || parsed;

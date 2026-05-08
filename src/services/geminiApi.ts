@@ -20,7 +20,8 @@ async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, b
             }
             if (i === retries) break;
             await new Promise(resolve => setTimeout(resolve, baseDelayMs * Math.pow(2, i)));
-        } catch (err) {
+        } catch (err: any) {
+            if (err.name === 'AbortError') throw err;
             if (i === retries) throw err;
             await new Promise(resolve => setTimeout(resolve, baseDelayMs * Math.pow(2, i)));
         }
@@ -35,7 +36,8 @@ export async function sendChatMessage(
     messages: Message[],
     userText: string,
     previewImage: string | null,
-    userProfile?: UserProfile | null
+    userProfile?: UserProfile | null,
+    signal?: AbortSignal
 ): Promise<{ text: string; generatedImageUrl: string | null }> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
@@ -85,6 +87,7 @@ export async function sendChatMessage(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
+        signal,
     });
 
     if (!res.ok) {
@@ -94,6 +97,7 @@ export async function sendChatMessage(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
+            signal,
         });
         if (!fallbackRes.ok) {
             // Read response body for detailed error info
@@ -123,7 +127,7 @@ export async function sendChatMessage(
             const docUrl = KNOWLEDGE_DOCS[docName];
             if (docUrl && docUrl.endsWith('.docx')) {
                 try {
-                    const docRes = await fetch(encodeURI(docUrl));
+                    const docRes = await fetch(encodeURI(docUrl), { signal });
                     if (docRes.ok) {
                         const arrayBuffer = await docRes.arrayBuffer();
                         const result = await mammoth.extractRawText({ arrayBuffer });
@@ -151,6 +155,7 @@ export async function sendChatMessage(
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: followUpContents }),
+                    signal,
                 });
                 
                 if (!followUpRes.ok) {
@@ -160,6 +165,7 @@ export async function sendChatMessage(
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: followUpContents }),
+                        signal,
                     });
                     if (fbRes.ok) {
                         const fbData = await fbRes.json();
@@ -193,7 +199,7 @@ export async function sendChatMessage(
 /**
  * Send a grading request (no system prompt, just pure grading).
  */
-export async function sendGradingRequest(prompt: string): Promise<string> {
+export async function sendGradingRequest(prompt: string, signal?: AbortSignal): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
@@ -204,6 +210,7 @@ export async function sendGradingRequest(prompt: string): Promise<string> {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
+                signal,
             }, 4, 3000);
             if (!res.ok) {
                 console.warn(`[Grading] Model ${model} returned ${res.status}, trying next...`);
@@ -361,7 +368,7 @@ export interface DiagnosticQuizData {
  * Generate a 10-question diagnostic MCQ quiz with a passage.
  * Returns parsed JSON data.
  */
-export async function generateDiagnosticMCQ(prompt: string): Promise<DiagnosticQuizData | null> {
+export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal): Promise<DiagnosticQuizData | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
 
@@ -380,6 +387,7 @@ export async function generateDiagnosticMCQ(prompt: string): Promise<DiagnosticQ
                         contents: [{ parts: [{ text: prompt }] }],
                         generationConfig: { temperature: 0.7 },
                     }),
+                    signal,
                 },
                 4,   // more retries for quiz generation
                 3000 // longer base delay (3s, 6s, 12s, 24s)
@@ -486,7 +494,7 @@ Format: vertical infographic, 1024x1536px equivalent proportions.`;
  * Generate an AI exam based on type (reading/writing/full).
  * Returns parsed AIExamData or null on failure.
  */
-export async function generateAIExam(prompt: string): Promise<AIExamData | null> {
+export async function generateAIExam(prompt: string, signal?: AbortSignal): Promise<AIExamData | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
 
@@ -500,6 +508,7 @@ export async function generateAIExam(prompt: string): Promise<AIExamData | null>
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+                    signal,
                 },
                 4, 3000
             );
