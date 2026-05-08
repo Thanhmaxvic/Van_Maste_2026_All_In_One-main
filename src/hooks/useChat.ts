@@ -498,7 +498,16 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
         // ── Awaiting exam type choice (A/B/C) ────────────────────────────────
         if (awaitingExamTypeChoice) {
-            const ch = lower.trim().slice(0, 1);
+            let ch = 'a'; // default
+            if (lower.includes('đọc hiểu') || lower.match(/\b(a)\b/)) ch = 'a';
+            else if (lower.includes('viết') || lower.match(/\b(b)\b/)) ch = 'b';
+            else if (lower.includes('tổng hợp') || lower.match(/\b(c)\b/)) ch = 'c';
+            
+            // Also handle if user typed "Câu 1: A" just in case
+            if (lower.includes('câu 1: a')) ch = 'a';
+            else if (lower.includes('câu 1: b')) ch = 'b';
+            else if (lower.includes('câu 1: c')) ch = 'c';
+
             await handleExamTypeChoice(ch);
             return;
         }
@@ -819,7 +828,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         setAwaitingExamTypeChoice(true);
         const syntheticUser: Message = { role: 'user', content: 'Thầy ơi, tạo đề thi cho em với' };
         setMessages(prev => [...prev, syntheticUser]);
-        addAssistant(`Em muốn luyện đề loại nào?\n\nA. Đọc hiểu (30 phút)\nB. Phần Viết (90 phút)\nC. Đề tổng hợp Đọc hiểu + Viết (120 phút)`);
+        addAssistant(`Em muốn luyện đề loại nào?`, true, { quickReplies: ['Đọc hiểu (30 phút)', 'Phần Viết (90 phút)', 'Đề tổng hợp (120 phút)'] });
     }, [addAssistant, isLoading]);
 
     const handleExamTypeChoice = useCallback(async (choice: string) => {

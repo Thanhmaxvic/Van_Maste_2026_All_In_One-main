@@ -1,8 +1,11 @@
 import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
-const GEMINI_PRIMARY_MODEL = 'gemini-3.1-flash-preview';
-const GEMINI_FALLBACK_MODEL = 'gemini-3.1-flash-lite';
+export const GEMINI_MODELS = [
+    'gemini-3.1-flash-preview',
+    'gemini-3.1-flash-lite',
+    'gemini-3.0-flash'
+];
 
 function getApiKey(): string { return 'backend'; }
 
@@ -83,32 +86,23 @@ export async function sendChatMessage(
 
     parts.push({ text: userText });
 
-    const res = await fetchWithRetry(`/api/gemini?model=${GEMINI_PRIMARY_MODEL}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
-        signal,
-    });
-
-    if (!res.ok) {
-        // Fallback to lite model
-        console.warn(`[Chat] Primary model returned ${res.status}, trying fallback...`);
-        const fallbackRes = await fetchWithRetry(`/api/gemini?model=${GEMINI_FALLBACK_MODEL}`, {
+    let res: Response | null = null;
+    for (const model of GEMINI_MODELS) {
+        res = await fetchWithRetry(`/api/gemini?model=${model}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
             signal,
         });
-        if (!fallbackRes.ok) {
-            // Read response body for detailed error info
-            let errorDetail = '';
-            try { errorDetail = await fallbackRes.text(); } catch { /* ignore */ }
-            console.error(`[Chat] Fallback also failed: ${fallbackRes.status} — ${errorDetail}`);
-            throw new Error(`API error: ${fallbackRes.status} ${fallbackRes.statusText}`);
-        }
-        const fbData = await fallbackRes.json();
-        let fbContent = fbData.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
-        return { text: fbContent, generatedImageUrl: null };
+        if (res.ok) break;
+        console.warn(`[Chat] Model ${model} returned ${res.status}, trying next...`);
+    }
+
+    if (!res || !res.ok) {
+        let errorDetail = '';
+        try { errorDetail = await res?.text() || ''; } catch { /* ignore */ }
+        console.error(`[Chat] All models failed. Last status: ${res?.status} — ${errorDetail}`);
+        throw new Error(`API error: ${res?.status} ${res?.statusText}`);
     }
 
     const data = await res.json();
@@ -151,28 +145,20 @@ export async function sendChatMessage(
                     { role: 'user', parts: [{ text: followUpText }] }
                 ];
                 
-                const followUpRes = await fetchWithRetry(`/api/gemini?model=${GEMINI_PRIMARY_MODEL}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: followUpContents }),
-                    signal,
-                });
-                
-                if (!followUpRes.ok) {
-                    // Try fallback model for RAG follow-up
-                    console.warn(`[RAG] Primary model returned ${followUpRes.status}, trying fallback...`);
-                    const fbRes = await fetchWithRetry(`/api/gemini?model=${GEMINI_FALLBACK_MODEL}`, {
+                let followUpRes: Response | null = null;
+                for (const model of GEMINI_MODELS) {
+                    followUpRes = await fetchWithRetry(`/api/gemini?model=${model}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: followUpContents }),
                         signal,
                     });
-                    if (fbRes.ok) {
-                        const fbData = await fbRes.json();
-                        aiContent = fbData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
-                    } else {
-                        throw new Error(`API error: ${fbRes.status} ${fbRes.statusText}`);
-                    }
+                    if (followUpRes.ok) break;
+                    console.warn(`[RAG] Model ${model} returned ${followUpRes.status}, trying next...`);
+                }
+                
+                if (!followUpRes || !followUpRes.ok) {
+                    throw new Error(`API error: ${followUpRes?.status} ${followUpRes?.statusText}`);
                 } else {
                     const followUpData = await followUpRes.json();
                     aiContent = followUpData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
@@ -203,7 +189,7 @@ export async function sendGradingRequest(prompt: string, signal?: AbortSignal): 
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
-    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    const modelsToTry = GEMINI_MODELS;
     for (const model of modelsToTry) {
         try {
             const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
@@ -263,7 +249,7 @@ export async function rewriteText(text: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
-    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    const modelsToTry = GEMINI_MODELS;
     for (const model of modelsToTry) {
         try {
             const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
@@ -292,7 +278,7 @@ export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
-    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    const modelsToTry = GEMINI_MODELS;
     for (const model of modelsToTry) {
         try {
             const res = await fetchWithRetry(
@@ -333,13 +319,17 @@ Yêu cầu:
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
 
-    const res = await fetchWithRetry(`/api/gemini?model=${GEMINI_PRIMARY_MODEL}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    });
-    if (!res.ok) {
-        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    let res: Response | null = null;
+    for (const model of GEMINI_MODELS) {
+        res = await fetchWithRetry(`/api/gemini?model=${model}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        });
+        if (res.ok) break;
+    }
+    if (!res || !res.ok) {
+        throw new Error(`API error: ${res?.status} ${res?.statusText}`);
     }
     const data = await res.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
@@ -373,7 +363,7 @@ export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal
     if (!apiKey) return null;
 
     // Try primary model first, then fallback
-    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    const modelsToTry = GEMINI_MODELS;
 
     for (const model of modelsToTry) {
         try {
@@ -434,13 +424,17 @@ export async function sendProactiveMessage(
             .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
-        const res = await fetchWithRetry(`/api/gemini?model=${GEMINI_PRIMARY_MODEL}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
-        });
-        if (!res.ok) {
-            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        let res: Response | null = null;
+        for (const model of GEMINI_MODELS) {
+            res = await fetchWithRetry(`/api/gemini?model=${model}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
+            });
+            if (res.ok) break;
+        }
+        if (!res || !res.ok) {
+            throw new Error(`API error: ${res?.status} ${res?.statusText}`);
         }
         const data = await res.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
@@ -498,7 +492,7 @@ export async function generateAIExam(prompt: string, signal?: AbortSignal): Prom
     const apiKey = getApiKey();
     if (!apiKey) return null;
 
-    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    const modelsToTry = GEMINI_MODELS;
     for (const model of modelsToTry) {
         try {
             console.log(`[AIExam] Trying model: ${model}`);
@@ -559,7 +553,7 @@ export async function generateChatAutoResponse(
 
         const fullPrompt = `${CHAT_AUTO_RESPONDER_PROMPT}\n\nLịch sử chat gần đây:\n${historyText}\n\nHọc sinh vừa gửi: "${userMessage}"\n\nTrả lời ngắn gọn:`;
 
-        const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+        const modelsToTry = GEMINI_MODELS;
         for (const model of modelsToTry) {
             try {
                 const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
@@ -660,7 +654,7 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
         }
     }
 
-    const modelsToTry = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+    const modelsToTry = GEMINI_MODELS;
     let lastError: Error | null = null;
 
     for (const model of modelsToTry) {
