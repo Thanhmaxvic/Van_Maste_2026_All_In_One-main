@@ -4500,3 +4500,97 @@ button.mcq-opt.mcq-dimmed {
   .tf-btn { padding: 12px 24px; font-size: 14px; }
   .scramble-letter { width: 34px; height: 42px; font-size: 17px; }
 }
+
+/* ── Custom Confirm Modal ─────────────────────────────────────── */
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.9) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.confirm-modal-box {
+  background: var(--color-surface);
+  border-radius: 28px;
+  padding: 32px 24px;
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+  animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.confirm-modal-emoji {
+  font-size: 56px;
+  margin-bottom: 16px;
+  display: inline-block;
+  animation: bounce 2s infinite ease-in-out;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.confirm-modal-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-text);
+  margin-bottom: 12px;
+}
+
+.confirm-modal-text {
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin-bottom: 28px;
+}
+
+.confirm-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-cancel-task {
+  background: linear-gradient(135deg, #ff4757 0%, #ff6b81 100%);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 16px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 8px 20px rgba(255, 71, 87, 0.3);
+}
+
+.btn-cancel-task:active {
+  transform: scale(0.96);
+}
+
+.btn-stay {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  border: none;
+  padding: 16px;
+  border-radius: 16px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-stay:active {
+  background: var(--color-border);
+}

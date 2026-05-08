@@ -54,6 +54,7 @@ function StudentApp() {
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeAIExam, setActiveAIExam] = useState<AIExamData | null>(null);
+  const [pendingTabSwitch, setPendingTabSwitch] = useState<Tab | null>(null);
 
   const onStartDiagnosticExam = useCallback(() => {
     setIsDiagnosing(true);
@@ -87,15 +88,11 @@ function StudentApp() {
 
   const handleTabChange = useCallback((t: typeof activeTab) => {
     if (isLoading) {
-      const confirm = window.confirm('AI đang xử lý tác vụ ở tab này. Em có muốn hủy tác vụ đang xử lý để chuyển cửa sổ không?\n(Nếu nhấn "Cancel/Hủy", em sẽ ở lại tab này để chờ xử lý xong)');
-      if (confirm) {
-        abortCurrentTask();
-        setActiveTab(t);
-      }
+      setPendingTabSwitch(t);
     } else {
       setActiveTab(t);
     }
-  }, [isLoading, abortCurrentTask]);
+  }, [isLoading]);
 
   // Handle visibility change (Option B: let background tasks run, so no action needed on visibility change)
   // The user selected Option B: "Cứ để AI chạy ngầm. Khi họ quay lại thì AI đã làm xong và có sẵn kết quả".
@@ -482,6 +479,37 @@ function StudentApp() {
         <SettingsPanel open={!!panelMode} mode={panelMode || 'settings'} onClose={() => setPanelMode(null)} />
       </Suspense>
       <ChatBubble />
+
+      {/* Custom Confirm Modal for Tab Switching */}
+      {pendingTabSwitch && (
+        <div className="confirm-modal-overlay" onClick={() => setPendingTabSwitch(null)}>
+          <div className="confirm-modal-box" onClick={e => e.stopPropagation()}>
+            <span className="confirm-modal-emoji">⏳</span>
+            <div className="confirm-modal-title">Khoan đã em ơi!</div>
+            <div className="confirm-modal-text">
+              Tác vụ của em vẫn đang được AI xử lý. Nếu chuyển trang bây giờ thì AI sẽ hủy tác vụ này đó. Em muốn sao nè?
+            </div>
+            <div className="confirm-modal-actions">
+              <button
+                className="btn-cancel-task"
+                onClick={() => {
+                  abortCurrentTask();
+                  if (pendingTabSwitch) setActiveTab(pendingTabSwitch);
+                  setPendingTabSwitch(null);
+                }}
+              >
+                Hủy tác vụ & Chuyển trang 🚀
+              </button>
+              <button
+                className="btn-stay"
+                onClick={() => setPendingTabSwitch(null)}
+              >
+                Ở lại đợi xíu ⏳
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
