@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Volume2, LogOut, User, Trophy, Zap, ChevronRight, Settings, ImagePlus, Loader2 } from 'lucide-react';
+import { X, Volume2, LogOut, User, Trophy, Zap, ChevronRight, Settings, ImagePlus, Loader2, BarChart2 } from 'lucide-react';
 import { logout, updateUserProfile } from '../../services/firebaseService';
 import { uploadChatImage } from '../../services/chatService';
 import { useAuth } from '../../context/AuthContext';
@@ -242,6 +242,29 @@ export default function SettingsPanel({ open, mode = 'settings', onClose }: Sett
                                         <div className="sp-stat-val">{userProfile?.submissionCount ?? 0}</div>
                                         <div className="sp-stat-lbl">Bài nộp</div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div className="sp-section" style={{ marginTop: '20px', marginBottom: '8px' }}>
+                                <div className="sp-section-title" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#60a5fa' }}>
+                                    <BarChart2 size={15} />
+                                    Tiến độ kiến thức
+                                </div>
+                                <div className="sp-chart-container">
+                                    {[
+                                        { label: 'Thơ', val: 85 },
+                                        { label: 'Văn xuôi', val: 65 },
+                                        { label: 'Nghị luận', val: 45 },
+                                        { label: 'Đọc hiểu', val: 90 }
+                                    ].map((item, idx) => (
+                                        <div key={idx} className="sp-chart-col">
+                                            <div className="sp-chart-bar-wrapper">
+                                                <div className="sp-chart-bar" style={{ height: `${item.val}%` }}></div>
+                                            </div>
+                                            <div className="sp-chart-percent">{item.val}%</div>
+                                            <div className="sp-chart-label">{item.label}</div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 

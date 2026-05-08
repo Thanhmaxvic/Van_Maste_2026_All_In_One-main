@@ -265,7 +265,7 @@ export default function LearningTimeline({ lessonProgress, onSelectLesson, userP
                                             Tiếp tục học: {inProgressLesson.title}
                                         </div>
                                         <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
-                                            Em đang học dang dở bài này. Nhấn vào để tiếp tục từ chỗ đã dừng,
+                                            Nhấn vào để tiếp tục từ chỗ đã dừng,
                                             hoặc chọn bài khác nếu muốn chuyển chủ đề.
                                         </div>
                                     </>

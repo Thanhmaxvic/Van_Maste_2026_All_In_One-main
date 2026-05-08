@@ -240,7 +240,7 @@ function StudentApp() {
                         </>
                       ) : inProgress ? (
                         <>
-                          <h2 className="chat-welcome-title">Chào em! Em đang học dang dở bài này</h2>
+                          <h2 className="chat-welcome-title">Chào em! Em hãy lựa chọn nội dung học:</h2>
                           <p className="chat-welcome-desc">
                             Tiếp tục bài "{inProgress.title}" từ chỗ đã dừng, hoặc chọn bài mới nếu muốn chuyển chủ đề.
                           </p>

@@ -1755,6 +1755,62 @@ button.mcq-opt.mcq-dimmed {
   color: rgba(255, 255, 255, .45);
 }
 
+/* Knowledge Chart */
+.sp-chart-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  height: 140px;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--sp-border);
+  border-radius: 14px;
+  padding: 16px 8px 8px;
+  margin-top: 4px;
+}
+
+.sp-chart-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+
+.sp-chart-bar-wrapper {
+  flex: 1;
+  width: 32px;
+  background: rgba(255, 255, 255, .05);
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  position: relative;
+}
+
+.sp-chart-bar {
+  width: 100%;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sp-chart-percent {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  margin-top: 6px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.sp-chart-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, .6);
+  white-space: nowrap;
+}
+
 /* Sections */
 .sp-section {
   display: flex;
