@@ -118,6 +118,7 @@ export async function gradeWithAI(
     examText: string,
     answerKeyText: string,
     studentAnswer: string,
+    signal?: AbortSignal
 ): Promise<ExamGrade> {
     // Count words to enforce word-limit requirements
     const wordCount = studentAnswer.trim().split(/\s+/).filter(Boolean).length;
@@ -239,7 +240,7 @@ RÀNG BUỘC BẮT BUỘC:
 - errors[] phải liệt kê TẤT CẢ lỗi quan trọng (thiếu ý, không đủ chữ, sai đáp án, thiếu dẫn chứng)
 - Nếu bài thiếu ý/thiếu chữ nhưng AI vẫn cho điểm cao → vi phạm nguyên tắc chấm`;
 
-    const rawText = await sendGradingRequest(prompt);
+    const rawText = await sendGradingRequest(prompt, signal);
 
     try {
         const jsonMatch = rawText.match(/\{[\s\S]*\}/);

@@ -4,7 +4,7 @@ import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 export const GEMINI_MODELS = [
     'gemini-3.1-flash-preview',
     'gemini-3.1-flash-lite',
-    'gemini-3.0-flash'
+    'gemini-2.5-flash'
 ];
 
 function getApiKey(): string { return 'backend'; }

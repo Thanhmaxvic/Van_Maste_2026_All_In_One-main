@@ -63,6 +63,15 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
     const examWrapperRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const recognitionRef = useRef<ISpeechRecognition | null>(null);
+    const gradingAbortControllerRef = useRef<AbortController | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (gradingAbortControllerRef.current) {
+                gradingAbortControllerRef.current.abort();
+            }
+        };
+    }, []);
 
     // Helper: format seconds → MM:SS
     const fmtTime = (s: number) => {
@@ -241,7 +250,12 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
     };
 
     const handleNewExam = () => {
+        if (gradingAbortControllerRef.current) {
+            gradingAbortControllerRef.current.abort();
+            gradingAbortControllerRef.current = null;
+        }
         stopTimer();
+        setStatus('loading');
         if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
         if (isRecording) { recognitionRef.current?.stop(); setIsRecording(false); }
         const count = availableCount || 1;
@@ -258,6 +272,11 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
         if (!cheating && !answer.trim()) { alert('Em chưa viết bài!'); setStatus('active'); return; }
 
         setStatus('grading');
+        if (gradingAbortControllerRef.current) {
+            gradingAbortControllerRef.current.abort();
+        }
+        gradingAbortControllerRef.current = new AbortController();
+
         try {
             const submissionId = await saveExamSubmission(user.uid, examId, cheating ? '[GIAN LẬN] ' + answer : answer);
 
@@ -282,7 +301,7 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
                 ]);
             }
 
-            const grade = await gradeWithAI(examText, answerKeyText, answer || '(Bo trang)');
+            const grade = await gradeWithAI(examText, answerKeyText, answer || '(Bo trang)', gradingAbortControllerRef.current.signal);
             await updateSubmissionPendingGrade(user.uid, submissionId, grade);
 
             // Bỏ qua luồng saveExamInsights và cập nhật local profile
@@ -303,10 +322,18 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
 
             // Switch to chat and show grade result (with an empty string array since points won't be resolved yet)
             onGradeComplete?.(grade, []);
-        } catch (err) {
+        } catch (err: any) {
+            if (err.name === 'AbortError' || err.message === 'AbortError') {
+                console.log('Grading was aborted.');
+                return;
+            }
             console.error('Submit error:', err);
             setErrorMsg('Có lỗi khi nộp bài. Vui lòng thử lại.');
             setStatus('error');
+        } finally {
+            if (gradingAbortControllerRef.current?.signal.aborted === false) {
+                 gradingAbortControllerRef.current = null;
+            }
         }
     };
 
