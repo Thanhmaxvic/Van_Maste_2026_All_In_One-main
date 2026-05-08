@@ -756,15 +756,20 @@ body,
 
 @media (max-width: 768px) {
   .roadmap-page {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
   }
 
   .roadmap-page .sidebar {
     display: flex;
     width: 100%;
+    flex: 1;
     border-right: none;
     border-bottom: none;
     padding: 16px 12px 24px;
+    overflow-y: auto;
   }
 }
 
