@@ -20,11 +20,11 @@ let _availableExamsCache: number | null = null;
 export async function detectAvailableExams(): Promise<number> {
     if (_availableExamsCache !== null) return _availableExamsCache;
 
-    // Quét tới 200 đề. Để tránh lỗi giới hạn kết nối đồng thời của trình duyệt (thường là 6)
+    // Quét tới 99 đề. Để tránh lỗi giới hạn kết nối đồng thời của trình duyệt (thường là 6)
     // hoặc lỗi 429 Too Many Requests từ server khi gửi 400 request cùng lúc,
     // chúng ta sẽ quét theo từng lô (batch).
     let validCount = 0;
-    const maxExams = 150; // Quét tối đa 150 đề
+    const maxExams = 99; // Quét tối đa 99 đề
     const batchSize = 10; 
 
     for (let i = 0; i < maxExams; i += batchSize) {
