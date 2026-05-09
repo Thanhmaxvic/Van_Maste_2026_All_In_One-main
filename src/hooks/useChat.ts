@@ -727,7 +727,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                     return next;
                 });
                 playNotification();
-                if (cleanContent) autoSpeak(cleanContent);
+                if (cleanContent && !activeLesson) autoSpeak(cleanContent);
             }
             if (user && userProfile) {
                 // Track chat turns for user traits extraction

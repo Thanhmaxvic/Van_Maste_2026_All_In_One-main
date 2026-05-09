@@ -60,7 +60,7 @@ CÂU HỎI LUYỆN TẬP:
 export const INFOGRAPHIC_TRIGGER = '[INFOGRAPHIC]';
 
 /** Delay proactive idle question */
-export const PROACTIVE_DELAY_MS = 25_000; // 25 giây
+export const PROACTIVE_DELAY_MS = 120_000; // 120 giây (2 phút) — tiết kiệm API, HS cần thời gian đọc/suy nghĩ
 
 /** Prompt dùng khi AI giảng bài từ DOCX theory content */
 export const LESSON_TEACH_PROMPT = `Bạn đang giảng bài cho học sinh từ nội dung lý thuyết bên dưới. Dựa 100% vào nội dung này, KHÔNG tự bịa thêm.

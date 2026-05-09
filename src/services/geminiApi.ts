@@ -110,7 +110,9 @@ export async function sendChatMessage(
         profileBlock = `\n[PROFILE HOC SINH]\n- Ten: ${userProfile.name}\n- Diem TB: ${avg}/10 | Muc tieu: ${target}/10${diagInfo}\n- Trinh do: ${levelHint}\n- Diem yeu: ${weaknesses}\n- Diem manh: ${strengths}\n- Bai da nop: ${userProfile.submissionCount ?? 0}\n- Xung ho: "${xungHo}" - "em"\n[/PROFILE]\n\nCA NHAN HOA:\n- Dua vao profile tren, tu dong dieu chinh cach giang day phu hop trinh do.\n- Khi tao cau hoi trac nghiem/quiz: UU TIEN 60% cau hoi lien quan den DIEM YEU (${weaknesses}), 40% cau hoi ve ky nang khac.\n- Neu trinh do "${levelHint}": ${levelHint === 'nang cao' ? 'hoi cau kho, so sanh sau, phan tich nhieu tang' : levelHint === 'chuan' ? 'hoi cau vua phai, ket hop ly thuyet va thuc hanh' : 'hoi cau co ban, giai thich ky, cho vi du cu the'}.\n- LUON xung ho la "${xungHo}" khi noi voi hoc sinh.`;
     }
 
-    const parts: unknown[] = [{ text: SYSTEM_PROMPT + datetimeBlock + profileBlock }];
+    // Use Gemini's dedicated systemInstruction field — allows context caching & reduces token cost
+    const systemInstruction = { parts: [{ text: SYSTEM_PROMPT + datetimeBlock + profileBlock }] };
+    const parts: unknown[] = [];
 
     messages.slice(-CHAT_HISTORY_LIMIT).forEach((m) => {
         parts.push({ text: `${m.role}: ${m.content}` });
@@ -128,7 +130,7 @@ export async function sendChatMessage(
         res = await fetchWithRetry(`/api/gemini?model=${model}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ role: 'user', parts }] }),
+            body: JSON.stringify({ systemInstruction, contents: [{ role: 'user', parts }] }),
             signal,
         });
         if (res.ok) break;
@@ -187,7 +189,7 @@ export async function sendChatMessage(
                     followUpRes = await fetchWithRetry(`/api/gemini?model=${model}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: followUpContents }),
+                        body: JSON.stringify({ systemInstruction, contents: followUpContents }),
                         signal,
                     });
                     if (followUpRes.ok) break;

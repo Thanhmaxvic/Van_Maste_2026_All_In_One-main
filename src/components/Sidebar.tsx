@@ -78,6 +78,14 @@ export default function Sidebar({ profile }: SidebarProps) {
             return;
         }
 
+        // Check sessionStorage cache to avoid redundant API calls
+        const cacheKey = `aiTip::${weaknesses.join('|')}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+            setAiTip(cached);
+            return;
+        }
+
         let cancelled = false;
 
         // Gợi ý tạm thời trong lúc chờ AI
@@ -87,7 +95,10 @@ export default function Sidebar({ profile }: SidebarProps) {
             try {
                 const tip = await generateWeaknessAdvice(weaknesses, pronoun);
                 if (!cancelled) {
-                    setAiTip(tip || baseTip());
+                    const finalTip = tip || baseTip();
+                    setAiTip(finalTip);
+                    // Cache the result for this session
+                    try { sessionStorage.setItem(cacheKey, finalTip); } catch { /* quota exceeded — ignore */ }
                 }
             } catch {
                 if (!cancelled) {
@@ -101,7 +112,7 @@ export default function Sidebar({ profile }: SidebarProps) {
         return () => {
             cancelled = true;
         };
-    }, [avg, target, weaknesses]);
+    }, [avg, target, weaknesses.join('|')]); // use joined string to avoid re-render on reference change
 
     return (
         <aside className="sidebar">
