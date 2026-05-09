@@ -64,6 +64,7 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const recognitionRef = useRef<ISpeechRecognition | null>(null);
     const gradingAbortControllerRef = useRef<AbortController | null>(null);
+    const isSwitchingRef = useRef(false);
 
     useEffect(() => {
         return () => {
@@ -159,6 +160,7 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
     // ── Fullscreen & anti-cheat ────────────────────────────────────────────────
     const handleFullscreenChange = useCallback(() => {
         if (status !== 'active') return;
+        if (isSwitchingRef.current) return;
         if (!document.fullscreenElement) {
             // User exited fullscreen → treat as cheating
             setIsCheating(true);
@@ -250,6 +252,7 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
     };
 
     const handleNewExam = () => {
+        isSwitchingRef.current = true;
         if (gradingAbortControllerRef.current) {
             gradingAbortControllerRef.current.abort();
             gradingAbortControllerRef.current = null;
@@ -260,6 +263,11 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
         if (isRecording) { recognitionRef.current?.stop(); setIsRecording(false); }
         const count = availableCount || 1;
         setExamId(pickRandomExam(count));
+        
+        // Reset ref after a short tick so that fullscreenchange event gets ignored safely
+        setTimeout(() => {
+            isSwitchingRef.current = false;
+        }, 300);
     };
 
     // ── Submit ─────────────────────────────────────────────────────────────────

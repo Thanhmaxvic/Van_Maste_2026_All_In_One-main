@@ -18,7 +18,7 @@ async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, b
         try {
             const res = await fetch(url, options);
             lastRes = res;
-            if (res.ok || (res.status !== 503 && res.status !== 529 && res.status !== 429)) {
+            if (res.ok || (res.status !== 503 && res.status !== 529)) {
                 return res;
             }
             if (i === retries) break;
@@ -95,6 +95,7 @@ export async function sendChatMessage(
             signal,
         });
         if (res.ok) break;
+        if (res.status === 429) break;
         console.warn(`[Chat] Model ${model} returned ${res.status}, trying next...`);
     }
 
@@ -154,6 +155,7 @@ export async function sendChatMessage(
                         signal,
                     });
                     if (followUpRes.ok) break;
+                    if (followUpRes.status === 429) break;
                     console.warn(`[RAG] Model ${model} returned ${followUpRes.status}, trying next...`);
                 }
                 
@@ -199,6 +201,7 @@ export async function sendGradingRequest(prompt: string, signal?: AbortSignal): 
                 signal,
             }, 4, 3000);
             if (!res.ok) {
+                if (res.status === 429) break;
                 console.warn(`[Grading] Model ${model} returned ${res.status}, trying next...`);
                 continue;
             }
@@ -258,6 +261,7 @@ export async function rewriteText(text: string): Promise<string | null> {
                 body: JSON.stringify({ contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }),
             });
             if (!res.ok) {
+                if (res.status === 429) break;
                 console.warn(`[Rewrite] Model ${model} returned ${res.status}, trying next...`);
                 continue;
             }
@@ -291,6 +295,7 @@ export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
                 4, 3000
             );
             if (!res.ok) {
+                if (res.status === 429) break;
                 console.warn(`[DiagnosticQuiz] Model ${model} returned ${res.status}, trying next...`);
                 continue;
             }
@@ -327,6 +332,7 @@ Yêu cầu:
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
         });
         if (res.ok) break;
+        if (res.status === 429) break;
     }
     if (!res || !res.ok) {
         throw new Error(`API error: ${res?.status} ${res?.statusText}`);
@@ -383,6 +389,7 @@ export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal
                 3000 // longer base delay (3s, 6s, 12s, 24s)
             );
             if (!res.ok) {
+                if (res.status === 429) break;
                 console.warn(`[Quiz] Model ${model} returned ${res.status}, trying next...`);
                 continue; // try fallback model
             }
@@ -432,6 +439,7 @@ export async function sendProactiveMessage(
                 body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
             });
             if (res.ok) break;
+            if (res.status === 429) break;
         }
         if (!res || !res.ok) {
             throw new Error(`API error: ${res?.status} ${res?.statusText}`);
@@ -507,6 +515,7 @@ export async function generateAIExam(prompt: string, signal?: AbortSignal): Prom
                 4, 3000
             );
             if (!res.ok) {
+                if (res.status === 429) break;
                 console.warn(`[AIExam] Model ${model} returned ${res.status}, trying next...`);
                 continue;
             }
@@ -562,6 +571,7 @@ export async function generateChatAutoResponse(
                     body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
                 });
                 if (!res.ok) {
+                    if (res.status === 429) break;
                     console.warn(`[AutoResponse] Model ${model} returned ${res.status}, trying next...`);
                     continue;
                 }
@@ -671,6 +681,7 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
             }, 4, 3000);
 
             if (!res.ok) {
+                if (res.status === 429) break;
                 console.warn(`[GradeSubmission] Model ${model} returned ${res.status}, trying next...`);
                 continue;
             }
