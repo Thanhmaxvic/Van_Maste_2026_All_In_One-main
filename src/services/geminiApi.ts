@@ -18,7 +18,7 @@ async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, b
         try {
             const res = await fetch(url, options);
             lastRes = res;
-            if (res.ok || (res.status !== 503 && res.status !== 529)) {
+            if (res.ok || (res.status !== 503 && res.status !== 529 && res.status !== 429)) {
                 return res;
             }
             if (i === retries) break;
@@ -55,7 +55,7 @@ async function callGeminiWithFallback(
                 opts?.baseDelay ?? 2000,
             );
             if (!res.ok) {
-                if (res.status === 429) break;
+
                 console.warn(`[Gemini] Model ${model} returned ${res.status}, trying next...`);
                 continue;
             }
@@ -132,7 +132,6 @@ export async function sendChatMessage(
             signal,
         });
         if (res.ok) break;
-        if (res.status === 429) break;
         console.warn(`[Chat] Model ${model} returned ${res.status}, trying next...`);
     }
 
@@ -192,7 +191,6 @@ export async function sendChatMessage(
                         signal,
                     });
                     if (followUpRes.ok) break;
-                    if (followUpRes.status === 429) break;
                     console.warn(`[RAG] Model ${model} returned ${followUpRes.status}, trying next...`);
                 }
                 
@@ -358,7 +356,7 @@ export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal
                 3000 // longer base delay (3s, 6s, 12s, 24s)
             );
             if (!res.ok) {
-                if (res.status === 429) break;
+
                 console.warn(`[Quiz] Model ${model} returned ${res.status}, trying next...`);
                 continue; // try fallback model
             }
@@ -600,7 +598,7 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
             }, 4, 3000);
 
             if (!res.ok) {
-                if (res.status === 429) break;
+
                 console.warn(`[GradeSubmission] Model ${model} returned ${res.status}, trying next...`);
                 continue;
             }
