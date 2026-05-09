@@ -1,46 +1,12 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-  return {
+export default defineConfig({
     plugins: [react()],
     server: {
       port: 5173,
       open: false,
       host: 'localhost',
-      proxy: {
-        '/api/gemini': {
-          target: 'https://generativelanguage.googleapis.com',
-          changeOrigin: true,
-          timeout: 120000,
-          proxyTimeout: 120000,
-          configure: (proxy, options) => {
-            proxy.on('proxyReq', (proxyReq, req, res) => {
-              const url = new URL(req.url || '', 'http://localhost');
-              const model = url.searchParams.get('model') || 'gemini-3.1-flash-preview';
-              const newUrl = new URL(`/v1beta/models/${model}:generateContent`, 'https://generativelanguage.googleapis.com');
-
-              const apiKey = env.GOOGLE_API_KEY || env.VITE_GOOGLE_API_KEY || '';
-              newUrl.searchParams.append('key', apiKey);
-              proxyReq.path = newUrl.pathname + newUrl.search;
-            });
-          }
-        },
-        '/api/tts': {
-          target: 'https://texttospeech.googleapis.com',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/tts/, '/v1/text:synthesize'),
-          configure: (proxy, options) => {
-            proxy.on('proxyReq', (proxyReq, req, res) => {
-              const url = new URL(proxyReq.path, 'http://localhost');
-              const ttsKey = env.GOOGLE_TTS_API_KEY || env.VITE_GOOGLE_TTS_API_KEY || '';
-              url.searchParams.append('key', ttsKey);
-              proxyReq.path = url.pathname + url.search;
-            });
-          }
-        }
-      }
     },
     build: {
       target: 'es2020',
@@ -55,5 +21,4 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-  };
 })

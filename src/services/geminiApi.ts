@@ -7,7 +7,9 @@ export const GEMINI_MODELS = [
     'gemini-2.5-flash'
 ];
 
-function getApiKey(): string { return 'backend'; }
+function getApiKey(): string {
+    return import.meta.env.VITE_GOOGLE_API_KEY || '';
+}
 
 /**
  * Helper: Fetch with exponential backoff for 503/429/529 errors.
@@ -43,8 +45,9 @@ async function callGeminiWithFallback(
     const config = opts?.temperature != null ? { generationConfig: { temperature: opts.temperature }, ...body } : body;
     for (const model of GEMINI_MODELS) {
         try {
+            const apiKey = getApiKey();
             const res = await fetchWithRetry(
-                `/api/gemini?model=${model}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -127,7 +130,8 @@ export async function sendChatMessage(
 
     let res: Response | null = null;
     for (const model of GEMINI_MODELS) {
-        res = await fetchWithRetry(`/api/gemini?model=${model}`, {
+        const geminiKey = getApiKey();
+        res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ systemInstruction, contents: [{ role: 'user', parts }] }),
@@ -186,7 +190,8 @@ export async function sendChatMessage(
                 
                 let followUpRes: Response | null = null;
                 for (const model of GEMINI_MODELS) {
-                    followUpRes = await fetchWithRetry(`/api/gemini?model=${model}`, {
+                    const ragKey = getApiKey();
+                    followUpRes = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ragKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ systemInstruction, contents: followUpContents }),
@@ -241,7 +246,8 @@ export async function generateImage(prompt: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
+        const imgKey = getApiKey();
+        const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${imgKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -343,8 +349,9 @@ export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal
     for (const model of modelsToTry) {
         try {
             console.log(`[Quiz] Trying model: ${model}`);
+            const quizKey = getApiKey();
             const res = await fetchWithRetry(
-                `/api/gemini?model=${model}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${quizKey}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -425,7 +432,8 @@ Text must be clear, readable Vietnamese. High contrast. Suitable for high school
 Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
-        const res = await fetchWithRetry(`/api/gemini?model=gemini-3.1-flash-image-preview`, {
+        const infoKey = getApiKey();
+        const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${infoKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -588,7 +596,8 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
 
     for (const model of modelsToTry) {
         try {
-            const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
+            const gradeKey = getApiKey();
+            const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gradeKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
