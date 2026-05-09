@@ -1,79 +1,36 @@
 import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
-export const GEMINI_MODELS = [
-    'gemini-3.1-flash-preview',
-    'gemini-3.1-flash-lite',
-    'gemini-2.5-flash'
-];
+export const PRIMARY_MODEL = 'gemini-3.1-flash-preview';
 
 function getApiKey(): string {
     return import.meta.env.VITE_GOOGLE_API_KEY || '';
 }
 
 /**
- * Helper: Fetch with exponential backoff for 503/429/529 errors.
+ * Shared helper: call Gemini API directly without retries or fallback loops.
  */
-async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, baseDelayMs = 4000): Promise<Response> {
-    let lastRes: Response | null = null;
-    for (let i = 0; i <= retries; i++) {
-        try {
-            const res = await fetch(url, options);
-            lastRes = res;
-            if (res.ok || (res.status !== 503 && res.status !== 529 && res.status !== 429)) {
-                return res;
-            }
-            if (i === retries) break;
-            await new Promise(resolve => setTimeout(resolve, baseDelayMs * Math.pow(2, i)));
-        } catch (err: any) {
-            if (err.name === 'AbortError') throw err;
-            if (i === retries) throw err;
-            await new Promise(resolve => setTimeout(resolve, baseDelayMs * Math.pow(2, i)));
-        }
-    }
-    return lastRes!;
-}
-
-/**
- * Shared helper: call Gemini API with model fallback.
- * Tries each model in GEMINI_MODELS, returns the raw text from the first success.
- */
-async function callGeminiWithFallback(
+async function callGemini(
     body: object,
-    opts?: { signal?: AbortSignal; retries?: number; baseDelay?: number; temperature?: number }
+    opts?: { signal?: AbortSignal; temperature?: number }
 ): Promise<string> {
     const config = opts?.temperature != null ? { generationConfig: { temperature: opts.temperature }, ...body } : body;
-    for (const model of GEMINI_MODELS) {
-        try {
-            const apiKey = getApiKey();
-            const res = await fetchWithRetry(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(config),
-                    signal: opts?.signal,
-                },
-                opts?.retries ?? 3,
-                opts?.baseDelay ?? 4000,
-            );
-            if (!res.ok) {
-
-                console.warn(`[Gemini] Model ${model} returned ${res.status}, trying next...`);
-                continue;
-            }
-            const data = await res.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        } catch (err: any) {
-            if (err.name === 'AbortError') throw err;
-            console.error(`[Gemini] Error with model ${model}:`, err);
-        }
+    const apiKey = getApiKey();
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+        signal: opts?.signal,
+    });
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
-    return '';
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 /**
- * Send a chat message to Gemini 2.5 Flash and get a response.
+ * Send a chat message to Gemini and get a response.
  */
 export async function sendChatMessage(
     messages: Message[],
@@ -128,24 +85,19 @@ export async function sendChatMessage(
 
     parts.push({ text: userText });
 
-    let res: Response | null = null;
-    for (const model of GEMINI_MODELS) {
-        const geminiKey = getApiKey();
-        res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ systemInstruction, contents: [{ role: 'user', parts }] }),
-            signal,
-        });
-        if (res.ok) break;
-        console.warn(`[Chat] Model ${model} returned ${res.status}, trying next...`);
-    }
+    const geminiKey = getApiKey();
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${geminiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ systemInstruction, contents: [{ role: 'user', parts }] }),
+        signal,
+    });
 
-    if (!res || !res.ok) {
+    if (!res.ok) {
         let errorDetail = '';
-        try { errorDetail = await res?.text() || ''; } catch { /* ignore */ }
-        console.error(`[Chat] All models failed. Last status: ${res?.status} — ${errorDetail}`);
-        throw new Error(`API error: ${res?.status} ${res?.statusText}`);
+        try { errorDetail = await res.text() || ''; } catch { /* ignore */ }
+        console.error(`[Chat] Request failed. Status: ${res.status} — ${errorDetail}`);
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
 
     const data = await res.json();
@@ -188,21 +140,16 @@ export async function sendChatMessage(
                     { role: 'user', parts: [{ text: followUpText }] }
                 ];
                 
-                let followUpRes: Response | null = null;
-                for (const model of GEMINI_MODELS) {
-                    const ragKey = getApiKey();
-                    followUpRes = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${ragKey}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ systemInstruction, contents: followUpContents }),
-                        signal,
-                    });
-                    if (followUpRes.ok) break;
-                    console.warn(`[RAG] Model ${model} returned ${followUpRes.status}, trying next...`);
-                }
+                const ragKey = getApiKey();
+                const followUpRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${ragKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ systemInstruction, contents: followUpContents }),
+                    signal,
+                });
                 
-                if (!followUpRes || !followUpRes.ok) {
-                    throw new Error(`API error: ${followUpRes?.status} ${followUpRes?.statusText}`);
+                if (!followUpRes.ok) {
+                    throw new Error(`API error: ${followUpRes.status} ${followUpRes.statusText}`);
                 } else {
                     const followUpData = await followUpRes.json();
                     aiContent = followUpData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
@@ -232,9 +179,9 @@ export async function sendChatMessage(
 export async function sendGradingRequest(prompt: string, signal?: AbortSignal): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const result = await callGeminiWithFallback(
+    const result = await callGemini(
         { contents: [{ role: 'user', parts: [{ text: prompt }] }] },
-        { signal, retries: 4, baseDelay: 3000 },
+        { signal }
     );
     return result || '{}';
 }
@@ -247,7 +194,7 @@ export async function generateImage(prompt: string): Promise<string | null> {
     if (!apiKey) return null;
     try {
         const imgKey = getApiKey();
-        const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${imgKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${imgKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -277,8 +224,8 @@ export async function generateImage(prompt: string): Promise<string | null> {
 export async function rewriteText(text: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const result = await callGeminiWithFallback(
-        { contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] },
+    const result = await callGemini(
+        { contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }
     );
     return result?.trim() || null;
 }
@@ -289,9 +236,8 @@ export async function rewriteText(text: string): Promise<string | null> {
 export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const result = await callGeminiWithFallback(
-        { contents: [{ parts: [{ text: prompt }] }] },
-        { retries: 4, baseDelay: 3000 },
+    const result = await callGemini(
+        { contents: [{ parts: [{ text: prompt }] }] }
     );
     return result || 'Lỗi tạo bài kiểm tra chẩn đoán';
 }
@@ -310,8 +256,8 @@ Yêu cầu:
 - Không mở đầu rào trước đón sau, đi thẳng vào hành động cần làm
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
-    const result = await callGeminiWithFallback(
-        { contents: [{ parts: [{ text: prompt }] }] },
+    const result = await callGemini(
+        { contents: [{ parts: [{ text: prompt }] }] }
     );
     return result?.trim() || null;
 }
@@ -343,51 +289,37 @@ export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal
     const apiKey = getApiKey();
     if (!apiKey) return null;
 
-    // Try primary model first, then fallback
-    const modelsToTry = GEMINI_MODELS;
-
-    for (const model of modelsToTry) {
-        try {
-            console.log(`[Quiz] Trying model: ${model}`);
-            const quizKey = getApiKey();
-            const res = await fetchWithRetry(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${quizKey}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: 0.7 },
-                    }),
-                    signal,
-                },
-                4,   // more retries for quiz generation
-                3000 // longer base delay (3s, 6s, 12s, 24s)
-            );
-            if (!res.ok) {
-
-                console.warn(`[Quiz] Model ${model} returned ${res.status}, trying next...`);
-                continue; // try fallback model
+    try {
+        const quizKey = getApiKey();
+        const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${quizKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.7 },
+                }),
+                signal,
             }
-            const data = await res.json();
-            let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (!raw) {
-                console.warn(`[Quiz] Model ${model} returned empty text, trying next...`);
-                continue;
-            }
-            // Strip markdown code fences if present (handles ```json, ```JSON, ``` etc.)
-            raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-            // Fix trailing commas before } or ] (common AI output issue)
-            raw = raw.replace(/,\s*([}\]])/g, '$1');
-            return JSON.parse(raw) as DiagnosticQuizData;
-        } catch (err) {
-            console.error(`[Quiz] Error with model ${model}:`, err);
-            // Continue to next model
+        );
+        if (!res.ok) {
+            throw new Error(`API error: ${res.status} ${res.statusText}`);
         }
+        const data = await res.json();
+        let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!raw) {
+            throw new Error('API returned empty text');
+        }
+        // Strip markdown code fences if present (handles ```json, ```JSON, ``` etc.)
+        raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+        // Fix trailing commas before } or ] (common AI output issue)
+        raw = raw.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(raw) as DiagnosticQuizData;
+    } catch (err) {
+        console.error(`[Quiz] Error:`, err);
+        return null;
     }
-
-    console.error('[Quiz] All models failed to generate quiz.');
-    return null;
 }
 
 /**
@@ -407,8 +339,8 @@ export async function sendProactiveMessage(
             .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
-        const result = await callGeminiWithFallback(
-            { contents: [{ parts: [{ text: fullPrompt }] }] },
+        const result = await callGemini(
+            { contents: [{ parts: [{ text: fullPrompt }] }] }
         );
         return result?.trim() || null;
     } catch {
@@ -433,7 +365,7 @@ Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
         const infoKey = getApiKey();
-        const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${infoKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${infoKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -466,9 +398,9 @@ export async function generateAIExam(prompt: string, signal?: AbortSignal): Prom
     const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        let raw = await callGeminiWithFallback(
+        let raw = await callGemini(
             { contents: [{ parts: [{ text: prompt }] }] },
-            { signal, retries: 4, baseDelay: 3000 },
+            { signal }
         );
         if (!raw) return null;
         raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
@@ -506,8 +438,8 @@ export async function generateChatAutoResponse(
             .map(m => `${m.role === 'student' ? 'Học sinh' : 'Trợ lý'}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${CHAT_AUTO_RESPONDER_PROMPT}\n\nLịch sử chat gần đây:\n${historyText}\n\nHọc sinh vừa gửi: "${userMessage}"\n\nTrả lời ngắn gọn:`;
-        const result = await callGeminiWithFallback(
-            { contents: [{ parts: [{ text: fullPrompt }] }] },
+        const result = await callGemini(
+            { contents: [{ parts: [{ text: fullPrompt }] }] }
         );
         return result?.trim() || null;
     } catch (err) {
@@ -591,65 +523,42 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
         }
     }
 
-    const modelsToTry = GEMINI_MODELS;
-    let lastError: Error | null = null;
-
-    for (const model of modelsToTry) {
-        try {
-            const gradeKey = getApiKey();
-            const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gradeKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts }],
-                    generationConfig: {
-                        temperature: 0.2,
-                    }
-                }),
-            }, 4, 3000);
-
-            if (!res.ok) {
-
-                console.warn(`[GradeSubmission] Model ${model} returned ${res.status}, trying next...`);
-                continue;
+    const gradeKey = getApiKey();
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${gradeKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{ role: 'user', parts }],
+            generationConfig: {
+                temperature: 0.2,
             }
+        }),
+    });
 
-            const data = await res.json();
-            const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-            try {
-                const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    let cleanJson = jsonMatch[0].replace(/,\s*([}\]])/g, '$1');
-                    const parsed = JSON.parse(cleanJson) as ExamGrade;
-                    parsed.errors = parsed.errors || [];
-                    parsed.improvements = parsed.improvements || [];
-                    parsed.weaknesses = parsed.weaknesses || [];
-                    parsed.strengths = parsed.strengths || [];
-                    if (parsed.score > parsed.maxScore) parsed.score = parsed.maxScore;
-                    const capScore = parsed.maxScore * 0.95;
-                    if (parsed.score > capScore) parsed.score = capScore;
-                    return parsed;
-                }
-            } catch (e) {
-                console.error(`[GradeSubmission] Failed to parse JSON from model ${model}:`, e);
-            }
-        } catch (err) {
-            console.error(`[GradeSubmission] Error with model ${model}:`, err);
-            lastError = err as Error;
-        }
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
 
-    if (lastError) throw lastError;
+    const data = await res.json();
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    return {
-        score: 0,
-        maxScore: 10,
-        feedback: 'Không thể đọc được kết quả hoặc có lỗi.',
-        details: 'Không có chi tiết.',
-        errors: [],
-        improvements: [],
-        weaknesses: [],
-        strengths: []
-    } as ExamGrade;
+    try {
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            let cleanJson = jsonMatch[0].replace(/,\s*([}\]])/g, '$1');
+            const parsed = JSON.parse(cleanJson) as ExamGrade;
+            parsed.errors = parsed.errors || [];
+            parsed.improvements = parsed.improvements || [];
+            parsed.weaknesses = parsed.weaknesses || [];
+            parsed.strengths = parsed.strengths || [];
+            if (parsed.score > parsed.maxScore) parsed.score = parsed.maxScore;
+            const capScore = parsed.maxScore * 0.95;
+            if (parsed.score > capScore) parsed.score = capScore;
+            return parsed;
+        }
+        throw new Error('Failed to parse grading JSON from AI response.');
+    } catch (e) {
+        console.error(`[GradeSubmission] Parse error:`, e);
+        throw e;
+    }
 }
