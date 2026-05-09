@@ -1,4 +1,3 @@
-import mammoth from 'mammoth';
 import { EXAM_COUNT } from '../constants';
 import { sendGradingRequest } from './geminiApi';
 import type { ExamGrade } from '../types';
@@ -12,56 +11,59 @@ export function pickRandomExam(count = EXAM_COUNT): number {
 /** Cache so we only probe once per page session */
 let _availableExamsCache: number | null = null;
 
+/** Check if a single exam ID exists */
+async function examExists(id: number): Promise<boolean> {
+    try {
+        let res = await fetch(`/dethi/${id}.docx`, { method: 'HEAD' });
+        if (res.ok) return true;
+        res = await fetch(`/dethi/${id}.doc`, { method: 'HEAD' });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
 /**
- * Probe HEAD requests for /dethi/1.docx ... /dethi/N.docx
- * and return the actual number of available exams.
+ * Detect available exams using binary search — ~7 requests instead of 99.
+ * Assumes exams are numbered sequentially starting from 1.
  * Results are cached for the session.
  */
 export async function detectAvailableExams(): Promise<number> {
     if (_availableExamsCache !== null) return _availableExamsCache;
 
-    // Quét tới 99 đề. Để tránh lỗi giới hạn kết nối đồng thời của trình duyệt (thường là 6)
-    // hoặc lỗi 429 Too Many Requests từ server khi gửi 400 request cùng lúc,
-    // chúng ta sẽ quét theo từng lô (batch).
-    let validCount = 0;
-    const maxExams = 99; // Quét tối đa 99 đề
-    const batchSize = 10; 
+    // Quick check: does exam 1 exist?
+    if (!(await examExists(1))) {
+        _availableExamsCache = 0;
+        return 0;
+    }
 
-    for (let i = 0; i < maxExams; i += batchSize) {
-        const batch = Array.from({ length: Math.min(batchSize, maxExams - i) }, (_, index) => i + index + 1);
-        const promises = batch.map(async (id) => {
-            try {
-                let res = await fetch(`/dethi/${id}.docx`, { method: 'HEAD' });
-                if (res.ok) return id;
-
-                res = await fetch(`/dethi/${id}.doc`, { method: 'HEAD' });
-                if (res.ok) return id;
-
-                return null;
-            } catch {
-                return null;
-            }
-        });
-
-        const results = await Promise.all(promises);
-        const validExamsInBatch = results.filter(id => id !== null);
-        validCount += validExamsInBatch.length;
-        
-        // Nếu lô này hoàn toàn không có đề nào (tức là đã quét hết đến số đề cuối),
-        // ta có thể dừng sớm để tiết kiệm thời gian chờ.
-        if (validExamsInBatch.length === 0 && i > 50) {
-            break; 
+    // Binary search for the highest existing exam ID
+    let lo = 1, hi = 99;
+    while (lo < hi) {
+        const mid = Math.ceil((lo + hi + 1) / 2);
+        if (await examExists(mid)) {
+            lo = mid;
+        } else {
+            hi = mid - 1;
         }
     }
 
-    _availableExamsCache = Math.max(1, validCount);
+    _availableExamsCache = Math.max(1, lo);
     return _availableExamsCache;
 }
 
-/** Fetch a .docx from public folder and extract text using mammoth */
+/** Lazy-loaded mammoth reference */
+let _mammoth: typeof import('mammoth') | null = null;
+async function getMammoth() {
+    if (!_mammoth) _mammoth = await import('mammoth');
+    return _mammoth;
+}
+
+/** Fetch a .docx from public folder and extract text using mammoth (lazy loaded) */
 export async function fetchDocxAsText(url: string): Promise<string> {
     const res = await fetch(url);
     const arrayBuffer = await res.arrayBuffer();
+    const mammoth = await getMammoth();
     const result = await mammoth.extractRawText({ arrayBuffer });
     return result.value;
 }

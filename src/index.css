@@ -48,6 +48,10 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, .1), 0 2px 4px rgba(0, 0, 0, .06);
   --shadow-lg: 0 10px 30px rgba(0, 0, 0, .12), 0 4px 8px rgba(0, 0, 0, .06);
   --radius-sm: 6px;
+  /* Settings Panel variables */
+  --sp-bg: #0f1f56;
+  --sp-border: rgba(255, 255, 255, .10);
+  --sp-accent: #60A5FA;
   --radius-md: 12px;
   --radius-lg: 20px;
   --radius-xl: 28px;
@@ -1531,11 +1535,6 @@ button.mcq-opt.mcq-dimmed {
 /* ═══════════════════════════════════════════════════════
    Settings Panel (Premium dark glass drawer)
    ═══════════════════════════════════════════════════════ */
-:root {
-  --sp-bg: #0f1f56;
-  --sp-border: rgba(255, 255, 255, .10);
-  --sp-accent: #60A5FA;
-}
 
 /* Backdrop */
 .sp-backdrop {

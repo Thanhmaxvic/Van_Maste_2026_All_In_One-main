@@ -43,11 +43,12 @@ export default defineConfig(({ mode }) => {
       }
     },
     build: {
+      target: 'es2020',
+      cssCodeSplit: true,
       rollupOptions: {
         output: {
           manualChunks: {
             'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/database'],
-            'vendor-docs': ['mammoth', 'docx-preview'],
             'vendor-react': ['react', 'react-dom'],
             'vendor-icons': ['lucide-react'],
           },

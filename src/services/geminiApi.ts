@@ -33,6 +33,43 @@ async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, b
 }
 
 /**
+ * Shared helper: call Gemini API with model fallback.
+ * Tries each model in GEMINI_MODELS, returns the raw text from the first success.
+ */
+async function callGeminiWithFallback(
+    body: object,
+    opts?: { signal?: AbortSignal; retries?: number; baseDelay?: number; temperature?: number }
+): Promise<string> {
+    const config = opts?.temperature != null ? { generationConfig: { temperature: opts.temperature }, ...body } : body;
+    for (const model of GEMINI_MODELS) {
+        try {
+            const res = await fetchWithRetry(
+                `/api/gemini?model=${model}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config),
+                    signal: opts?.signal,
+                },
+                opts?.retries ?? 3,
+                opts?.baseDelay ?? 2000,
+            );
+            if (!res.ok) {
+                if (res.status === 429) break;
+                console.warn(`[Gemini] Model ${model} returned ${res.status}, trying next...`);
+                continue;
+            }
+            const data = await res.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        } catch (err: any) {
+            if (err.name === 'AbortError') throw err;
+            console.error(`[Gemini] Error with model ${model}:`, err);
+        }
+    }
+    return '';
+}
+
+/**
  * Send a chat message to Gemini 2.5 Flash and get a response.
  */
 export async function sendChatMessage(
@@ -190,28 +227,11 @@ export async function sendChatMessage(
 export async function sendGradingRequest(prompt: string, signal?: AbortSignal): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-
-    const modelsToTry = GEMINI_MODELS;
-    for (const model of modelsToTry) {
-        try {
-            const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
-                signal,
-            }, 4, 3000);
-            if (!res.ok) {
-                if (res.status === 429) break;
-                console.warn(`[Grading] Model ${model} returned ${res.status}, trying next...`);
-                continue;
-            }
-            const data = await res.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        } catch (err) {
-            console.error(`[Grading] Error with model ${model}:`, err);
-        }
-    }
-    return '{}';
+    const result = await callGeminiWithFallback(
+        { contents: [{ role: 'user', parts: [{ text: prompt }] }] },
+        { signal, retries: 4, baseDelay: 3000 },
+    );
+    return result || '{}';
 }
 
 /**
@@ -251,28 +271,10 @@ export async function generateImage(prompt: string): Promise<string | null> {
 export async function rewriteText(text: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-
-    const modelsToTry = GEMINI_MODELS;
-    for (const model of modelsToTry) {
-        try {
-            const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }),
-            });
-            if (!res.ok) {
-                if (res.status === 429) break;
-                console.warn(`[Rewrite] Model ${model} returned ${res.status}, trying next...`);
-                continue;
-            }
-            const data = await res.json();
-            const result = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-            if (result) return result;
-        } catch (err) {
-            console.error(`[Rewrite] Error with model ${model}:`, err);
-        }
-    }
-    return null;
+    const result = await callGeminiWithFallback(
+        { contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] },
+    );
+    return result?.trim() || null;
 }
 
 /**
@@ -281,32 +283,11 @@ export async function rewriteText(text: string): Promise<string | null> {
 export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-
-    const modelsToTry = GEMINI_MODELS;
-    for (const model of modelsToTry) {
-        try {
-            const res = await fetchWithRetry(
-                `/api/gemini?model=${model}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-                },
-                4, 3000
-            );
-            if (!res.ok) {
-                if (res.status === 429) break;
-                console.warn(`[DiagnosticQuiz] Model ${model} returned ${res.status}, trying next...`);
-                continue;
-            }
-            const data = await res.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) return text;
-        } catch (err) {
-            console.error(`[DiagnosticQuiz] Error with model ${model}:`, err);
-        }
-    }
-    return 'Lỗi tạo bài kiểm tra chẩn đoán';
+    const result = await callGeminiWithFallback(
+        { contents: [{ parts: [{ text: prompt }] }] },
+        { retries: 4, baseDelay: 3000 },
+    );
+    return result || 'Lỗi tạo bài kiểm tra chẩn đoán';
 }
 
 /**
@@ -323,22 +304,10 @@ Yêu cầu:
 - Không mở đầu rào trước đón sau, đi thẳng vào hành động cần làm
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
-
-    let res: Response | null = null;
-    for (const model of GEMINI_MODELS) {
-        res = await fetchWithRetry(`/api/gemini?model=${model}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-        });
-        if (res.ok) break;
-        if (res.status === 429) break;
-    }
-    if (!res || !res.ok) {
-        throw new Error(`API error: ${res?.status} ${res?.statusText}`);
-    }
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    const result = await callGeminiWithFallback(
+        { contents: [{ parts: [{ text: prompt }] }] },
+    );
+    return result?.trim() || null;
 }
 
 export function isApiKeyConfigured(): boolean {
@@ -431,21 +400,10 @@ export async function sendProactiveMessage(
             .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
-        let res: Response | null = null;
-        for (const model of GEMINI_MODELS) {
-            res = await fetchWithRetry(`/api/gemini?model=${model}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
-            });
-            if (res.ok) break;
-            if (res.status === 429) break;
-        }
-        if (!res || !res.ok) {
-            throw new Error(`API error: ${res?.status} ${res?.statusText}`);
-        }
-        const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+        const result = await callGeminiWithFallback(
+            { contents: [{ parts: [{ text: fullPrompt }] }] },
+        );
+        return result?.trim() || null;
     } catch {
         return null;
     }
@@ -499,38 +457,19 @@ Format: vertical infographic, 1024x1536px equivalent proportions.`;
 export async function generateAIExam(prompt: string, signal?: AbortSignal): Promise<AIExamData | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
-
-    const modelsToTry = GEMINI_MODELS;
-    for (const model of modelsToTry) {
-        try {
-            console.log(`[AIExam] Trying model: ${model}`);
-            const res = await fetchWithRetry(
-                `/api/gemini?model=${model}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-                    signal,
-                },
-                4, 3000
-            );
-            if (!res.ok) {
-                if (res.status === 429) break;
-                console.warn(`[AIExam] Model ${model} returned ${res.status}, trying next...`);
-                continue;
-            }
-            const data = await res.json();
-            let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (!raw) continue;
-            raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-            raw = raw.replace(/,\s*([}\]])/g, '$1');
-            return JSON.parse(raw) as AIExamData;
-        } catch (err) {
-            console.error(`[AIExam] Error with model ${model}:`, err);
-        }
+    try {
+        let raw = await callGeminiWithFallback(
+            { contents: [{ parts: [{ text: prompt }] }] },
+            { signal, retries: 4, baseDelay: 3000 },
+        );
+        if (!raw) return null;
+        raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+        raw = raw.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(raw) as AIExamData;
+    } catch (err) {
+        console.error('[AIExam] Failed:', err);
+        return null;
     }
-    console.error('[AIExam] All models failed.');
-    return null;
 }
 
 const CHAT_AUTO_RESPONDER_PROMPT = `Bạn là trợ lý AI hỗ trợ tự động của hệ thống "Ngữ Văn Master" – một nền tảng ôn thi tốt nghiệp THPT môn Ngữ Văn.
@@ -553,36 +492,16 @@ export async function generateChatAutoResponse(
 ): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
-
     try {
         const historyText = chatHistory
             .slice(-6)
             .map(m => `${m.role === 'student' ? 'Học sinh' : 'Trợ lý'}: ${m.content}`)
             .join('\n');
-
         const fullPrompt = `${CHAT_AUTO_RESPONDER_PROMPT}\n\nLịch sử chat gần đây:\n${historyText}\n\nHọc sinh vừa gửi: "${userMessage}"\n\nTrả lời ngắn gọn:`;
-
-        const modelsToTry = GEMINI_MODELS;
-        for (const model of modelsToTry) {
-            try {
-                const res = await fetchWithRetry(`/api/gemini?model=${model}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
-                });
-                if (!res.ok) {
-                    if (res.status === 429) break;
-                    console.warn(`[AutoResponse] Model ${model} returned ${res.status}, trying next...`);
-                    continue;
-                }
-                const data = await res.json();
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-                if (text) return text;
-            } catch (err) {
-                console.error(`[AutoResponse] Error with model ${model}:`, err);
-            }
-        }
-        return null;
+        const result = await callGeminiWithFallback(
+            { contents: [{ parts: [{ text: fullPrompt }] }] },
+        );
+        return result?.trim() || null;
     } catch (err) {
         console.error('Chat auto-response error:', err);
         return null;

@@ -5,6 +5,24 @@ let currentAudio: HTMLAudioElement | null = null;
 /** AbortController to cancel in-flight TTS fetch requests */
 let currentAbortController: AbortController | null = null;
 
+// ── TTS Audio Cache ──────────────────────────────────────────────────────────
+/** Cache base64 audio for already-synthesized text to avoid redundant API calls */
+const TTS_CACHE_MAX = 30;
+const ttsCache = new Map<string, string>(); // key = text+voice → value = base64 audio src
+
+function getTTSCacheKey(text: string, voice: string): string {
+    return `${voice}::${text}`;
+}
+
+function cacheTTSAudio(key: string, audioSrc: string): void {
+    if (ttsCache.size >= TTS_CACHE_MAX) {
+        // Evict oldest entry
+        const firstKey = ttsCache.keys().next().value;
+        if (firstKey) ttsCache.delete(firstKey);
+    }
+    ttsCache.set(key, audioSrc);
+}
+
 // ── TTS Queue ────────────────────────────────────────────────────────────────
 interface TTSQueueItem {
     text: string;
@@ -34,6 +52,8 @@ function cleanTextForTTS(text: string): string {
 
 /** Max chars per TTS API request (~4500 bytes safe for Vietnamese UTF-8) */
 const CHUNK_SIZE = 500;
+/** Minimum text length to bother with TTS */
+const MIN_TTS_LENGTH = 5;
 
 /**
  * Split long text into chunks at sentence boundaries so each chunk
@@ -96,7 +116,7 @@ function playSingleTTS(
     onEnd?: () => void,
 ): Promise<void> {
     const clean = cleanTextForTTS(text);
-    if (!clean.trim()) {
+    if (!clean.trim() || clean.length < MIN_TTS_LENGTH) {
         onEnd?.();
         return Promise.resolve();
     }
@@ -105,41 +125,52 @@ function playSingleTTS(
 
     return new Promise<void>(async (resolve) => {
         try {
-            // Create an AbortController so in-flight requests can be cancelled
-            const abortController = new AbortController();
-            currentAbortController = abortController;
-
             const voiceName = TTS_VOICE_MAP[voiceGender];
+            const cacheKey = getTTSCacheKey(clean, voiceName);
 
-            const response = await fetch('/api/tts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                signal: abortController.signal,
-                body: JSON.stringify({
-                    input: { text: clean },
-                    voice: {
-                        languageCode: 'vi-VN',
-                        name: voiceName,
-                    },
-                    audioConfig: {
-                        audioEncoding: 'MP3',
-                        speakingRate: 1.0,
-                        pitch: 0,
-                    },
-                }),
-            });
+            // Check cache first
+            const cachedAudio = ttsCache.get(cacheKey);
+            let audioSrc: string;
 
-            // Clear the abort controller reference after fetch completes
-            if (currentAbortController === abortController) {
-                currentAbortController = null;
+            if (cachedAudio) {
+                audioSrc = cachedAudio;
+            } else {
+                // Create an AbortController so in-flight requests can be cancelled
+                const abortController = new AbortController();
+                currentAbortController = abortController;
+
+                const response = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: abortController.signal,
+                    body: JSON.stringify({
+                        input: { text: clean },
+                        voice: {
+                            languageCode: 'vi-VN',
+                            name: voiceName,
+                        },
+                        audioConfig: {
+                            audioEncoding: 'MP3',
+                            speakingRate: 1.0,
+                            pitch: 0,
+                        },
+                    }),
+                });
+
+                // Clear the abort controller reference after fetch completes
+                if (currentAbortController === abortController) {
+                    currentAbortController = null;
+                }
+
+                if (!response.ok) {
+                    throw new Error('Google TTS API Error');
+                }
+
+                const data = await response.json();
+                audioSrc = `data:audio/mp3;base64,${data.audioContent}`;
+                cacheTTSAudio(cacheKey, audioSrc);
             }
 
-            if (!response.ok) {
-                throw new Error('Google TTS API Error');
-            }
-
-            const data = await response.json();
-            const audioSrc = `data:audio/mp3;base64,${data.audioContent}`;
             currentAudio = new Audio(audioSrc);
 
             currentAudio.onended = () => {
