@@ -1,7 +1,7 @@
 import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
-export const PRIMARY_MODEL = 'gemini-3.1-flash-preview';
+export const PRIMARY_MODEL = 'gemini-2.5-pro';
 
 function getApiKey(): string {
     return import.meta.env.VITE_GOOGLE_API_KEY || '';
@@ -194,7 +194,7 @@ export async function generateImage(prompt: string): Promise<string | null> {
     if (!apiKey) return null;
     try {
         const imgKey = getApiKey();
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${imgKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${imgKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -365,7 +365,7 @@ Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
         const infoKey = getApiKey();
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${infoKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${infoKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
