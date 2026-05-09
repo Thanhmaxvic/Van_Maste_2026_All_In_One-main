@@ -73,43 +73,111 @@ export async function fetchDocxAsText(url: string): Promise<string> {
  * Looks for common patterns: numbered sections, headings, or clear paragraph breaks.
  */
 export function estimateSectionCount(content: string): number {
-    if (!content || content.trim().length === 0) return 10; // default
+    return splitDocxIntoSections(content).length;
+}
+
+/**
+ * Split DOCX raw text into logical sections based on heading patterns.
+ */
+export function splitDocxIntoSections(content: string): string[] {
+    if (!content || content.trim().length === 0) return [content || ''];
 
     const text = content.trim();
+    const lines = text.split('\n');
 
-    // Pattern 1: Numbered sections (1., 2., 3., etc.)
-    const numberedPattern = /^\s*[0-9]+[\.\)]\s+/gm;
-    const numberedMatches = text.match(numberedPattern);
-    if (numberedMatches && numberedMatches.length > 0) {
-        return Math.max(numberedMatches.length, 5); // at least 5 sections
+    const headingPatterns = [
+        /^\s*[0-9]+[.)]\s+/,
+        /^\s*[IVX]+[.)]\s+/,
+        /^\s*(?:PHẦN|CHƯƠNG|MỤC|BÀI)\s+[0-9IVX]+/i,
+        /^\s*(?:Phần|Chương|Mục|Bài)\s+\d/,
+    ];
+
+    const isHeading = (line: string): boolean => {
+        const trimmed = line.trim();
+        if (!trimmed) return false;
+        return headingPatterns.some(p => p.test(trimmed));
+    };
+
+    const sections: string[] = [];
+    let currentSection: string[] = [];
+
+    for (const line of lines) {
+        if (isHeading(line) && currentSection.length > 0) {
+            const sectionText = currentSection.join('\n').trim();
+            if (sectionText.length > 50) {
+                sections.push(sectionText);
+            } else if (sections.length > 0) {
+                sections[sections.length - 1] += '\n' + sectionText;
+            }
+            currentSection = [line];
+        } else {
+            currentSection.push(line);
+        }
     }
 
-    // Pattern 2: Roman numerals (I., II., III., etc.)
-    const romanPattern = /^\s*[IVX]+[\.\)]\s+/gm;
-    const romanMatches = text.match(romanPattern);
-    if (romanMatches && romanMatches.length > 0) {
-        return Math.max(romanMatches.length, 5);
+    if (currentSection.length > 0) {
+        const sectionText = currentSection.join('\n').trim();
+        if (sectionText) {
+            if (sectionText.length > 50 || sections.length === 0) {
+                sections.push(sectionText);
+            } else if (sections.length > 0) {
+                sections[sections.length - 1] += '\n' + sectionText;
+            }
+        }
     }
 
-    // Pattern 3: "PHẦN", "CHƯƠNG", "MỤC" keywords
-    const sectionKeywords = /(?:PHẦN|CHƯƠNG|MỤC|BÀI)\s+[0-9IVX]+/gi;
-    const keywordMatches = text.match(sectionKeywords);
-    if (keywordMatches && keywordMatches.length > 0) {
-        return Math.max(keywordMatches.length, 5);
+    if (sections.length <= 1 && text.length > 4000) {
+        const chunks: string[] = [];
+        const paragraphs = text.split(/\n\s*\n/);
+        let current = '';
+        for (const para of paragraphs) {
+            if (current.length + para.length > 3000 && current.length > 500) {
+                chunks.push(current.trim());
+                current = para;
+            } else {
+                current += '\n\n' + para;
+            }
+        }
+        if (current.trim()) chunks.push(current.trim());
+        if (chunks.length > 1) return chunks;
     }
 
-    // Pattern 4: Double line breaks (clear paragraph separation)
-    // Count significant breaks (2+ newlines) as potential section dividers
-    const doubleBreaks = text.split(/\n\s*\n\s*\n/);
-    if (doubleBreaks.length > 3) {
-        return Math.min(Math.max(doubleBreaks.length - 1, 5), 20); // between 5-20
+    return sections.length > 0 ? sections : [text];
+}
+
+/**
+ * Build a trimmed DOCX context for lesson mode.
+ * Sends outline + current section + brief previous section.
+ * Reduces token usage by 50-90% for large documents.
+ */
+export function buildLessonContext(fullContent: string, currentSectionIndex: number): string {
+    const sections = splitDocxIntoSections(fullContent);
+    if (sections.length <= 3) return fullContent;
+
+    const parts: string[] = [];
+
+    const outline = sections.map((s, i) => {
+        const firstLine = s.split('\n')[0]?.trim().substring(0, 100) || `Phần ${i + 1}`;
+        const status = i < currentSectionIndex ? '✓ đã học' : i === currentSectionIndex ? '→ đang học' : 'chưa học';
+        return `  ${i + 1}. ${firstLine} [${status}]`;
+    }).join('\n');
+    parts.push(`[DÀN BÀI — ${sections.length} phần]:\n${outline}`);
+
+    if (currentSectionIndex > 0) {
+        const prev = sections[currentSectionIndex - 1];
+        const prevTrimmed = prev.length > 800 ? '...' + prev.slice(-800) : prev;
+        parts.push(`[PHẦN TRƯỚC (${currentSectionIndex}) — tóm tắt]:\n${prevTrimmed}`);
     }
 
-    // Pattern 5: Estimate based on content length
-    // Assume ~500-800 characters per section on average
-    const charCount = text.length;
-    const estimated = Math.max(Math.ceil(charCount / 600), 5);
-    return Math.min(estimated, 25); // cap at 25 sections
+    const safeIdx = Math.min(currentSectionIndex, sections.length - 1);
+    parts.push(`[PHẦN HIỆN TẠI (${safeIdx + 1}/${sections.length}) — giảng phần này]:\n${sections[safeIdx]}`);
+
+    if (safeIdx + 1 < sections.length) {
+        const nextHead = sections[safeIdx + 1].split('\n')[0]?.trim().substring(0, 150) || '';
+        parts.push(`[PHẦN TIẾP THEO]: ${nextHead}`);
+    }
+
+    return parts.join('\n\n');
 }
 
 /**

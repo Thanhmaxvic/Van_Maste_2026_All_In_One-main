@@ -29,7 +29,7 @@ import { playTTS, queueTTS, stopCurrentAudio } from '../services/ttsService';
 import { useAuth } from '../context/AuthContext';
 import { saveTargetScore, saveChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson, updateUserProfile } from '../services/firebaseService';
 import { findLesson, getLessonKey } from '../constants/curriculum';
-import { fetchDocxAsText, estimateSectionCount } from '../services/examService';
+import { fetchDocxAsText, estimateSectionCount, buildLessonContext } from '../services/examService';
 
 function extractScore(text: string): number | null {
     const match = text.match(/\b(\d+(?:[.,]\d+)?)\b/);
@@ -578,7 +578,9 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 }
 
                 const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
-                effectiveInput = `${LESSON_TEACH_PROMPT}\n\nQUAN TRỌNG: Xưng hô là "${pronoun}" khi nói với học sinh. Ví dụ: "${Pronoun} sẽ giảng phần tiếp theo...", "${Pronoun} muốn hỏi em...".${resumeContext}\n\n[NỘI DUNG LÝ THUYẾT]:\n${activeLesson.docxContent}\n\n[CÂU TRẢ LỜI CỦA HỌC SINH]: ${val}`;
+                // Build trimmed DOCX context — only send current section + outline instead of full document
+                const lessonContent = buildLessonContext(activeLesson.docxContent, currentSectionIndex);
+                effectiveInput = `${LESSON_TEACH_PROMPT}\n\nQUAN TRỌNG: Xưng hô là "${pronoun}" khi nói với học sinh. Ví dụ: "${Pronoun} sẽ giảng phần tiếp theo...", "${Pronoun} muốn hỏi em...".${resumeContext}\n\n[NỘI DUNG LÝ THUYẾT]:\n${lessonContent}\n\n[CÂU TRẢ LỜI CỦA HỌC SINH]: ${val}`;
             }
             // Inject user memory/traits for personalization
             const traits = userProfile?.userTraits;
