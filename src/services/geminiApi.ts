@@ -12,7 +12,7 @@ function getApiKey(): string { return 'backend'; }
 /**
  * Helper: Fetch with exponential backoff for 503/429/529 errors.
  */
-async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, baseDelayMs = 2000): Promise<Response> {
+async function fetchWithRetry(url: string, options?: RequestInit, retries = 3, baseDelayMs = 4000): Promise<Response> {
     let lastRes: Response | null = null;
     for (let i = 0; i <= retries; i++) {
         try {
@@ -52,7 +52,7 @@ async function callGeminiWithFallback(
                     signal: opts?.signal,
                 },
                 opts?.retries ?? 3,
-                opts?.baseDelay ?? 2000,
+                opts?.baseDelay ?? 4000,
             );
             if (!res.ok) {
 
