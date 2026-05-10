@@ -243,13 +243,11 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         if (currentMessages.length < 2) return;
 
         const lastMsg = currentMessages[currentMessages.length - 1];
-        let dynamicDelayMs = 20_000; // Thời gian chờ mặc định: 20 giây để suy nghĩ
+        let dynamicDelayMs = 10_000; // Thời gian chờ mặc định: 10 giây để suy nghĩ
         
         if (lastMsg && lastMsg.role === 'assistant') {
-            // Tốc độ đọc trung bình khoảng 4 từ/giây. 
-            // Giả sử 1 từ tiếng Việt trung bình khoảng 5 ký tự (bao gồm khoảng trắng), tức là khoảng 20 ký tự/giây.
-            // Để an toàn, lấy tốc độ AI đọc tầm 15 ký tự / giây.
-            const readingTimeSeconds = lastMsg.content.length / 15;
+            // Tốc độ đọc trung bình: 32 ký tự / giây.
+            const readingTimeSeconds = lastMsg.content.length / 32;
             dynamicDelayMs += Math.round(readingTimeSeconds * 1000);
         }
         
