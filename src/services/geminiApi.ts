@@ -1,22 +1,30 @@
 import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
-export const PRIMARY_MODEL = 'gemini-2.5-pro';
+/** Heavy model — for grading, exam parsing, complex analysis */
+export const PRIMARY_MODEL = 'gemini-2.5-flash';
+/** Light model — for chat, quiz, proactive msgs, auto-reply, advice */
+export const LIGHT_MODEL = 'gemini-2.5-flash';
 
 function getApiKey(): string {
     return import.meta.env.VITE_GOOGLE_API_KEY || '';
 }
 
 /**
- * Shared helper: call Gemini API directly without retries or fallback loops.
+ * Call Gemini API with specified model.
  */
-async function callGemini(
+async function callGeminiModel(
+    model: string,
     body: object,
-    opts?: { signal?: AbortSignal; temperature?: number }
+    opts?: { signal?: AbortSignal; temperature?: number; responseMimeType?: string }
 ): Promise<string> {
-    const config = opts?.temperature != null ? { generationConfig: { temperature: opts.temperature }, ...body } : body;
+    const generationConfig: any = {};
+    if (opts?.temperature != null) generationConfig.temperature = opts.temperature;
+    if (opts?.responseMimeType) generationConfig.responseMimeType = opts.responseMimeType;
+    
+    const config = Object.keys(generationConfig).length > 0 ? { generationConfig, ...body } : body;
     const apiKey = getApiKey();
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${apiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -27,6 +35,22 @@ async function callGemini(
     }
     const data = await res.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+/** Heavy model call — for grading, exam generation */
+async function callGemini(
+    body: object,
+    opts?: { signal?: AbortSignal; temperature?: number; responseMimeType?: string }
+): Promise<string> {
+    return callGeminiModel(PRIMARY_MODEL, body, opts);
+}
+
+/** Light model call — for chat, quiz, advice, auto-reply */
+async function callGeminiLight(
+    body: object,
+    opts?: { signal?: AbortSignal; temperature?: number; responseMimeType?: string }
+): Promise<string> {
+    return callGeminiModel(LIGHT_MODEL, body, opts);
 }
 
 /**
@@ -83,10 +107,49 @@ export async function sendChatMessage(
         if (base64Data) parts.push({ inlineData: { mimeType: 'image/png', data: base64Data } });
     }
 
-    parts.push({ text: userText });
+    // ── PRE-DETECT RAG: scan user text for known doc topics and inject content BEFORE the API call ──
+    let ragDocsText = '';
+    const userLower = userText.toLowerCase();
+    const matchedDocNames: string[] = [];
+    for (const docName of Object.keys(KNOWLEDGE_DOCS)) {
+        // Match if user text contains the doc category keywords (e.g. "truyện ngắn", "thơ", "bi kịch")
+        const keywords = docName.toLowerCase().replace(/_/g, ' ').split('lớp')[0].trim();
+        if (keywords.length >= 3 && userLower.includes(keywords)) {
+            matchedDocNames.push(docName);
+        }
+    }
+    // Limit to 2 docs max to avoid token explosion
+    const docsToFetch = matchedDocNames.slice(0, 2);
+    if (docsToFetch.length > 0) {
+        try {
+            const mammoth = await import('mammoth');
+            for (const docName of docsToFetch) {
+                const docUrl = KNOWLEDGE_DOCS[docName];
+                if (docUrl && docUrl.endsWith('.docx')) {
+                    try {
+                        const docRes = await fetch(encodeURI(docUrl), { signal });
+                        if (docRes.ok) {
+                            const arrayBuffer = await docRes.arrayBuffer();
+                            const result = await mammoth.extractRawText({ arrayBuffer });
+                            ragDocsText += `\n--- Tài liệu: ${docName} ---\n${result.value.substring(0, 5000)}\n`;
+                        }
+                    } catch (err) {
+                        console.error(`Lỗi khi fetch docx RAG (${docName}):`, err);
+                    }
+                }
+            }
+        } catch { /* mammoth import error */ }
+    }
+
+    // Build final user text with optional RAG context
+    let finalUserText = userText;
+    if (ragDocsText.trim()) {
+        finalUserText = `${userText}\n\n[TÀI LIỆU THAM KHẢO — dùng để trả lời, KHÔNG cần gọi [FETCH_DOC]]:\n${ragDocsText}`;
+    }
+    parts.push({ text: finalUserText });
 
     const geminiKey = getApiKey();
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LIGHT_MODEL}:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ systemInstruction, contents: [{ role: 'user', parts }] }),
@@ -103,37 +166,38 @@ export async function sendChatMessage(
     const data = await res.json();
     let aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
 
-    // Handle Document Fetching (RAG)
+    // Handle [FETCH_DOC] fallback — only if AI still requests a doc we didn't pre-fetch
     if (aiContent.includes('[FETCH_DOC]')) {
         const docNameRaw = aiContent.split('[FETCH_DOC]')[1].split('\n')[0].trim();
-        // Remove trailing punctuation just in case
         const docNames = docNameRaw.replace(/[.,;!"']+$/, '').split('|').map((n: string) => n.trim()).filter(Boolean);
+        // Filter out already-fetched docs
+        const unfetched = docNames.filter((n: string) => !docsToFetch.includes(n));
         
         let combinedDocsText = '';
-        const mammoth = await import('mammoth');
-        
-        for (const docName of docNames) {
-            const docUrl = KNOWLEDGE_DOCS[docName];
-            if (docUrl && docUrl.endsWith('.docx')) {
-                try {
-                    const docRes = await fetch(encodeURI(docUrl), { signal });
-                    if (docRes.ok) {
-                        const arrayBuffer = await docRes.arrayBuffer();
-                        const result = await mammoth.extractRawText({ arrayBuffer });
-                        combinedDocsText += `\n--- Tài liệu: ${docName} ---\n${result.value.substring(0, 10000)}\n`;
+        if (unfetched.length > 0) {
+            try {
+                const mammoth = await import('mammoth');
+                for (const docName of unfetched.slice(0, 2)) {
+                    const docUrl = KNOWLEDGE_DOCS[docName];
+                    if (docUrl && docUrl.endsWith('.docx')) {
+                        try {
+                            const docRes = await fetch(encodeURI(docUrl), { signal });
+                            if (docRes.ok) {
+                                const arrayBuffer = await docRes.arrayBuffer();
+                                const result = await mammoth.extractRawText({ arrayBuffer });
+                                combinedDocsText += `\n--- Tài liệu: ${docName} ---\n${result.value.substring(0, 5000)}\n`;
+                            }
+                        } catch (err) {
+                            console.error(`Lỗi khi fetch docx RAG (${docName}):`, err);
+                        }
                     }
-                } catch (err) {
-                    console.error(`Lỗi khi fetch docx RAG (${docName}):`, err);
                 }
-            }
+            } catch { /* mammoth import error */ }
         }
         
         if (combinedDocsText.trim()) {
             try {
-                // Construct follow-up prompt
                 const followUpText = `Nội dung tài liệu đã được tải:\n${combinedDocsText}\n\nHãy trả lời câu hỏi của học sinh dựa trên tài liệu này.`;
-                
-                // Call Gemini again with the doc context attached silently
                 const followUpContents = [
                     { role: 'user', parts: parts },
                     { role: 'model', parts: [{ text: `[FETCH_DOC] Đang đọc ${docNames.join(', ')}...` }] },
@@ -141,16 +205,14 @@ export async function sendChatMessage(
                 ];
                 
                 const ragKey = getApiKey();
-                const followUpRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${ragKey}`, {
+                const followUpRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LIGHT_MODEL}:generateContent?key=${ragKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ systemInstruction, contents: followUpContents }),
                     signal,
                 });
                 
-                if (!followUpRes.ok) {
-                    throw new Error(`API error: ${followUpRes.status} ${followUpRes.statusText}`);
-                } else {
+                if (followUpRes.ok) {
                     const followUpData = await followUpRes.json();
                     aiContent = followUpData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
                 }
@@ -181,7 +243,7 @@ export async function sendGradingRequest(prompt: string, signal?: AbortSignal): 
     if (!apiKey) throw new Error('API_KEY_MISSING');
     const result = await callGemini(
         { contents: [{ role: 'user', parts: [{ text: prompt }] }] },
-        { signal }
+        { signal, responseMimeType: 'application/json' }
     );
     return result || '{}';
 }
@@ -224,7 +286,7 @@ export async function generateImage(prompt: string): Promise<string | null> {
 export async function rewriteText(text: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const result = await callGemini(
+    const result = await callGeminiLight(
         { contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }
     );
     return result?.trim() || null;
@@ -236,7 +298,7 @@ export async function rewriteText(text: string): Promise<string | null> {
 export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const result = await callGemini(
+    const result = await callGeminiLight(
         { contents: [{ parts: [{ text: prompt }] }] }
     );
     return result || 'Lỗi tạo bài kiểm tra chẩn đoán';
@@ -256,7 +318,7 @@ Yêu cầu:
 - Không mở đầu rào trước đón sau, đi thẳng vào hành động cần làm
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
-    const result = await callGemini(
+    const result = await callGeminiLight(
         { contents: [{ parts: [{ text: prompt }] }] }
     );
     return result?.trim() || null;
@@ -292,13 +354,13 @@ export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal
     try {
         const quizKey = getApiKey();
         const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${quizKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${LIGHT_MODEL}:generateContent?key=${quizKey}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: 0.7 },
+                    generationConfig: { temperature: 0.7, responseMimeType: 'application/json' },
                 }),
                 signal,
             }
@@ -339,7 +401,7 @@ export async function sendProactiveMessage(
             .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
-        const result = await callGemini(
+        const result = await callGeminiLight(
             { contents: [{ parts: [{ text: fullPrompt }] }] }
         );
         return result?.trim() || null;
@@ -439,7 +501,7 @@ export async function generateChatAutoResponse(
             .map(m => `${m.role === 'student' ? 'Học sinh' : 'Trợ lý'}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${CHAT_AUTO_RESPONDER_PROMPT}\n\nLịch sử chat gần đây:\n${historyText}\n\nHọc sinh vừa gửi: "${userMessage}"\n\nTrả lời ngắn gọn:`;
-        const result = await callGemini(
+        const result = await callGeminiLight(
             { contents: [{ parts: [{ text: fullPrompt }] }] }
         );
         return result?.trim() || null;
@@ -532,6 +594,7 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
             contents: [{ role: 'user', parts }],
             generationConfig: {
                 temperature: 0.2,
+                responseMimeType: 'application/json',
             }
         }),
     });

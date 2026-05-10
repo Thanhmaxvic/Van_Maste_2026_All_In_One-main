@@ -165,7 +165,7 @@ export function buildLessonContext(fullContent: string, currentSectionIndex: num
 
     if (currentSectionIndex > 0) {
         const prev = sections[currentSectionIndex - 1];
-        const prevTrimmed = prev.length > 800 ? '...' + prev.slice(-800) : prev;
+        const prevTrimmed = prev.length > 400 ? '...' + prev.slice(-400) : prev;
         parts.push(`[PHẦN TRƯỚC (${currentSectionIndex}) — tóm tắt]:\n${prevTrimmed}`);
     }
 
