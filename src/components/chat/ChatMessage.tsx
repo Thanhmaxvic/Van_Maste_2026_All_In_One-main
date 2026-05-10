@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Play, BookOpen } from 'lucide-react';
+import { Play, BookOpen, Square } from 'lucide-react';
 import type { Message, AIExamData } from '../../types';
 import type { ExamGrade } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { stopCurrentAudio } from '../../services/ttsService';
 
 interface ChatMessageProps {
     message: Message & { examGrade?: ExamGrade };
@@ -343,9 +344,14 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAI
                         <QuickReplyBtns replies={message.quickReplies} onReply={onQuickReply} />
                     )}
                     {!isUser && (
-                        <button className="tts-btn" onClick={() => onPlayTTS(cleaned)}>
-                            <Play size={10} /> Đọc
-                        </button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="tts-btn" onClick={() => onPlayTTS(cleaned)}>
+                                <Play size={10} /> Đọc
+                            </button>
+                            <button className="tts-btn" onClick={stopCurrentAudio}>
+                                <Square size={10} /> Dừng
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>

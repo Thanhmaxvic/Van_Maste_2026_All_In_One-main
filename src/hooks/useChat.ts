@@ -9,7 +9,6 @@ import {
     ONBOARDING_WELCOME_TEMPLATE,
     PRONOUN_MAP,
     PROACTIVE_PROMPT,
-    PROACTIVE_DELAY_MS,
     QUIZ_GENERATION_PROMPT,
     LESSON_TEACH_PROMPT,
     USER_TRAITS_PROMPT,
@@ -243,6 +242,20 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         if (!userProfile?.isOnboarded) return;
         if (currentMessages.length < 2) return;
 
+        const lastMsg = currentMessages[currentMessages.length - 1];
+        let dynamicDelayMs = 20_000; // Thời gian chờ mặc định: 20 giây để suy nghĩ
+        
+        if (lastMsg && lastMsg.role === 'assistant') {
+            // Tốc độ đọc trung bình khoảng 4 từ/giây. 
+            // Giả sử 1 từ tiếng Việt trung bình khoảng 5 ký tự (bao gồm khoảng trắng), tức là khoảng 20 ký tự/giây.
+            // Để an toàn, lấy tốc độ AI đọc tầm 15 ký tự / giây.
+            const readingTimeSeconds = lastMsg.content.length / 15;
+            dynamicDelayMs += Math.round(readingTimeSeconds * 1000);
+        }
+        
+        // Giới hạn thời gian chờ tối đa (VD: 3 phút) để không bắt học sinh chờ quá lâu
+        const finalDelayMs = Math.min(dynamicDelayMs, 180_000);
+
         proactiveTimerRef.current = setTimeout(async () => {
             if (proactiveBlockedRef.current) return;
             proactiveBlockedRef.current = true;
@@ -252,7 +265,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 setMessages(p => [...p, { role: 'assistant', content: question }]);
                 playNotification();
             }
-        }, PROACTIVE_DELAY_MS); // 25 seconds
+        }, finalDelayMs);
     }, [userProfile?.isOnboarded]);
 
     // Clean up timer and stop all audio on unmount
