@@ -324,6 +324,14 @@ function StudentApp() {
                     onQuizAnswer={handleQuizAnswer}
                     onMCQSelect={(letter) => handleSend(letter)}
                     onQuickReply={(text) => handleSend(text)}
+                    onReply={(text) => {
+                      const snippet = text.length > 50 ? text.substring(0, 50) + '...' : text;
+                      const replyText = `> Trả lời cho: "${snippet}"\n`;
+                      setInput(replyText);
+                      committedRef.current = replyText;
+                      const ta = document.querySelector('.chat-input') as HTMLTextAreaElement;
+                      if (ta) ta.focus();
+                    }}
                   />
                 ))}
                 {isLoading && (

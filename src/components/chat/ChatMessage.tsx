@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, BookOpen, Square } from 'lucide-react';
+import { Play, BookOpen, Square, Reply } from 'lucide-react';
 import type { Message, AIExamData } from '../../types';
 import type { ExamGrade } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -12,6 +12,7 @@ interface ChatMessageProps {
     onQuizAnswer?: (answer: string) => void;
     onMCQSelect?: (answer: string) => void;
     onQuickReply?: (text: string) => void;
+    onReply?: (text: string) => void;
 }
 
 function clean(raw: string): string {
@@ -238,7 +239,7 @@ function QuickReplyBtns({ replies, onReply }: { replies: string[]; onReply?: (t:
     );
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAIExam, onQuizAnswer, onMCQSelect, onQuickReply }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAIExam, onQuizAnswer, onMCQSelect, onQuickReply, onReply }) => {
     const isUser = message.role === 'user';
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [mcqSelected, setMcqSelected] = useState<Record<number, string>>({});
@@ -351,6 +352,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAI
                             <button className="tts-btn" onClick={stopCurrentAudio}>
                                 <Square size={10} /> Dừng
                             </button>
+                            {onReply && (
+                                <button className="tts-btn" onClick={() => onReply(cleaned)}>
+                                    <Reply size={10} /> Phản hồi
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
