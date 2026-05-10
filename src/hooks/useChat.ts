@@ -607,26 +607,29 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 const ack = `Chờ chút, ${pronoun} sẽ tóm tắt và tạo infographic về "${workTitle}" cho em nhé.`;
                 addAssistant(ack);
 
-                // Tạo infographic ở background, chỉ gửi 1 tin mới khi ảnh xong
-                generateInfographic(workTitle).then(imgUrl => {
-                    if (imgUrl) {
-                        setMessages(p => {
-                            const next = [
-                                ...p,
-                                {
-                                    role: 'assistant' as const,
-                                    content: `Infographic "${workTitle}":`,
-                                    generatedImage: imgUrl,
-                                },
-                            ];
-                            resetProactiveTimer(next);
-                            return next;
-                        });
-                        playNotification();
-                    } else {
-                        addAssistant(`Không thể tạo infographic về "${workTitle}". API chưa hỗ trợ hoặc lỗi kết nối.`);
+                // Cố tình await để hiển thị trạng thái đang xử lý và cho phép Stop
+                const imgUrl = await generateInfographic(workTitle, abortControllerRef.current?.signal);
+                if (imgUrl) {
+                    setMessages(p => {
+                        const next = [
+                            ...p,
+                            {
+                                role: 'assistant' as const,
+                                content: `Infographic "${workTitle}":`,
+                                generatedImage: imgUrl,
+                            },
+                        ];
+                        resetProactiveTimer(next);
+                        return next;
+                    });
+                    playNotification();
+                } else {
+                    // Nếu người dùng ấn Stop (quăng lỗi AbortError) thì không báo lỗi chung chung
+                    if (abortControllerRef.current?.signal.aborted) {
+                        throw new Error('AbortError');
                     }
-                });
+                    addAssistant(`Không thể tạo infographic về "${workTitle}". API chưa hỗ trợ hoặc lỗi kết nối.`);
+                }
             } else if (generatedImageUrl) {
                 // Trường hợp Gemini trả về [GEN_IMAGE] → chỉ nói ngắn gọn rồi gửi ảnh
                 const ack = `Chờ chút, ${pronoun} sẽ tạo ảnh minh hoạ cho em ngay đây.`;
@@ -770,8 +773,9 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 setUserProfile(p => p ? { ...p, xp: p.xp + 50, progress: Math.min(p.progress + 2, 100) } : p);
             }
         } catch (err: any) {
-            if (err.name === 'AbortError') {
-                return; // Silently ignore aborts
+            if (err.name === 'AbortError' || err.message === 'AbortError') {
+                addAssistant('Đã dừng tác vụ theo yêu cầu của em. Em muốn học gì tiếp theo?', true, { quickReplies: getDynamicSuggestions('general') });
+                return;
             }
             console.error('API error:', err);
             // Provide specific error feedback
@@ -815,9 +819,11 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             playNotification();
             autoSpeak('Bắt đầu bài kiểm tra chẩn đoán.');
         } catch (err: any) {
-            if (err.name !== 'AbortError') {
+            if (err.name !== 'AbortError' && err.message !== 'AbortError') {
                 setMessages([{ role: 'assistant', content: 'Lỗi tạo bài kiểm tra. Thử lại sau.' }]);
                 playNotification();
+            } else {
+                setMessages([{ role: 'assistant', content: 'Đã dừng bài kiểm tra chẩn đoán. Em muốn làm gì tiếp theo?', quickReplies: getDynamicSuggestions('diagnosis') }]);
             }
         } finally {
             setIsDiagnosing(false);
@@ -877,8 +883,10 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         } catch (err: any) {
             console.error('Exam pool error:', err);
             endBusy();
-            if (err.name !== 'AbortError') {
+            if (err.name !== 'AbortError' && err.message !== 'AbortError') {
                 addAssistant('Lỗi tạo đề thi, em thử lại sau nhé.');
+            } else {
+                addAssistant('Đã dừng tạo đề thi. Em muốn làm gì tiếp theo?', true, { quickReplies: getDynamicSuggestions('exam') });
             }
         }
     }, [addAssistant, autoSpeak, resetProactiveTimer, playNotification]);
@@ -1059,6 +1067,21 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             addAssistant('Lỗi tải tài liệu bài học. Em thử lại sau nhé.');
         }
     }, [activeLesson, addAssistant, user, userProfile, setUserProfile]);
+
+    const getDynamicSuggestions = useCallback((actionContext: 'general' | 'exam' | 'diagnosis' = 'general') => {
+        if (activeLesson) {
+            const found = findLesson(activeLesson.sectionId, activeLesson.lessonId);
+            const title = found ? found.lesson.title : 'bài này';
+            return [`Học tiếp ${title}`, 'Tóm tắt bài này', 'Làm trắc nghiệm bài này'];
+        }
+        if (actionContext === 'exam') {
+            return ['Làm đề thi thử khác', 'Ôn bài học mới', 'Làm trắc nghiệm'];
+        }
+        if (actionContext === 'diagnosis') {
+            return ['Bắt đầu lộ trình học', 'Làm lại kiểm tra', 'Hỏi đáp tự do'];
+        }
+        return ['Học bài mới', 'Tạo đề thi', 'Tạo ảnh đồ họa'];
+    }, [activeLesson]);
 
     return {
         messages, input, isLoading, isRewriting, isDiagnosing, isPlayingAudio, previewImage,

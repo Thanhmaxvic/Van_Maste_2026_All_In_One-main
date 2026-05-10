@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, Suspense } from 'react';
-import { Send, Mic, MicOff, Camera, Loader2, X, BookOpen, GraduationCap, ArrowRight } from 'lucide-react';
+import { Send, Mic, MicOff, Camera, Loader2, X, BookOpen, GraduationCap, ArrowRight, Square } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { useChat } from './hooks/useChat';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
@@ -17,7 +17,14 @@ import './index.css';
 
 function RotatingLoadingText() {
   const [idx, setIdx] = React.useState(0);
-  const msgs = ['Đang phân tích yêu cầu...', 'Đang tìm kiếm thông tin...', 'Đang suy nghĩ...', 'Đang tổng hợp kiến thức...'];
+  const msgs = [
+    'Đang phân tích yêu cầu...', 
+    'Đang tìm kiếm thông tin...', 
+    'Sắp xong rồi, em đợi chút nhé...', 
+    'Gia sư đang nỗ lực hết sức...',
+    'Đang tổng hợp kiến thức tỉ mỉ...',
+    'Đợi thầy một xíu nhé...'
+  ];
   React.useEffect(() => {
     const timer = setInterval(() => {
       setIdx(i => (i + 1) % msgs.length);
@@ -340,6 +347,14 @@ function StudentApp() {
                     <div style={{ display: 'flex', alignItems: 'center', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '4px 20px 20px 20px', padding: '10px 16px', boxShadow: 'var(--shadow-sm)' }}>
                       <div className="loading-dots" style={{ margin: 0 }}><span /><span /><span /></div>
                       <RotatingLoadingText />
+                      <button 
+                        onClick={abortCurrentTask} 
+                        style={{ marginLeft: 16, background: '#fee2e2', color: '#ef4444', border: 'none', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', transition: 'all 0.2s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#fca5a5'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#fee2e2'}
+                      >
+                        <Square size={10} fill="currentColor"/> Dừng
+                      </button>
                     </div>
                   </div>
                 )}

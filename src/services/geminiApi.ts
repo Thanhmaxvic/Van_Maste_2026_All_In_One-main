@@ -353,7 +353,7 @@ export async function sendProactiveMessage(
  * using Gemini 3.1 Flash Image Preview.
  * Returns a base64 data URL string or null on failure.
  */
-export async function generateInfographic(workTitle: string): Promise<string | null> {
+export async function generateInfographic(workTitle: string, signal?: AbortSignal): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
 
@@ -372,6 +372,7 @@ Format: vertical infographic, 1024x1536px equivalent proportions.`;
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
             }),
+            signal,
         });
         if (!res.ok) {
             throw new Error(`API error: ${res.status} ${res.statusText}`);

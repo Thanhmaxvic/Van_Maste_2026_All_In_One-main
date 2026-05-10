@@ -16,7 +16,8 @@ interface ParsedExamParts {
     readingPassage: string;
     readingQuestions: { id: number; prompt: string; points: number }[];
     writingQuestions: { id: number; prompt: string; points: number; part: 'nlxh' | 'nlvh' }[];
-    answerKey: string;
+    readingAnswerKey: string;
+    writingAnswerKey: string;
 }
 
 /**
@@ -42,13 +43,15 @@ Trả về JSON THUẦN (không markdown, không \`\`\`):
     { "id": 6, "prompt": "<câu hỏi nguyên văn>", "points": 2.0, "part": "nlxh" },
     { "id": 7, "prompt": "<câu hỏi nguyên văn + đoạn trích đính kèm nếu có>", "points": 4.0, "part": "nlvh" }
   ],
-  "relevantAnswerKey": "<phần hướng dẫn chấm tương ứng với các câu hỏi đã trích — giữ nguyên văn>"
+  "readingAnswerKey": "<phần hướng dẫn chấm tương ứng với các câu ĐỌC HIỂU — giữ nguyên văn>",
+  "writingAnswerKey": "<phần hướng dẫn chấm tương ứng với các câu VIẾT (Làm văn) — giữ nguyên văn>"
 }
 
 LƯU Ý QUAN TRỌNG:
 - GIỮ NGUYÊN VĂN tất cả câu hỏi, không thay đổi từ nào
 - Điểm mỗi câu phải đúng với thang điểm trong đề
-- relevantAnswerKey phải chứa hướng dẫn chấm tương ứng cho TẤT CẢ câu hỏi đã trích
+- readingAnswerKey phải chứa hướng dẫn chấm tương ứng cho phần Đọc hiểu
+- writingAnswerKey phải chứa hướng dẫn chấm tương ứng cho phần Làm văn (Nghị luận xã hội và Nghị luận văn học)
 - NẾU câu viết (writingQuestions) có tham chiếu đến ngữ liệu/đoạn trích ở phần đọc hiểu (ví dụ: "ở phần đọc hiểu", "đoạn trích trên", "văn bản trên"), thì PHẢI gắn nguyên văn đoạn trích/ngữ liệu đó VÀO CUỐI prompt của câu viết. Ví dụ: nếu câu viết yêu cầu phân tích "hai khổ thơ đầu trong đoạn trích ở phần đọc hiểu", prompt phải chứa cả đoạn trích đó để câu hỏi tự đầy đủ.`;
 
     try {
@@ -60,7 +63,8 @@ LƯU Ý QUAN TRỌNG:
             readingPassage: parsed.readingPassage || '',
             readingQuestions: parsed.readingQuestions || [],
             writingQuestions: parsed.writingQuestions || [],
-            answerKey: parsed.relevantAnswerKey || answerKeyText,
+            readingAnswerKey: parsed.readingAnswerKey || answerKeyText,
+            writingAnswerKey: parsed.writingAnswerKey || answerKeyText,
         };
     } catch (e) {
         console.error('Failed to parse exam:', e);
@@ -126,7 +130,7 @@ export async function buildExamFromPool(
                 prompt: q.prompt,
             });
         });
-        answerKeyParts.push(parsed.answerKey);
+        answerKeyParts.push(parsed.readingAnswerKey);
     }
 
     if (type === 'writing' || type === 'full') {
@@ -158,10 +162,10 @@ export async function buildExamFromPool(
         });
 
         if (writingSource && writingSource !== parsed) {
-            answerKeyParts.push(writingSource.answerKey);
-        } else if (type === 'writing') {
-            // For writing-only exams using the same parsed source, still include the answer key
-            answerKeyParts.push(wSource.answerKey);
+            answerKeyParts.push(writingSource.writingAnswerKey);
+        } else if (type === 'writing' || type === 'full') {
+            // For writing or full exams using the same parsed source, include the writing answer key
+            answerKeyParts.push(wSource.writingAnswerKey);
         }
     }
 
