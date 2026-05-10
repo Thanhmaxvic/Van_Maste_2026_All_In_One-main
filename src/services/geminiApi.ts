@@ -86,7 +86,7 @@ export async function sendChatMessage(
     parts.push({ text: userText });
 
     const geminiKey = getApiKey();
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${geminiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ systemInstruction, contents: [{ role: 'user', parts }] }),
@@ -141,7 +141,7 @@ export async function sendChatMessage(
                 ];
                 
                 const ragKey = getApiKey();
-                const followUpRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${ragKey}`, {
+                const followUpRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${ragKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ systemInstruction, contents: followUpContents }),
@@ -194,7 +194,7 @@ export async function generateImage(prompt: string): Promise<string | null> {
     if (!apiKey) return null;
     try {
         const imgKey = getApiKey();
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${imgKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${imgKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -365,7 +365,7 @@ Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
         const infoKey = getApiKey();
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${infoKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${infoKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
