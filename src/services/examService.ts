@@ -313,7 +313,15 @@ RÀNG BUỘC BẮT BUỘC:
     const rawText = await sendGradingRequest(prompt, signal);
 
     try {
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        // DeepSeek có thể trả về JSON bọc trong ```json ... ``` — cần strip
+        let cleanText = rawText
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```\s*$/i, '')
+            .trim();
+        // Fix trailing commas trước } hoặc ] (lỗi phổ biến của AI)
+        cleanText = cleanText.replace(/,\s*([}\]])/g, '$1');
+
+        const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]) as ExamGrade;
             // Ensure arrays exist
@@ -332,15 +340,15 @@ RÀNG BUỘC BẮT BUỘC:
         console.error('Failed to parse grading JSON:', e);
     }
 
-    // Fallback
+    // Fallback — hiển thị lỗi thân thiện thay vì raw JSON/code
     return {
         score: 0,
         maxScore: 10,
-        feedback: rawText,
-        details: 'Không thể phân tích kết quả chi tiết.',
+        feedback: 'Hệ thống chấm điểm gặp lỗi kỹ thuật. Vui lòng thử nộp lại bài.',
+        details: 'Không thể phân tích kết quả chi tiết từ AI. Bài làm của em đã được lưu.',
         errors: [],
-        improvements: [],
-        weaknesses: ['lỗi phân tích'],
+        improvements: ['Thử nộp lại bài để nhận kết quả chấm chính xác'],
+        weaknesses: [],
         strengths: [],
     };
 }

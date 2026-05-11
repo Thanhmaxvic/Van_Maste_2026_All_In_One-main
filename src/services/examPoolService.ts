@@ -56,15 +56,24 @@ LƯU Ý QUAN TRỌNG:
 
     try {
         const raw = await sendGradingRequest(prompt, signal);
-        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        // DeepSeek có thể trả về JSON bọc trong ```json ... ``` — cần strip
+        let cleanRaw = raw
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```\s*$/i, '')
+            .trim();
+        cleanRaw = cleanRaw.replace(/,\s*([}\]])/g, '$1');
+
+        const jsonMatch = cleanRaw.match(/\{[\s\S]*\}/);
         if (!jsonMatch) return null;
         const parsed = JSON.parse(jsonMatch[0]);
         return {
             readingPassage: parsed.readingPassage || '',
             readingQuestions: parsed.readingQuestions || [],
             writingQuestions: parsed.writingQuestions || [],
-            readingAnswerKey: parsed.readingAnswerKey || answerKeyText,
-            writingAnswerKey: parsed.writingAnswerKey || answerKeyText,
+            // QUAN TRỌNG: Không dùng answerKeyText đầy đủ làm fallback
+            // vì sẽ gây lẫn đáp án đọc hiểu ↔ viết
+            readingAnswerKey: parsed.readingAnswerKey || 'Chấm theo kiến thức Đọc hiểu Ngữ văn THPT.',
+            writingAnswerKey: parsed.writingAnswerKey || 'Chấm theo kiến thức Nghị luận Ngữ văn THPT.',
         };
     } catch (e) {
         console.error('Failed to parse exam:', e);

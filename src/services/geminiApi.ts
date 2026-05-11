@@ -7,7 +7,12 @@ import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
 // ── LUỒNG 1: DEEPSEEK — Tạo văn bản (Text/Chat) ──
 // Máy chủ AI tự host, chuẩn OpenAI Compatible
-const DEEPSEEK_ENDPOINT = 'http://36.50.135.174:20128/v1/chat/completions';
+// Production (HTTPS): gọi qua proxy /api/deepseek để tránh Mixed Content
+// Development (HTTP localhost): gọi trực tiếp
+const DEEPSEEK_DIRECT_URL = 'http://36.50.135.174:20128/v1/chat/completions';
+const DEEPSEEK_PROXY_URL = '/api/deepseek';
+const IS_LOCALHOST = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+const DEEPSEEK_ENDPOINT = IS_LOCALHOST ? DEEPSEEK_DIRECT_URL : DEEPSEEK_PROXY_URL;
 const DEEPSEEK_API_KEY = 'sk-1b3e1db5a7217c40-rdqzqx-8cdc26e7';
 const DEEPSEEK_MODEL = 'my-deepseek';
 
@@ -45,12 +50,14 @@ async function callDeepSeek(
         if (opts?.temperature != null) payload.temperature = opts.temperature;
         if (opts?.jsonMode) payload.response_format = { type: 'json_object' };
 
+        // Headers: khi gọi trực tiếp (localhost) cần Auth header
+        // Khi qua proxy (production) thì proxy đã tự thêm Auth
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (IS_LOCALHOST) headers['Authorization'] = `Bearer ${DEEPSEEK_API_KEY}`;
+
         const res = await fetch(DEEPSEEK_ENDPOINT, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-            },
+            headers,
             body: JSON.stringify(payload),
             signal: opts?.signal,
         });
