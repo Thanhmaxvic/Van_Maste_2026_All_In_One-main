@@ -332,9 +332,9 @@ Yêu cầu:
     return result?.trim() || null;
 }
 
-/** Vẫn kiểm tra Google API Key vì cần cho tạo ảnh Gemini */
+/** DeepSeek có credentials cứng → text luôn sẵn sàng. Gemini key chỉ cần cho tạo ảnh (tùy chọn). */
 export function isApiKeyConfigured(): boolean {
-    return Boolean(getGeminiApiKey());
+    return true; // DeepSeek luôn sẵn sàng, không cần user cấu hình API key
 }
 
 export interface MCQQuestion {
