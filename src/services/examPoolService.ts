@@ -131,7 +131,14 @@ export async function buildExamFromPool(
     if (type === 'reading' || type === 'full') {
         passage = parsed.readingPassage;
         source = `Trích từ đề thi số ${validSources[0].id}`;
-        parsed.readingQuestions.forEach((q, i) => {
+
+        // Lọc bỏ câu hỏi viết bị AI phân loại nhầm vào readingQuestions
+        const writingKeywords = /viết\s+(?:đoạn|bài)|nghị\s+luận|khoảng\s+\d+\s+chữ|phân\s+tích\s+cảm\s+nhận/i;
+        const filteredReading = type === 'reading'
+            ? parsed.readingQuestions.filter(q => !writingKeywords.test(q.prompt))
+            : parsed.readingQuestions;
+
+        filteredReading.forEach((q, i) => {
             questions.push({
                 id: i + 1,
                 part: 'reading',
@@ -197,7 +204,9 @@ export async function buildExamFromPool(
     };
 }
 
-/** Fallback: use the raw exam as-is when AI parsing fails */
+/** Fallback: use the raw exam as-is when AI parsing fails.
+ *  Cắt nội dung theo type để đề đọc hiểu không chứa phần viết và ngược lại.
+ */
 function buildFallbackExam(
     source: { id: number; examText: string; answerKeyText: string },
     type: 'reading' | 'writing' | 'full',
@@ -206,21 +215,43 @@ function buildFallbackExam(
     const title = type === 'reading' ? 'Đề đọc hiểu'
         : type === 'writing' ? 'Đề viết' : 'Đề thi tổng hợp';
 
-    // Create a single question with the full exam text
+    let examContent = source.examText;
+    let answerKey = source.answerKeyText;
+
+    // Tìm vị trí phân tách phần Đọc hiểu và phần Viết
+    const writingSplitPattern = /\n\s*(?:II\s*[.)]?\s*(?:PHẦN\s*)?(?:VIẾT|LÀM VĂN)|PHẦN\s*(?:VIẾT|II|LÀM VĂN)|II\s*\.\s*LÀM VĂN)/i;
+    const splitMatch = examContent.search(writingSplitPattern);
+
+    if (type === 'reading' && splitMatch > 0) {
+        // Chỉ lấy phần Đọc hiểu (trước mốc "PHẦN VIẾT")
+        examContent = examContent.substring(0, splitMatch).trim();
+    } else if (type === 'writing' && splitMatch > 0) {
+        // Chỉ lấy phần Viết (từ mốc "PHẦN VIẾT" trở đi)
+        examContent = examContent.substring(splitMatch).trim();
+    }
+
+    // Tương tự cho answer key
+    const answerSplit = answerKey.search(writingSplitPattern);
+    if (type === 'reading' && answerSplit > 0) {
+        answerKey = answerKey.substring(0, answerSplit).trim();
+    } else if (type === 'writing' && answerSplit > 0) {
+        answerKey = answerKey.substring(answerSplit).trim();
+    }
+
     return {
         type,
         title: `${title} (Đề ${source.id})`,
         durationMinutes: duration,
-        passage: source.examText,
+        passage: examContent,
         source: `Đề thi số ${source.id}`,
         questions: [
             {
                 id: 1,
                 part: type === 'writing' ? 'nlxh' : 'reading',
-                points: 10,
+                points: type === 'reading' ? 4 : type === 'writing' ? 6 : 10,
                 prompt: 'Làm bài theo đề thi ở trên.',
             },
         ],
-        answerKey: source.answerKeyText,
+        answerKey: answerKey,
     };
 }
