@@ -388,7 +388,9 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
         // ── If AI is busy or just finished a task, ask user before starting a new one ───
         const isBusy = busyRef.current || isLoading;
-        if (isBusy && !awaitingTaskInterrupt) {
+        const isRecentlyFinished = Date.now() - lastTaskEndRef.current < TASK_COOLDOWN_MS;
+
+        if ((isBusy || isRecentlyFinished) && !awaitingTaskInterrupt) {
             pendingInterruptMsgRef.current = val;
             setAwaitingTaskInterrupt(true);
             const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
