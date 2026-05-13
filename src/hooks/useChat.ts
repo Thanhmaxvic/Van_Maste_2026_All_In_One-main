@@ -388,8 +388,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
         // ── If AI is busy or just finished a task, ask user before starting a new one ───
         const isBusy = busyRef.current || isLoading;
-        const justFinished = (Date.now() - lastTaskEndRef.current) < TASK_COOLDOWN_MS;
-        if ((isBusy || justFinished) && !awaitingTaskInterrupt) {
+        if (isBusy && !awaitingTaskInterrupt) {
             pendingInterruptMsgRef.current = val;
             setAwaitingTaskInterrupt(true);
             const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
@@ -592,8 +591,8 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
                 // Build trimmed DOCX context — only send current section + outline instead of full document
                 const lessonContent = buildLessonContext(activeLesson.docxContent, currentSectionIndex);
-                // In lesson mode, limit history to 4 messages to reduce token usage
-                chatHistory = messages.slice(-4);
+                // In lesson mode, limit history to 8 messages to reduce token usage
+                chatHistory = messages.slice(-8);
                 effectiveInput = `${LESSON_TEACH_PROMPT}\n\nQUAN TRỌNG: Xưng hô là "${pronoun}" khi nói với học sinh. Ví dụ: "${Pronoun} sẽ giảng phần tiếp theo...", "${Pronoun} muốn hỏi em...".${resumeContext}\n\n[NỘI DUNG LÝ THUYẾT]:\n${lessonContent}\n\n[CÂU TRẢ LỜI CỦA HỌC SINH]: ${val}`;
             }
             // Inject user memory/traits for personalization
