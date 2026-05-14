@@ -251,7 +251,7 @@ RÀNG BUỘC BẮT BUỘC:
     const rawText = await sendGradingRequest(prompt, signal);
 
     try {
-        // DeepSeek có thể trả về JSON bọc trong ```json ... ``` — cần strip
+        // AI có thể trả về JSON bọc trong ```json ... ``` — cần strip
         let cleanText = rawText
             .replace(/^```(?:json)?\s*/i, '')
             .replace(/\s*```\s*$/i, '')

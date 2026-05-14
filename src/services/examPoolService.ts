@@ -56,7 +56,7 @@ LƯU Ý QUAN TRỌNG:
 
     try {
         const raw = await sendGradingRequest(prompt, signal);
-        // DeepSeek có thể trả về JSON bọc trong ```json ... ``` — cần strip
+        // AI có thể trả về JSON bọc trong ```json ... ``` — cần strip
         let cleanRaw = raw
             .replace(/^```(?:json)?\s*/i, '')
             .replace(/\s*```\s*$/i, '')

@@ -1,14 +1,23 @@
-import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
+import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS, AI_DETECTION_PROMPT, GRADING_RUBRIC_PROMPT } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
-export const PRIMARY_MODEL = 'gemini-2.5-pro';
+// ================================================================
+// ██ CẤU HÌNH MODEL — PHÂN TẦNG 2 LUỒNG TIẾT KIỆM ██
+// ================================================================
+
+// ── LUỒNG NẶNG: Giảng bài, chấm điểm — cần AI thông minh ──
+export const PRIMARY_MODEL = 'gemini-2.5-flash';
+
+// ── LUỒNG NHẸ: Chat, quiz, rewrite, tạo đề — ưu tiên rẻ ──
+export const LITE_MODEL = 'gemini-2.5-flash-lite';
 
 function getApiKey(): string {
     return import.meta.env.VITE_GOOGLE_API_KEY || '';
 }
 
 /**
- * Shared helper: call Gemini API directly without retries or fallback loops.
+ * Gọi Gemini PRIMARY (gemini-2.5-flash).
+ * Dùng cho: giảng bài (lesson), chấm điểm (grading), chấm bài nộp.
  */
 async function callGemini(
     body: object,
@@ -23,7 +32,31 @@ async function callGemini(
         signal: opts?.signal,
     });
     if (!res.ok) {
-        throw new Error(`API error: ${res.status} ${res.statusText}`);
+        throw new Error(`[Primary] API error: ${res.status} ${res.statusText}`);
+    }
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+/**
+ * Gọi Gemini LITE (gemini-2.5-flash-lite).
+ * Dùng cho: chat, quiz, rewrite, tạo đề, proactive, auto-response.
+ * Chi phí thấp hơn PRIMARY ~6 lần.
+ */
+async function callGeminiLite(
+    body: object,
+    opts?: { signal?: AbortSignal; temperature?: number }
+): Promise<string> {
+    const config = opts?.temperature != null ? { generationConfig: { temperature: opts.temperature }, ...body } : body;
+    const apiKey = getApiKey();
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LITE_MODEL}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+        signal: opts?.signal,
+    });
+    if (!res.ok) {
+        throw new Error(`[Lite] API error: ${res.status} ${res.statusText}`);
     }
     const data = await res.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -86,7 +119,8 @@ export async function sendChatMessage(
     parts.push({ text: userText });
 
     const geminiKey = getApiKey();
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiKey}`, {
+    // ── Chat dùng LITE_MODEL (rẻ, đủ thông minh cho hội thoại) ──
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LITE_MODEL}:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ systemInstruction, contents: [{ role: 'user', parts }] }),
@@ -141,7 +175,8 @@ export async function sendChatMessage(
                 ];
                 
                 const ragKey = getApiKey();
-                const followUpRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${ragKey}`, {
+                // RAG follow-up cũng dùng LITE_MODEL
+                const followUpRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LITE_MODEL}:generateContent?key=${ragKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ systemInstruction, contents: followUpContents }),
@@ -174,7 +209,7 @@ export async function sendChatMessage(
 }
 
 /**
- * Send a grading request (no system prompt, just pure grading).
+ * Chấm bài — dùng PRIMARY_MODEL (gemini-2.5-flash) vì cần phân tích sâu.
  */
 export async function sendGradingRequest(prompt: string, signal?: AbortSignal): Promise<string> {
     const apiKey = getApiKey();
@@ -219,31 +254,73 @@ export async function generateImage(prompt: string): Promise<string | null> {
 }
 
 /**
- * Rewrite text to improve writing style.
+ * Generate an educational infographic about a Vietnamese literary work
+ * using Gemini 3.1 Flash Image Preview.
+ * Returns a base64 data URL string or null on failure.
+ */
+export async function generateInfographic(workTitle: string, signal?: AbortSignal): Promise<string | null> {
+    const apiKey = getApiKey();
+    if (!apiKey) return null;
+
+    const prompt = `Create a beautiful, professional educational infographic in Vietnamese about the Vietnamese literary work "${workTitle}". 
+Include: author name, publication year, literary genre, main themes (3-4), plot summary (brief), main characters, literary devices used, significance in Vietnamese literature curriculum.
+Style: Modern educational poster, clean layout, rich warm colors (gold, deep red, cream), Vietnamese cultural aesthetic.
+Text must be clear, readable Vietnamese. High contrast. Suitable for high school students studying for university entrance exam.
+Format: vertical infographic, 1024x1536px equivalent proportions.`;
+
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+            }),
+            signal,
+        });
+        if (!res.ok) {
+            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        }
+        const data = await res.json();
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        for (const part of parts) {
+            if (part.inlineData?.mimeType?.startsWith('image/')) {
+                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            }
+        }
+        return null;
+    } catch (err) {
+        console.error('generateInfographic error:', err);
+        return null;
+    }
+}
+
+/**
+ * Viết lại văn bản — dùng LITE_MODEL (tác vụ nhẹ).
  */
 export async function rewriteText(text: string): Promise<string | null> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const result = await callGemini(
+    const result = await callGeminiLite(
         { contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }
     );
     return result?.trim() || null;
 }
 
 /**
- * Generate a diagnostic quiz.
+ * Tạo bài kiểm tra chẩn đoán — dùng LITE_MODEL (tác vụ nhẹ).
  */
 export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
-    const result = await callGemini(
+    const result = await callGeminiLite(
         { contents: [{ parts: [{ text: prompt }] }] }
     );
     return result || 'Lỗi tạo bài kiểm tra chẩn đoán';
 }
 
 /**
- * Generate short, concrete advice to fix current weaknesses.
+ * Tạo lời khuyên khắc phục điểm yếu — dùng LITE_MODEL (tác vụ nhẹ).
  */
 export async function generateWeaknessAdvice(weaknesses: string[], pronoun = 'thầy'): Promise<string | null> {
     const apiKey = getApiKey();
@@ -256,7 +333,7 @@ Yêu cầu:
 - Không mở đầu rào trước đón sau, đi thẳng vào hành động cần làm
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
-    const result = await callGemini(
+    const result = await callGeminiLite(
         { contents: [{ parts: [{ text: prompt }] }] }
     );
     return result?.trim() || null;
@@ -282,7 +359,7 @@ export interface DiagnosticQuizData {
 }
 
 /**
- * Generate a 10-question diagnostic MCQ quiz with a passage.
+ * Tạo quiz trắc nghiệm 10 câu — dùng LITE_MODEL (tác vụ nhẹ).
  * Returns parsed JSON data.
  */
 export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal): Promise<DiagnosticQuizData | null> {
@@ -292,7 +369,7 @@ export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal
     try {
         const quizKey = getApiKey();
         const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${quizKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${LITE_MODEL}:generateContent?key=${quizKey}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -323,7 +400,7 @@ export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal
 }
 
 /**
- * Generate a proactive follow-up question based on chat history.
+ * Tạo câu hỏi chủ động — dùng LITE_MODEL (tác vụ nhẹ).
  */
 export async function sendProactiveMessage(
     messages: { role: string; content: string }[],
@@ -339,7 +416,7 @@ export async function sendProactiveMessage(
             .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
-        const result = await callGemini(
+        const result = await callGeminiLite(
             { contents: [{ parts: [{ text: fullPrompt }] }] }
         );
         return result?.trim() || null;
@@ -348,57 +425,17 @@ export async function sendProactiveMessage(
     }
 }
 
-/**
- * Generate an educational infographic about a Vietnamese literary work
- * using Gemini 3.1 Flash Image Preview.
- * Returns a base64 data URL string or null on failure.
- */
-export async function generateInfographic(workTitle: string): Promise<string | null> {
-    const apiKey = getApiKey();
-    if (!apiKey) return null;
 
-    const prompt = `Create a beautiful, professional educational infographic in Vietnamese about the Vietnamese literary work "${workTitle}". 
-Include: author name, publication year, literary genre, main themes (3-4), plot summary (brief), main characters, literary devices used, significance in Vietnamese literature curriculum.
-Style: Modern educational poster, clean layout, rich warm colors (gold, deep red, cream), Vietnamese cultural aesthetic.
-Text must be clear, readable Vietnamese. High contrast. Suitable for high school students studying for university entrance exam.
-Format: vertical infographic, 1024x1536px equivalent proportions.`;
-
-    try {
-        const infoKey = getApiKey();
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${infoKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
-            }),
-        });
-        if (!res.ok) {
-            throw new Error(`API error: ${res.status} ${res.statusText}`);
-        }
-        const data = await res.json();
-        const parts = data.candidates?.[0]?.content?.parts || [];
-        for (const part of parts) {
-            if (part.inlineData?.mimeType?.startsWith('image/')) {
-                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            }
-        }
-        return null;
-    } catch (err) {
-        console.error('generateInfographic error:', err);
-        return null;
-    }
-}
 
 /**
- * Generate an AI exam based on type (reading/writing/full).
+ * Tạo đề thi AI — dùng LITE_MODEL (tác vụ nhẹ).
  * Returns parsed AIExamData or null on failure.
  */
 export async function generateAIExam(prompt: string, signal?: AbortSignal): Promise<AIExamData | null> {
     const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        let raw = await callGemini(
+        let raw = await callGeminiLite(
             { contents: [{ parts: [{ text: prompt }] }] },
             { signal }
         );
@@ -423,8 +460,7 @@ QUY TẮC BẮT BUỘC:
 6. Nếu người dùng chào hoặc gửi tin nhắn xã giao, hãy chào lại và hỏi em cần hỗ trợ gì về ôn thi Văn THPT.`;
 
 /**
- * Generate an AI auto-response for the student-teacher chat.
- * This function is called automatically when a student sends a message.
+ * Tự động trả lời chat HS-GV — dùng LITE_MODEL (tác vụ nhẹ).
  */
 export async function generateChatAutoResponse(
     userMessage: string,
@@ -438,7 +474,7 @@ export async function generateChatAutoResponse(
             .map(m => `${m.role === 'student' ? 'Học sinh' : 'Trợ lý'}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${CHAT_AUTO_RESPONDER_PROMPT}\n\nLịch sử chat gần đây:\n${historyText}\n\nHọc sinh vừa gửi: "${userMessage}"\n\nTrả lời ngắn gọn:`;
-        const result = await callGemini(
+        const result = await callGeminiLite(
             { contents: [{ parts: [{ text: fullPrompt }] }] }
         );
         return result?.trim() || null;
@@ -449,40 +485,15 @@ export async function generateChatAutoResponse(
 }
 
 /**
- * Grade student submission using Gemini with File support
- * Supports images, PDF, and DOCX (via mammoth).
+ * Chấm bài nộp — dùng PRIMARY_MODEL (gemini-2.5-flash) vì cần phân tích sâu.
+ * Hỗ trợ: ảnh, PDF, DOCX (mammoth).
  */
 export async function gradeStudentSubmission(prompt: string, file: File | null): Promise<ExamGrade> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
-    const enhancedPrompt = prompt + `\n\n⑧ PHÁT HIỆN SỬ DỤNG AI ĐỂ VIẾT BÀI (AI-GENERATED CONTENT):
-   Chỉ áp dụng quét AI cho CÂU NGHỊ LUẬN XÃ HỘI (NLXH) và CÂU NGHỊ LUẬN VĂN HỌC (NLVH). KHÔNG quét và KHÔNG trừ điểm đối với phần Đọc hiểu.
-   
-   CẢNH BÁO QUAN TRỌNG: Học sinh thường học thuộc "văn mẫu", do đó việc xuất hiện vài từ ngữ rập khuôn là RẤT BÌNH THƯỜNG. Để tránh "nhầm lẫn" học sinh với AI, bạn PHẢI phân tích cực kỳ cẩn thận, tổng thể và CHỈ kết luận là AI sử dụng Cơ chế Kết hợp dưới đây.
-
-   =>> BƯỚC 1: NHẬN DIỆN CÁC NHÓM DẤU HIỆU:
-   [DANH SÁCH DẤU HIỆU TRỌNG YẾU - LỖI CẤU TRÚC]
-   (A1) Bullet points vô lý: Dùng gạch đầu dòng, danh sách liệt kê phân mảnh thay vì viết thành đoạn văn nghị luận hoàn chỉnh.
-   (A2) Phân tích suông diện rộng: Đoạn văn cực kỳ dài, hoa mỹ nhưng tóm tắt nội dung 100%, KHÔNG HỀ có bất kỳ một câu nào phân tích chi tiết vào từ ngữ, hình ảnh nghệ thuật, hay biện pháp tu từ của đoạn trích.
-   
-   [DANH SÁCH DẤU HIỆU PHỤ - LỖI TỪ VỰNG & VĂN PHONG]
-   (B1) Từ vựng sáo rỗng dày đặc: "Quả thật,", "Thật vậy,", "Bức tranh toàn cảnh," "Có thể nói rằng," "Như một lời khẳng định đanh thép", "Ám ảnh tâm trí người đọc".
-   (B2) Chuyển ý công nghiệp (Dịch từ phương Tây): "Cuối cùng nhưng không kém phần quan trọng", "Thứ nhất,", "Thứ hai,", "Nhìn chung lại,".
-   (B3) Vô cảm tuyệt đối: Hoàn hảo về ngữ pháp, lạm dụng câu hỏi tu từ ("Phải chăng...", "Liệu rằng...") nhưng văn phong lạnh lẽo giống như đọc tài liệu bách khoa toàn thư, không có ngôn ngữ tự nhiên của học sinh.
-
-   =>> BƯỚC 2: CƠ CHẾ KẾT BỘ TEST (CHỈ KẾT LUẬN LÀ AI KHI THỎA MÃN):
-   Chỉ được phép kết luận đoạn văn do AI viết nếu nó thỏa mãn MỘT TRONG HAI điều kiện tổng thể sau:
-   - Điều kiện 1: Có RÕ RÀNG Ít nhất 1 Cờ [GIAN LẬN] ở đầu bài + Bộc lộ thêm Ít nhất 2 Dấu hiệu Phụ (B1/B2/B3).
-   - Điều kiện 2: KHÔNG có cờ gian lận, nhưng bài viết vi phạm Ít nhất 1 Dấu hiệu Trọng yếu (A1 hoặc A2) CỘNG VỚI Ít nhất 2 Dấu hiệu Phụ (B1/B2/B3) đồng thời.
-
-   =>> BƯỚC 3: CƠ CHẾ XỬ PHẠT TẠI CHỖ (ÁP DỤNG KHI BƯỚC 2 DƯƠNG TÍNH):
-   - Tách bạch điểm: CHỈ TRỪ ĐIỂM CỦA RIÊNG CÂU BỊ PHÁT HIỆN. Không trừ lây lan phần tự viết hoặc Đọc hiểu.
-   - Mức phạt: Trừ ĐÚNG 50% số điểm đáng lý nhận được ở câu vi phạm. (Ví dụ câu đó đáng lý được 4.0 điểm -> phạt 50% -> chỉ cho 2.0 điểm).
-   - Ghi rõ Feedback BẮT BUỘC: "Câu [Nghị luận...] mang đậm văn phong máy móc của AI/ChatGPT theo đánh giá tổng thể cấu trúc và từ vựng. Bài thi đã bị trừ 50% số điểm tại phần này. Hãy tự viết bằng cốt lõi hiểu biết của mình."
-   (TUYỆT ĐỐI không ghi thẻ "lạm dụng ai" vào mảng weaknesses, không để lại vết sẹo dữ liệu dài hạn).
-
-   LƯU Ý CUỐI: Nếu có cờ "[GIAN LẬN]" ở đầu bài nhưng văn phong bài viết HOÀN TOÀN CỦA CON NGƯỜI (không thoả mãn điều kiện văn phong AI): Châm chước giữ nguyên điểm, nhưng vẫn để lại một lời nhắc nhở nhẹ ở feedback: "Hệ thống ghi nhận em đã chuyển tab trong lúc thi, em rút kinh nghiệm nhé."`;
+    // Sử dụng prompt rubric + AI detection từ constants (đã extract ra)
+    const enhancedPrompt = prompt + `\n\n${GRADING_RUBRIC_PROMPT}\n\n${AI_DETECTION_PROMPT}`;
 
     const parts: any[] = [{ text: enhancedPrompt }];
 
