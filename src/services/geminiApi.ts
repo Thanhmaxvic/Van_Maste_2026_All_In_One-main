@@ -1,102 +1,36 @@
-import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS, AI_DETECTION_PROMPT, GRADING_RUBRIC_PROMPT } from '../constants';
+import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
-// ================================================================
-// ██ CẤU HÌNH API — PHÂN TÁCH 2 LUỒNG RÕ RÀNG ██
-// ================================================================
+export const PRIMARY_MODEL = 'gemini-2.5-pro';
 
-// ── LUỒNG 1: DEEPSEEK — Tạo văn bản (Text/Chat) ──
-// Máy chủ AI tự host, chuẩn OpenAI Compatible
-// Production (HTTPS): gọi qua proxy /api/deepseek để tránh Mixed Content
-// Development (HTTP localhost): gọi trực tiếp
-const DEEPSEEK_DIRECT_URL = 'http://36.50.135.174:20128/v1/chat/completions';
-const DEEPSEEK_PROXY_URL = '/api/deepseek';
-const IS_LOCALHOST = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-const DEEPSEEK_ENDPOINT = IS_LOCALHOST ? DEEPSEEK_DIRECT_URL : DEEPSEEK_PROXY_URL;
-const DEEPSEEK_API_KEY = 'sk-1b3e1db5a7217c40-rdqzqx-8cdc26e7';
-const DEEPSEEK_MODEL = 'my-deepseek';
-
-// ── LUỒNG 2: GEMINI — Tạo hình ảnh (Image Generation) ──
-// Giữ nguyên Google API Key, CHỈ dùng cho generateImage & generateInfographic
-function getGeminiApiKey(): string {
+function getApiKey(): string {
     return import.meta.env.VITE_GOOGLE_API_KEY || '';
 }
 
-// ================================================================
-// ██ HÀM GỌI DEEPSEEK (Thay thế toàn bộ Gemini Text cũ) ██
-// ================================================================
-
-interface DeepSeekMessage {
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-}
-
 /**
- * Gọi API DeepSeek (OpenAI Compatible) để tạo văn bản.
- * Parse kết quả theo chuẩn: response.choices[0].message.content
- * Có try-catch bảo vệ, log lỗi rõ ràng, không crash server.
+ * Shared helper: call Gemini API directly without retries or fallback loops.
  */
-async function callDeepSeek(
-    messages: DeepSeekMessage[],
-    opts?: { signal?: AbortSignal; temperature?: number; jsonMode?: boolean }
+async function callGemini(
+    body: object,
+    opts?: { signal?: AbortSignal; temperature?: number }
 ): Promise<string> {
-    try {
-        const payload: any = {
-            model: DEEPSEEK_MODEL,
-            messages,
-            stream: false,
-            max_tokens: 4096, // Đảm bảo phản hồi đầy đủ, không bị cắt giữa chừng
-        };
-        if (opts?.temperature != null) payload.temperature = opts.temperature;
-        if (opts?.jsonMode) payload.response_format = { type: 'json_object' };
-
-        // Headers: khi gọi trực tiếp (localhost) cần Auth header
-        // Khi qua proxy (production) thì proxy đã tự thêm Auth
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (IS_LOCALHOST) headers['Authorization'] = `Bearer ${DEEPSEEK_API_KEY}`;
-
-        const res = await fetch(DEEPSEEK_ENDPOINT, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(payload),
-            signal: opts?.signal,
-        });
-
-        if (!res.ok) {
-            const errBody = await res.text().catch(() => '');
-            console.error(`[DeepSeek] API error ${res.status}: ${errBody}`);
-            throw new Error(`DeepSeek API error: ${res.status} ${res.statusText}`);
-        }
-
-        const data = await res.json();
-        // ✅ Parse chuẩn OpenAI: response.choices[0].message.content
-        return data.choices?.[0]?.message?.content || '';
-    } catch (error: any) {
-        if (error.name === 'AbortError') throw error; // Cho phép cancel
-        console.error('[DeepSeek] Request failed:', error.message);
-        throw error;
+    const config = opts?.temperature != null ? { generationConfig: { temperature: opts.temperature }, ...body } : body;
+    const apiKey = getApiKey();
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+        signal: opts?.signal,
+    });
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
-}
-
-/** Wrapper — thay thế callGemini cũ (heavy tasks: grading, exam) */
-async function callPrimary(
-    prompt: string,
-    opts?: { signal?: AbortSignal; temperature?: number; jsonMode?: boolean }
-): Promise<string> {
-    return callDeepSeek([{ role: 'user', content: prompt }], opts);
-}
-
-/** Wrapper — thay thế callGeminiLight cũ (light tasks: chat, quiz, advice) */
-async function callLight(
-    prompt: string,
-    opts?: { signal?: AbortSignal; temperature?: number; jsonMode?: boolean }
-): Promise<string> {
-    return callDeepSeek([{ role: 'user', content: prompt }], opts);
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 /**
- * Gửi tin nhắn chat và nhận phản hồi.
- * [ĐÃ CHUYỂN] Từ Gemini → DeepSeek (OpenAI Compatible)
+ * Send a chat message to Gemini and get a response.
  */
 export async function sendChatMessage(
     messages: Message[],
@@ -105,6 +39,8 @@ export async function sendChatMessage(
     userProfile?: UserProfile | null,
     signal?: AbortSignal
 ): Promise<{ text: string; generatedImageUrl: string | null }> {
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('API_KEY_MISSING');
 
     // Build [DATETIME] context so AI knows current date/time
     const now = new Date();
@@ -134,111 +70,92 @@ export async function sendChatMessage(
         profileBlock = `\n[PROFILE HOC SINH]\n- Ten: ${userProfile.name}\n- Diem TB: ${avg}/10 | Muc tieu: ${target}/10${diagInfo}\n- Trinh do: ${levelHint}\n- Diem yeu: ${weaknesses}\n- Diem manh: ${strengths}\n- Bai da nop: ${userProfile.submissionCount ?? 0}\n- Xung ho: "${xungHo}" - "em"\n[/PROFILE]\n\nCA NHAN HOA:\n- Dua vao profile tren, tu dong dieu chinh cach giang day phu hop trinh do.\n- Khi tao cau hoi trac nghiem/quiz: UU TIEN 60% cau hoi lien quan den DIEM YEU (${weaknesses}), 40% cau hoi ve ky nang khac.\n- Neu trinh do "${levelHint}": ${levelHint === 'nang cao' ? 'hoi cau kho, so sanh sau, phan tich nhieu tang' : levelHint === 'chuan' ? 'hoi cau vua phai, ket hop ly thuyet va thuc hanh' : 'hoi cau co ban, giai thich ky, cho vi du cu the'}.\n- LUON xung ho la "${xungHo}" khi noi voi hoc sinh.`;
     }
 
-    // ── [DEEPSEEK] Chuyển systemInstruction Gemini → system message OpenAI ──
-    const systemMsg: DeepSeekMessage = {
-        role: 'system',
-        content: SYSTEM_PROMPT + datetimeBlock + profileBlock,
-    };
+    // Use Gemini's dedicated systemInstruction field — allows context caching & reduces token cost
+    const systemInstruction = { parts: [{ text: SYSTEM_PROMPT + datetimeBlock + profileBlock }] };
+    const parts: unknown[] = [];
 
-    // Build messages array theo chuẩn OpenAI (thay vì contents/parts của Gemini)
-    const chatMessages: DeepSeekMessage[] = [systemMsg];
     messages.slice(-CHAT_HISTORY_LIMIT).forEach((m) => {
-        chatMessages.push({
-            role: m.role === 'user' ? 'user' : 'assistant',
-            content: m.content,
-        });
+        parts.push({ text: `${m.role}: ${m.content}` });
     });
 
-    // Nếu có hình ảnh đính kèm, thêm ghi chú vào nội dung (DeepSeek chỉ hỗ trợ text)
-    let imageNote = '';
     if (previewImage) {
-        imageNote = '\n[Học sinh đã gửi kèm một hình ảnh]';
+        const base64Data = previewImage.includes(',') ? previewImage.split(',')[1] : previewImage;
+        if (base64Data) parts.push({ inlineData: { mimeType: 'image/png', data: base64Data } });
     }
 
-    // ── PRE-DETECT RAG: scan user text for known doc topics ──
-    let ragDocsText = '';
-    const userLower = userText.toLowerCase();
-    const matchedDocNames: string[] = [];
-    for (const docName of Object.keys(KNOWLEDGE_DOCS)) {
-        const keywords = docName.toLowerCase().replace(/_/g, ' ').split('lớp')[0].trim();
-        if (keywords.length >= 3 && userLower.includes(keywords)) {
-            matchedDocNames.push(docName);
-        }
-    }
-    const docsToFetch = matchedDocNames.slice(0, 2);
-    if (docsToFetch.length > 0) {
-        try {
-            const mammoth = await import('mammoth');
-            for (const docName of docsToFetch) {
-                const docUrl = KNOWLEDGE_DOCS[docName];
-                if (docUrl && docUrl.endsWith('.docx')) {
-                    try {
-                        const docRes = await fetch(encodeURI(docUrl), { signal });
-                        if (docRes.ok) {
-                            const arrayBuffer = await docRes.arrayBuffer();
-                            const result = await mammoth.extractRawText({ arrayBuffer });
-                            ragDocsText += `\n--- Tài liệu: ${docName} ---\n${result.value.substring(0, 5000)}\n`;
-                        }
-                    } catch (err) {
-                        console.error(`Lỗi khi fetch docx RAG (${docName}):`, err);
-                    }
-                }
-            }
-        } catch { /* mammoth import error */ }
+    parts.push({ text: userText });
+
+    const geminiKey = getApiKey();
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ systemInstruction, contents: [{ role: 'user', parts }] }),
+        signal,
+    });
+
+    if (!res.ok) {
+        let errorDetail = '';
+        try { errorDetail = await res.text() || ''; } catch { /* ignore */ }
+        console.error(`[Chat] Request failed. Status: ${res.status} — ${errorDetail}`);
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
 
-    // Build user message cuối cùng với RAG context
-    let finalUserText = userText + imageNote;
-    if (ragDocsText.trim()) {
-        finalUserText = `${finalUserText}\n\n[TÀI LIỆU THAM KHẢO — dùng để trả lời, KHÔNG cần gọi [FETCH_DOC]]:\n${ragDocsText}`;
-    }
-    chatMessages.push({ role: 'user', content: finalUserText });
+    const data = await res.json();
+    let aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
 
-    // ── [DEEPSEEK] Gọi DeepSeek thay vì Gemini ──
-    let aiContent = await callDeepSeek(chatMessages, { signal });
-    if (!aiContent) aiContent = 'Hệ thống đang bận, thử lại sau nhé!';
-
-    // Handle [FETCH_DOC] fallback — only if AI still requests a doc we didn't pre-fetch
+    // Handle Document Fetching (RAG)
     if (aiContent.includes('[FETCH_DOC]')) {
         const docNameRaw = aiContent.split('[FETCH_DOC]')[1].split('\n')[0].trim();
+        // Remove trailing punctuation just in case
         const docNames = docNameRaw.replace(/[.,;!"']+$/, '').split('|').map((n: string) => n.trim()).filter(Boolean);
-        // Filter out already-fetched docs
-        const unfetched = docNames.filter((n: string) => !docsToFetch.includes(n));
         
         let combinedDocsText = '';
-        if (unfetched.length > 0) {
-            try {
-                const mammoth = await import('mammoth');
-                for (const docName of unfetched.slice(0, 2)) {
-                    const docUrl = KNOWLEDGE_DOCS[docName];
-                    if (docUrl && docUrl.endsWith('.docx')) {
-                        try {
-                            const docRes = await fetch(encodeURI(docUrl), { signal });
-                            if (docRes.ok) {
-                                const arrayBuffer = await docRes.arrayBuffer();
-                                const result = await mammoth.extractRawText({ arrayBuffer });
-                                combinedDocsText += `\n--- Tài liệu: ${docName} ---\n${result.value.substring(0, 5000)}\n`;
-                            }
-                        } catch (err) {
-                            console.error(`Lỗi khi fetch docx RAG (${docName}):`, err);
-                        }
+        const mammoth = await import('mammoth');
+        
+        for (const docName of docNames) {
+            const docUrl = KNOWLEDGE_DOCS[docName];
+            if (docUrl && docUrl.endsWith('.docx')) {
+                try {
+                    const docRes = await fetch(encodeURI(docUrl), { signal });
+                    if (docRes.ok) {
+                        const arrayBuffer = await docRes.arrayBuffer();
+                        const result = await mammoth.extractRawText({ arrayBuffer });
+                        combinedDocsText += `\n--- Tài liệu: ${docName} ---\n${result.value.substring(0, 10000)}\n`;
                     }
+                } catch (err) {
+                    console.error(`Lỗi khi fetch docx RAG (${docName}):`, err);
                 }
-            } catch { /* mammoth import error */ }
+            }
         }
         
         if (combinedDocsText.trim()) {
             try {
-                // [DEEPSEEK] Follow-up RAG call — chuyển từ Gemini sang DeepSeek
-                const followUpMessages: DeepSeekMessage[] = [
-                    ...chatMessages,
-                    { role: 'assistant', content: `[FETCH_DOC] Đang đọc ${docNames.join(', ')}...` },
-                    { role: 'user', content: `Nội dung tài liệu đã được tải:\n${combinedDocsText}\n\nHãy trả lời câu hỏi của học sinh dựa trên tài liệu này.` },
+                // Construct follow-up prompt
+                const followUpText = `Nội dung tài liệu đã được tải:\n${combinedDocsText}\n\nHãy trả lời câu hỏi của học sinh dựa trên tài liệu này.`;
+                
+                // Call Gemini again with the doc context attached silently
+                const followUpContents = [
+                    { role: 'user', parts: parts },
+                    { role: 'model', parts: [{ text: `[FETCH_DOC] Đang đọc ${docNames.join(', ')}...` }] },
+                    { role: 'user', parts: [{ text: followUpText }] }
                 ];
-                const followUpResult = await callDeepSeek(followUpMessages, { signal });
-                if (followUpResult) aiContent = followUpResult;
+                
+                const ragKey = getApiKey();
+                const followUpRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${ragKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ systemInstruction, contents: followUpContents }),
+                    signal,
+                });
+                
+                if (!followUpRes.ok) {
+                    throw new Error(`API error: ${followUpRes.status} ${followUpRes.statusText}`);
+                } else {
+                    const followUpData = await followUpRes.json();
+                    aiContent = followUpData.candidates?.[0]?.content?.parts?.[0]?.text || aiContent;
+                }
             } catch (err) {
-                console.error('Lỗi khi gọi lại DeepSeek:', err);
+                console.error('Lỗi khi gọi lại Gemini:', err);
                 aiContent = aiContent.replace(/\[FETCH_DOC\].*/s, '*(Lỗi: Không thể phân tích tài liệu)*\n');
             }
         } else {
@@ -257,27 +174,27 @@ export async function sendChatMessage(
 }
 
 /**
- * Gửi yêu cầu chấm điểm.
- * [ĐÃ CHUYỂN] Từ Gemini → DeepSeek
+ * Send a grading request (no system prompt, just pure grading).
  */
 export async function sendGradingRequest(prompt: string, signal?: AbortSignal): Promise<string> {
-    const result = await callPrimary(prompt, { signal, jsonMode: true });
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('API_KEY_MISSING');
+    const result = await callGemini(
+        { contents: [{ role: 'user', parts: [{ text: prompt }] }] },
+        { signal }
+    );
     return result || '{}';
 }
 
-// ================================================================
-// ██ TẠO HÌNH ẢNH — GIỮ NGUYÊN GEMINI (KHÔNG THAY ĐỔI) ██
-// ================================================================
-
 /**
- * Tạo hình ảnh bằng Gemini 3.1 Flash Image Preview.
- * ⚠️ LUỒNG GEMINI — TUYỆT ĐỐI KHÔNG CHỈNH SỬA
+ * Generate an image using Gemini 3.1 Flash Image Preview.
  */
 export async function generateImage(prompt: string): Promise<string | null> {
-    const apiKey = getGeminiApiKey();
+    const apiKey = getApiKey();
     if (!apiKey) return null;
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
+        const imgKey = getApiKey();
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${imgKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -301,25 +218,36 @@ export async function generateImage(prompt: string): Promise<string | null> {
     return null;
 }
 
-// ================================================================
-// ██ CÁC CHỨC NĂNG VĂN BẢN KHÁC — SỬ DỤNG DEEPSEEK ██
-// ================================================================
-
-/** Viết lại văn bản. [ĐÃ CHUYỂN] Gemini → DeepSeek */
+/**
+ * Rewrite text to improve writing style.
+ */
 export async function rewriteText(text: string): Promise<string | null> {
-    const result = await callLight(`Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"`);
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('API_KEY_MISSING');
+    const result = await callGemini(
+        { contents: [{ parts: [{ text: `Viết lại câu sau cho hay hơn, tự nhiên hơn: "${text}"` }] }] }
+    );
     return result?.trim() || null;
 }
 
-/** Tạo bài kiểm tra chẩn đoán. [ĐÃ CHUYỂN] Gemini → DeepSeek */
+/**
+ * Generate a diagnostic quiz.
+ */
 export async function generateDiagnosticQuiz(prompt: string): Promise<string> {
-    const result = await callLight(prompt);
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('API_KEY_MISSING');
+    const result = await callGemini(
+        { contents: [{ parts: [{ text: prompt }] }] }
+    );
     return result || 'Lỗi tạo bài kiểm tra chẩn đoán';
 }
 
-/** Tạo lời khuyên khắc phục điểm yếu. [ĐÃ CHUYỂN] Gemini → DeepSeek */
+/**
+ * Generate short, concrete advice to fix current weaknesses.
+ */
 export async function generateWeaknessAdvice(weaknesses: string[], pronoun = 'thầy'): Promise<string | null> {
-    if (weaknesses.length === 0) return null;
+    const apiKey = getApiKey();
+    if (!apiKey || weaknesses.length === 0) return null;
     const list = weaknesses.slice(0, 3).join('; ');
     const prompt = `Học sinh Ngữ văn đang có các điểm yếu sau: ${list}.
 Trong tối đa 2 câu ngắn gọn, hãy gợi ý CỤ THỂ cách em có thể khắc phục các điểm yếu này khi ôn thi tốt nghiệp THPT môn Văn.
@@ -328,13 +256,14 @@ Yêu cầu:
 - Không mở đầu rào trước đón sau, đi thẳng vào hành động cần làm
 - Không dùng gạch đầu dòng
 - Tổng độ dài tối đa khoảng 60–80 từ.`;
-    const result = await callLight(prompt);
+    const result = await callGemini(
+        { contents: [{ parts: [{ text: prompt }] }] }
+    );
     return result?.trim() || null;
 }
 
-/** DeepSeek có credentials cứng → text luôn sẵn sàng. Gemini key chỉ cần cho tạo ảnh (tùy chọn). */
 export function isApiKeyConfigured(): boolean {
-    return true; // DeepSeek luôn sẵn sàng, không cần user cấu hình API key
+    return Boolean(getApiKey());
 }
 
 export interface MCQQuestion {
@@ -353,33 +282,56 @@ export interface DiagnosticQuizData {
 }
 
 /**
- * Tạo bài trắc nghiệm MCQ chẩn đoán.
- * [ĐÃ CHUYỂN] Từ Gemini → DeepSeek
+ * Generate a 10-question diagnostic MCQ quiz with a passage.
+ * Returns parsed JSON data.
  */
 export async function generateDiagnosticMCQ(prompt: string, signal?: AbortSignal): Promise<DiagnosticQuizData | null> {
+    const apiKey = getApiKey();
+    if (!apiKey) return null;
+
     try {
-        let raw = await callDeepSeek(
-            [{ role: 'user', content: prompt }],
-            { signal, temperature: 0.7, jsonMode: true }
+        const quizKey = getApiKey();
+        const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${quizKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.7 },
+                }),
+                signal,
+            }
         );
-        if (!raw) throw new Error('API returned empty text');
-        // Strip markdown code fences if present
+        if (!res.ok) {
+            throw new Error(`API error: ${res.status} ${res.statusText}`);
+        }
+        const data = await res.json();
+        let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!raw) {
+            throw new Error('API returned empty text');
+        }
+        // Strip markdown code fences if present (handles ```json, ```JSON, ``` etc.)
         raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-        // Fix trailing commas before } or ]
+        // Fix trailing commas before } or ] (common AI output issue)
         raw = raw.replace(/,\s*([}\]])/g, '$1');
         return JSON.parse(raw) as DiagnosticQuizData;
     } catch (err) {
-        console.error('[Quiz] Error:', err);
+        console.error(`[Quiz] Error:`, err);
         return null;
     }
 }
 
-/** Tạo câu hỏi chủ động. [ĐÃ CHUYỂN] Gemini → DeepSeek */
+/**
+ * Generate a proactive follow-up question based on chat history.
+ */
 export async function sendProactiveMessage(
     messages: { role: string; content: string }[],
     proactivePrompt: string,
     pronoun = 'thầy',
 ): Promise<string | null> {
+    const apiKey = getApiKey();
+    if (!apiKey) return null;
     const Pronoun = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
     try {
         const historyText = messages
@@ -387,7 +339,9 @@ export async function sendProactiveMessage(
             .map(m => `${m.role === 'user' ? 'Học sinh' : Pronoun}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
-        const result = await callLight(fullPrompt);
+        const result = await callGemini(
+            { contents: [{ parts: [{ text: fullPrompt }] }] }
+        );
         return result?.trim() || null;
     } catch {
         return null;
@@ -399,8 +353,8 @@ export async function sendProactiveMessage(
  * using Gemini 3.1 Flash Image Preview.
  * Returns a base64 data URL string or null on failure.
  */
-export async function generateInfographic(workTitle: string, signal?: AbortSignal): Promise<string | null> {
-    const apiKey = getGeminiApiKey();
+export async function generateInfographic(workTitle: string): Promise<string | null> {
+    const apiKey = getApiKey();
     if (!apiKey) return null;
 
     const prompt = `Create a beautiful, professional educational infographic in Vietnamese about the Vietnamese literary work "${workTitle}". 
@@ -410,14 +364,14 @@ Text must be clear, readable Vietnamese. High contrast. Suitable for high school
 Format: vertical infographic, 1024x1536px equivalent proportions.`;
 
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`, {
+        const infoKey = getApiKey();
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${infoKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
             }),
-            signal,
         });
         if (!res.ok) {
             throw new Error(`API error: ${res.status} ${res.statusText}`);
@@ -437,11 +391,17 @@ Format: vertical infographic, 1024x1536px equivalent proportions.`;
 }
 
 /**
- * Tạo đề thi AI. [ĐÃ CHUYỂN] Gemini → DeepSeek
+ * Generate an AI exam based on type (reading/writing/full).
+ * Returns parsed AIExamData or null on failure.
  */
 export async function generateAIExam(prompt: string, signal?: AbortSignal): Promise<AIExamData | null> {
+    const apiKey = getApiKey();
+    if (!apiKey) return null;
     try {
-        let raw = await callPrimary(prompt, { signal });
+        let raw = await callGemini(
+            { contents: [{ parts: [{ text: prompt }] }] },
+            { signal }
+        );
         if (!raw) return null;
         raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
         raw = raw.replace(/,\s*([}\]])/g, '$1');
@@ -463,20 +423,24 @@ QUY TẮC BẮT BUỘC:
 6. Nếu người dùng chào hoặc gửi tin nhắn xã giao, hãy chào lại và hỏi em cần hỗ trợ gì về ôn thi Văn THPT.`;
 
 /**
- * Tạo phản hồi tự động cho chat học sinh-giáo viên.
- * [ĐÃ CHUYỂN] Gemini → DeepSeek
+ * Generate an AI auto-response for the student-teacher chat.
+ * This function is called automatically when a student sends a message.
  */
 export async function generateChatAutoResponse(
     userMessage: string,
     chatHistory: { role: string; content: string }[] = [],
 ): Promise<string | null> {
+    const apiKey = getApiKey();
+    if (!apiKey) return null;
     try {
         const historyText = chatHistory
             .slice(-6)
             .map(m => `${m.role === 'student' ? 'Học sinh' : 'Trợ lý'}: ${m.content}`)
             .join('\n');
         const fullPrompt = `${CHAT_AUTO_RESPONDER_PROMPT}\n\nLịch sử chat gần đây:\n${historyText}\n\nHọc sinh vừa gửi: "${userMessage}"\n\nTrả lời ngắn gọn:`;
-        const result = await callLight(fullPrompt);
+        const result = await callGemini(
+            { contents: [{ parts: [{ text: fullPrompt }] }] }
+        );
         return result?.trim() || null;
     } catch (err) {
         console.error('Chat auto-response error:', err);
@@ -485,46 +449,98 @@ export async function generateChatAutoResponse(
 }
 
 /**
- * Chấm bài học sinh bằng DeepSeek.
- * [ĐÃ CHUYỂN] Gemini → DeepSeek
- * Hỗ trợ: DOCX (trích xuất text), TXT. Ảnh/PDF chỉ ghi chú (DeepSeek không hỗ trợ multimodal).
+ * Grade student submission using Gemini with File support
+ * Supports images, PDF, and DOCX (via mammoth).
  */
 export async function gradeStudentSubmission(prompt: string, file: File | null): Promise<ExamGrade> {
-    const enhancedPrompt = prompt + `\n\n${GRADING_RUBRIC_PROMPT}\n\n${AI_DETECTION_PROMPT}`;
+    const apiKey = getApiKey();
+    if (!apiKey) throw new Error('API_KEY_MISSING');
 
-    // ── [DEEPSEEK] Trích xuất nội dung file thành text (thay vì gửi binary cho Gemini) ──
-    let fileContentText = '';
+    const enhancedPrompt = prompt + `\n\n⑧ PHÁT HIỆN SỬ DỤNG AI ĐỂ VIẾT BÀI (AI-GENERATED CONTENT):
+   Chỉ áp dụng quét AI cho CÂU NGHỊ LUẬN XÃ HỘI (NLXH) và CÂU NGHỊ LUẬN VĂN HỌC (NLVH). KHÔNG quét và KHÔNG trừ điểm đối với phần Đọc hiểu.
+   
+   CẢNH BÁO QUAN TRỌNG: Học sinh thường học thuộc "văn mẫu", do đó việc xuất hiện vài từ ngữ rập khuôn là RẤT BÌNH THƯỜNG. Để tránh "nhầm lẫn" học sinh với AI, bạn PHẢI phân tích cực kỳ cẩn thận, tổng thể và CHỈ kết luận là AI sử dụng Cơ chế Kết hợp dưới đây.
+
+   =>> BƯỚC 1: NHẬN DIỆN CÁC NHÓM DẤU HIỆU:
+   [DANH SÁCH DẤU HIỆU TRỌNG YẾU - LỖI CẤU TRÚC]
+   (A1) Bullet points vô lý: Dùng gạch đầu dòng, danh sách liệt kê phân mảnh thay vì viết thành đoạn văn nghị luận hoàn chỉnh.
+   (A2) Phân tích suông diện rộng: Đoạn văn cực kỳ dài, hoa mỹ nhưng tóm tắt nội dung 100%, KHÔNG HỀ có bất kỳ một câu nào phân tích chi tiết vào từ ngữ, hình ảnh nghệ thuật, hay biện pháp tu từ của đoạn trích.
+   
+   [DANH SÁCH DẤU HIỆU PHỤ - LỖI TỪ VỰNG & VĂN PHONG]
+   (B1) Từ vựng sáo rỗng dày đặc: "Quả thật,", "Thật vậy,", "Bức tranh toàn cảnh," "Có thể nói rằng," "Như một lời khẳng định đanh thép", "Ám ảnh tâm trí người đọc".
+   (B2) Chuyển ý công nghiệp (Dịch từ phương Tây): "Cuối cùng nhưng không kém phần quan trọng", "Thứ nhất,", "Thứ hai,", "Nhìn chung lại,".
+   (B3) Vô cảm tuyệt đối: Hoàn hảo về ngữ pháp, lạm dụng câu hỏi tu từ ("Phải chăng...", "Liệu rằng...") nhưng văn phong lạnh lẽo giống như đọc tài liệu bách khoa toàn thư, không có ngôn ngữ tự nhiên của học sinh.
+
+   =>> BƯỚC 2: CƠ CHẾ KẾT BỘ TEST (CHỈ KẾT LUẬN LÀ AI KHI THỎA MÃN):
+   Chỉ được phép kết luận đoạn văn do AI viết nếu nó thỏa mãn MỘT TRONG HAI điều kiện tổng thể sau:
+   - Điều kiện 1: Có RÕ RÀNG Ít nhất 1 Cờ [GIAN LẬN] ở đầu bài + Bộc lộ thêm Ít nhất 2 Dấu hiệu Phụ (B1/B2/B3).
+   - Điều kiện 2: KHÔNG có cờ gian lận, nhưng bài viết vi phạm Ít nhất 1 Dấu hiệu Trọng yếu (A1 hoặc A2) CỘNG VỚI Ít nhất 2 Dấu hiệu Phụ (B1/B2/B3) đồng thời.
+
+   =>> BƯỚC 3: CƠ CHẾ XỬ PHẠT TẠI CHỖ (ÁP DỤNG KHI BƯỚC 2 DƯƠNG TÍNH):
+   - Tách bạch điểm: CHỈ TRỪ ĐIỂM CỦA RIÊNG CÂU BỊ PHÁT HIỆN. Không trừ lây lan phần tự viết hoặc Đọc hiểu.
+   - Mức phạt: Trừ ĐÚNG 50% số điểm đáng lý nhận được ở câu vi phạm. (Ví dụ câu đó đáng lý được 4.0 điểm -> phạt 50% -> chỉ cho 2.0 điểm).
+   - Ghi rõ Feedback BẮT BUỘC: "Câu [Nghị luận...] mang đậm văn phong máy móc của AI/ChatGPT theo đánh giá tổng thể cấu trúc và từ vựng. Bài thi đã bị trừ 50% số điểm tại phần này. Hãy tự viết bằng cốt lõi hiểu biết của mình."
+   (TUYỆT ĐỐI không ghi thẻ "lạm dụng ai" vào mảng weaknesses, không để lại vết sẹo dữ liệu dài hạn).
+
+   LƯU Ý CUỐI: Nếu có cờ "[GIAN LẬN]" ở đầu bài nhưng văn phong bài viết HOÀN TOÀN CỦA CON NGƯỜI (không thoả mãn điều kiện văn phong AI): Châm chước giữ nguyên điểm, nhưng vẫn để lại một lời nhắc nhở nhẹ ở feedback: "Hệ thống ghi nhận em đã chuyển tab trong lúc thi, em rút kinh nghiệm nhé."`;
+
+    const parts: any[] = [{ text: enhancedPrompt }];
+
     if (file) {
-        if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+            const base64Data = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const res = reader.result as string;
+                    resolve(res.split(',')[1]);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            parts.push({
+                inlineData: {
+                    mimeType: file.type || 'application/pdf',
+                    data: base64Data
+                }
+            });
+        } else if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const mammoth = await import('mammoth');
                 const result = await mammoth.extractRawText({ arrayBuffer });
-                fileContentText = `\n--- NỘI DUNG VĂN BẢN ĐÍNH KÈM ---\n${result.value}\n-----------------------------------\n`;
+                parts.push({ text: `\n--- NỘI DUNG VĂN BẢN ĐÍNH KÈM ---\n${result.value}\n-----------------------------------\n` });
             } catch (e) {
                 console.error('Lỗi khi đọc file docx:', e);
-                fileContentText = `\n(Lưu ý: Không thể đọc được nội dung từ file docx đính kèm.)\n`;
+                parts.push({ text: `\n(Lưu ý: Không thể đọc được nội dung từ file docx đính kèm.)\n` });
             }
-        } else if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-            // DeepSeek chỉ hỗ trợ text — ghi chú cho AI biết có file đính kèm
-            fileContentText = `\n(Học sinh đã nộp file ${file.type.startsWith('image/') ? 'ảnh' : 'PDF'}: ${file.name}. Hãy chấm dựa trên nội dung bài viết trong prompt.)\n`;
         } else {
             try {
                 const text = await file.text();
-                fileContentText = `\n--- NỘI DUNG VĂN BẢN ĐÍNH KÈM ---\n${text}\n-----------------------------------\n`;
+                parts.push({ text: `\n--- NỘI DUNG VĂN BẢN ĐÍNH KÈM ---\n${text}\n-----------------------------------\n` });
             } catch (e) {
                 console.error('Lỗi đọc file txt:', e);
             }
         }
     }
 
-    const fullPrompt = enhancedPrompt + fileContentText;
+    const gradeKey = getApiKey();
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${gradeKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{ role: 'user', parts }],
+            generationConfig: {
+                temperature: 0.2,
+            }
+        }),
+    });
 
-    // ── [DEEPSEEK] Gọi DeepSeek thay vì Gemini ──
-    const rawText = await callDeepSeek(
-        [{ role: 'user', content: fullPrompt }],
-        { temperature: 0.2, jsonMode: true }
-    );
+    if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     try {
         const jsonMatch = rawText.match(/\{[\s\S]*\}/);
