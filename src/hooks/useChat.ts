@@ -703,22 +703,32 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                         questionsAsked: 0, questionsCorrect: 0,
                     };
                     let changed = false;
-                    if (cleanContent.includes('[QUESTION_CORRECT]')) {
+                    const hasWrong = cleanContent.includes('[QUESTION_WRONG]');
+                    const hasCorrect = cleanContent.includes('[QUESTION_CORRECT]');
+                    const hasSectionDone = cleanContent.includes('[SECTION_DONE]');
+
+                    if (hasCorrect) {
                         cleanContent = cleanContent.replace(/\[QUESTION_CORRECT\]/g, '').trim();
                         lp.questionsCorrect += 1;
                         lp.questionsAsked += 1;
                         changed = true;
                     }
-                    if (cleanContent.includes('[QUESTION_WRONG]')) {
+                    if (hasWrong) {
                         cleanContent = cleanContent.replace(/\[QUESTION_WRONG\]/g, '').trim();
                         lp.questionsAsked += 1;
                         changed = true;
                     }
-                    if (cleanContent.includes('[SECTION_DONE]')) {
+                    // Validate: [SECTION_DONE] chỉ được xử lý khi KHÔNG có [QUESTION_WRONG]
+                    // Nếu AI vô tình gửi cả 2 tag → strip [SECTION_DONE] để tránh skip section sai
+                    if (hasSectionDone && !hasWrong) {
                         cleanContent = cleanContent.replace(/\[SECTION_DONE\]/g, '').trim();
                         lp.sectionsDone += 1;
                         lp.currentSectionIndex = (lp.currentSectionIndex || 0) + 1;
                         changed = true;
+                    } else if (hasSectionDone && hasWrong) {
+                        // AI vi phạm: gửi SECTION_DONE khi HS sai → chỉ strip tag, KHÔNG tăng section
+                        cleanContent = cleanContent.replace(/\[SECTION_DONE\]/g, '').trim();
+                        console.warn('[Lesson] AI gửi [SECTION_DONE] cùng [QUESTION_WRONG] — đã bỏ qua SECTION_DONE');
                     }
                     if (cleanContent.includes('[LESSON_DONE]')) {
                         cleanContent = cleanContent.replace(/\[LESSON_DONE\]/g, '').trim();
