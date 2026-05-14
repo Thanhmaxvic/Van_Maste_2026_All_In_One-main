@@ -654,6 +654,9 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             } else {
                 // ── Normal text response — parse [AI_EXAM] + lesson tags ──
                 let cleanContent = aiContent;
+
+                // Handle [SỬA] correction tags → format as readable styled text
+                cleanContent = cleanContent.replace(/\[SỬA\]\s*(.*?)\s*\[\/SỬA\]/g, '📝 **Sửa:** $1');
                 let aiExamData: AIExamData | null = null;
 
                 // Parse [AI_EXAM] {...} [/AI_EXAM]
@@ -703,6 +706,11 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                     if (cleanContent.includes('[QUESTION_CORRECT]')) {
                         cleanContent = cleanContent.replace(/\[QUESTION_CORRECT\]/g, '').trim();
                         lp.questionsCorrect += 1;
+                        lp.questionsAsked += 1;
+                        changed = true;
+                    }
+                    if (cleanContent.includes('[QUESTION_WRONG]')) {
+                        cleanContent = cleanContent.replace(/\[QUESTION_WRONG\]/g, '').trim();
                         lp.questionsAsked += 1;
                         changed = true;
                     }

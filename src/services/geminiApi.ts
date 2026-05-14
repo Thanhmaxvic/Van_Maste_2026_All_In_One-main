@@ -1,4 +1,4 @@
-import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS, AI_DETECTION_PROMPT } from '../constants';
+import { SYSTEM_PROMPT, CHAT_HISTORY_LIMIT, KNOWLEDGE_DOCS, AI_DETECTION_PROMPT, GRADING_RUBRIC_PROMPT } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
 
 // ================================================================
@@ -490,7 +490,7 @@ export async function generateChatAutoResponse(
  * Hỗ trợ: DOCX (trích xuất text), TXT. Ảnh/PDF chỉ ghi chú (DeepSeek không hỗ trợ multimodal).
  */
 export async function gradeStudentSubmission(prompt: string, file: File | null): Promise<ExamGrade> {
-    const enhancedPrompt = prompt + `\n\n${AI_DETECTION_PROMPT}`;
+    const enhancedPrompt = prompt + `\n\n${GRADING_RUBRIC_PROMPT}\n\n${AI_DETECTION_PROMPT}`;
 
     // ── [DEEPSEEK] Trích xuất nội dung file thành text (thay vì gửi binary cho Gemini) ──
     let fileContentText = '';
