@@ -617,6 +617,18 @@ export interface AdminUserEntry {
     submissionCount: number;
     level: string;
     isOnboarded: boolean;
+    // Learning data for teacher modal
+    targetScore?: number | null;
+    diagnosticScore?: number | null;
+    weaknesses?: string[];
+    strengths?: string[];
+    userTraits?: string[];
+    lessonProgress?: Record<string, LessonProgress>;
+    customTimeline?: { time: string; title: string; desc: string }[];
+    activeLesson?: { sectionId: string; lessonId: string } | null;
+    xp?: number;
+    streak?: number;
+    progress?: number;
 }
 
 /** Get all users for admin panel */
@@ -636,6 +648,17 @@ export async function getAllUsers(): Promise<AdminUserEntry[]> {
             submissionCount: data.submissionCount ?? 0,
             level: levelInfo.level,
             isOnboarded: data.isOnboarded ?? false,
+            targetScore: data.targetScore ?? null,
+            diagnosticScore: data.diagnosticScore ?? null,
+            weaknesses: data.weaknesses || [],
+            strengths: data.strengths || [],
+            userTraits: data.userTraits || [],
+            lessonProgress: data.lessonProgress || {},
+            customTimeline: data.customTimeline || [],
+            activeLesson: data.activeLesson || null,
+            xp: data.xp ?? 0,
+            streak: data.streak ?? 0,
+            progress: data.progress ?? 0,
         });
     });
     return users;

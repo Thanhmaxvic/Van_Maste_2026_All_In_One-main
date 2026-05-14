@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Users, FileText, Clock, RefreshCw, Award, Search, Upload } from 'lucide-react';
+import { Users, FileText, Clock, RefreshCw, Award, Search, Upload, GraduationCap } from 'lucide-react';
+import StudentLearningModal from './StudentLearningModal';
 import {
     getAllUsers,
     getRegisteredUsersCount,
@@ -25,6 +26,7 @@ export default function TeacherDashboard() {
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [editFormData, setEditFormData] = useState({ name: '', email: '', avgScore: 0, bestScore: 0 });
     const [savingUser, setSavingUser] = useState(false);
+    const [viewingStudent, setViewingStudent] = useState<AdminUserEntry | null>(null);
 
     // File upload state
     const [uploadFolder, setUploadFolder] = useState('dethi');
@@ -160,6 +162,14 @@ export default function TeacherDashboard() {
         if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
         return 0;
     });
+
+    const handleStudentUpdated = (uid: string, data: Partial<AdminUserEntry>) => {
+        setUsers(prev => prev.map(u => u.uid === uid ? { ...u, ...data } : u));
+        // Also update the modal's student reference if it's the same one
+        if (viewingStudent && viewingStudent.uid === uid) {
+            setViewingStudent(prev => prev ? { ...prev, ...data } : prev);
+        }
+    };
 
     return (
         <div className="td-container">
@@ -424,6 +434,14 @@ export default function TeacherDashboard() {
                                                     Đổi quyền
                                                 </button>
                                                 <button
+                                                    onClick={() => setViewingStudent(u)}
+                                                    className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-xs font-semibold text-purple-400 transition-colors"
+                                                    title="Xem thực trạng học tập"
+                                                >
+                                                    <GraduationCap size={12} className="inline mr-1" />
+                                                    Học tập
+                                                </button>
+                                                <button
                                                     onClick={async () => {
                                                         if (!u.email) return alert('Người dùng này không có email hợp lệ.');
                                                         if (window.confirm(`Gửi email khôi phục mật khẩu đến ${u.email}?`)) {
@@ -457,6 +475,15 @@ export default function TeacherDashboard() {
                     </table>
                 </div>
             </div>
+
+            {/* Student Learning Modal */}
+            {viewingStudent && (
+                <StudentLearningModal
+                    student={viewingStudent}
+                    onClose={() => setViewingStudent(null)}
+                    onUpdated={handleStudentUpdated}
+                />
+            )}
         </div>
     );
 }
