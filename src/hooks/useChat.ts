@@ -577,6 +577,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             // Build enhanced prompt with lesson context + user memory
             let effectiveInput = val;
             let chatHistory = messages; // default: full history
+            let lessonSystemContext: string | undefined;
             if (activeLesson) {
                 const lessonKey = getLessonKey(activeLesson.sectionId, activeLesson.lessonId);
                 const lp = userProfile?.lessonProgress?.[lessonKey];
@@ -595,14 +596,21 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 const lessonContent = buildLessonContext(activeLesson.docxContent, currentSectionIndex);
                 // In lesson mode, limit history to 8 messages to reduce token usage
                 chatHistory = messages.slice(-8);
-                effectiveInput = `${LESSON_TEACH_PROMPT}\n\nQUAN TRỌNG: Xưng hô là "${pronoun}" khi nói với học sinh. Ví dụ: "${Pronoun} sẽ giảng phần tiếp theo...", "${Pronoun} muốn hỏi em...".${resumeContext}\n\n[NỘI DUNG LÝ THUYẾT]:\n${lessonContent}\n\n[CÂU TRẢ LỜI CỦA HỌC SINH]: ${val}`;
+
+                // Lesson context goes into systemInstruction (not user message)
+                // This prevents re-injecting the full lesson prompt every turn,
+                // which was causing the AI to re-explain content it already covered.
+                lessonSystemContext = `${LESSON_TEACH_PROMPT}\n\nQUAN TRỌNG: Xưng hô là "${pronoun}" khi nói với học sinh. Ví dụ: "${Pronoun} sẽ giảng phần tiếp theo...", "${Pronoun} muốn hỏi em...".${resumeContext}\n\n[NỘI DUNG LÝ THUYẾT]:\n${lessonContent}`;
+
+                // User message is ONLY the student's reply — clean and simple
+                effectiveInput = val;
             }
             // Inject user memory/traits for personalization
             const traits = userProfile?.userTraits;
             if (traits && traits.length > 0) {
                 effectiveInput = `[TRÍ NHỚ VỀ HỌC SINH]: ${traits.join('; ')}\n\n${effectiveInput}`;
             }
-            const { text: aiContent, generatedImageUrl } = await sendChatMessage(chatHistory, effectiveInput, previewImage, userProfile, abortControllerRef.current?.signal);
+            const { text: aiContent, generatedImageUrl } = await sendChatMessage(chatHistory, effectiveInput, previewImage, userProfile, abortControllerRef.current?.signal, lessonSystemContext);
 
             // ── Detect [INFOGRAPHIC] tag → tạo ảnh infographic im lặng ─────────
             const infMatch = aiContent.match(/\[INFOGRAPHIC\]([^\[]*)\[\/INFOGRAPHIC\]/);

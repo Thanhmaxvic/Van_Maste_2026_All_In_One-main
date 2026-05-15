@@ -250,32 +250,88 @@ RÀNG BUỘC BẮT BUỘC:
 
     const rawText = await sendGradingRequest(prompt, signal);
 
-    try {
-        // AI có thể trả về JSON bọc trong ```json ... ``` — cần strip
-        let cleanText = rawText
-            .replace(/^```(?:json)?\s*/i, '')
-            .replace(/\s*```\s*$/i, '')
+    // ── Helper: sanitize and parse AI JSON robustly ──
+    function tryParseGradingJson(text: string): ExamGrade | null {
+        // Strip markdown code fences
+        let clean = text
+            .replace(/^[\s\S]*?```(?:json)?\s*/i, '')
+            .replace(/\s*```[\s\S]*$/i, '')
             .trim();
-        // Fix trailing commas trước } hoặc ] (lỗi phổ biến của AI)
-        cleanText = cleanText.replace(/,\s*([}\]])/g, '$1');
 
-        const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]) as ExamGrade;
-            // Ensure arrays exist
-            parsed.errors = parsed.errors || [];
-            parsed.improvements = parsed.improvements || [];
-            parsed.weaknesses = parsed.weaknesses || [];
-            parsed.strengths = parsed.strengths || [];
-            // Safety net: cap score at 95% of maxScore (max 9.5/10)
-            const capScore = parsed.maxScore * 0.95;
-            if (parsed.score > capScore) {
-                parsed.score = capScore;
+        // Extract outermost JSON object
+        const jsonMatch = clean.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return null;
+        clean = jsonMatch[0];
+
+        // Fix trailing commas before } or ]
+        clean = clean.replace(/,\s*([}\]])/g, '$1');
+
+        // Fix unescaped newlines inside JSON string values
+        clean = clean.replace(/(?<=:\s*")([\s\S]*?)(?=")/g, (match) =>
+            match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')
+        );
+
+        // Attempt 1: direct parse
+        try {
+            return JSON.parse(clean) as ExamGrade;
+        } catch { /* continue */ }
+
+        // Attempt 2: fix unescaped double-quotes inside string values
+        try {
+            const fixedQuotes = clean.replace(
+                /:\s*"((?:[^"\\]|\\.)*)"/g,
+                (_, content: string) => {
+                    const escaped = content.replace(/(?<!\\)"/g, '\\"');
+                    return `: "${escaped}"`;
+                }
+            );
+            return JSON.parse(fixedQuotes) as ExamGrade;
+        } catch { /* continue */ }
+
+        // Attempt 3: extract fields individually via regex
+        try {
+            const getNum = (key: string) => {
+                const m = clean.match(new RegExp(`"${key}"\\s*:\\s*([\\d.]+)`));
+                return m ? parseFloat(m[1]) : 0;
+            };
+            const getStr = (key: string) => {
+                const m = clean.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`));
+                return m ? m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : '';
+            };
+            const score = getNum('score');
+            const maxScore = getNum('maxScore') || 10;
+            const feedback = getStr('feedback');
+            const details = getStr('details');
+
+            if (feedback || details || score > 0) {
+                return {
+                    score,
+                    maxScore,
+                    feedback,
+                    details,
+                    errors: [],
+                    improvements: [],
+                    weaknesses: [],
+                    strengths: [],
+                };
             }
-            return parsed;
+        } catch { /* continue */ }
+
+        return null;
+    }
+
+    const parsed = tryParseGradingJson(rawText);
+    if (parsed) {
+        parsed.errors = parsed.errors || [];
+        parsed.improvements = parsed.improvements || [];
+        parsed.weaknesses = parsed.weaknesses || [];
+        parsed.strengths = parsed.strengths || [];
+        // Safety net: cap score at 95% of maxScore (max 9.5/10)
+        const capScore = (parsed.maxScore || 10) * 0.95;
+        if (parsed.score > capScore) {
+            parsed.score = capScore;
         }
-    } catch (e) {
-        console.error('Failed to parse grading JSON:', e);
+        return parsed;
     }
 
     // Fallback — hiển thị lỗi thân thiện thay vì raw JSON/code
@@ -290,3 +346,4 @@ RÀNG BUỘC BẮT BUỘC:
         strengths: [],
     };
 }
+

@@ -70,7 +70,8 @@ export async function sendChatMessage(
     userText: string,
     previewImage: string | null,
     userProfile?: UserProfile | null,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    lessonContext?: string
 ): Promise<{ text: string; generatedImageUrl: string | null }> {
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('API_KEY_MISSING');
@@ -104,26 +105,56 @@ export async function sendChatMessage(
     }
 
     // Use Gemini's dedicated systemInstruction field — allows context caching & reduces token cost
-    const systemInstruction = { parts: [{ text: SYSTEM_PROMPT + datetimeBlock + profileBlock }] };
-    const parts: unknown[] = [];
+    // If lesson context is provided, append it to systemInstruction (not user message)
+    const systemText = SYSTEM_PROMPT + datetimeBlock + profileBlock + (lessonContext ? `\n\n${lessonContext}` : '');
+    const systemInstruction = { parts: [{ text: systemText }] };
 
-    messages.slice(-CHAT_HISTORY_LIMIT).forEach((m) => {
-        parts.push({ text: `${m.role}: ${m.content}` });
-    });
+    // ── Build proper multi-turn conversation (role: user/model) ──
+    // Gemini cần phân biệt rõ đâu là AI đã nói (model) và HS nói (user)
+    // để tránh lặp lại nội dung đã giảng.
+    const contents: { role: string; parts: unknown[] }[] = [];
+    const historySlice = messages.slice(-CHAT_HISTORY_LIMIT);
 
-    if (previewImage) {
-        const base64Data = previewImage.includes(',') ? previewImage.split(',')[1] : previewImage;
-        if (base64Data) parts.push({ inlineData: { mimeType: 'image/png', data: base64Data } });
+    // Gemini yêu cầu lượt đầu tiên phải là 'user'.
+    // Merge các lượt liên tiếp cùng role để tuân thủ API constraint.
+    for (const m of historySlice) {
+        const geminiRole = m.role === 'assistant' ? 'model' : 'user';
+        const lastEntry = contents[contents.length - 1];
+        if (lastEntry && lastEntry.role === geminiRole) {
+            // Merge liên tiếp cùng role
+            (lastEntry.parts as { text: string }[]).push({ text: m.content });
+        } else {
+            contents.push({ role: geminiRole, parts: [{ text: m.content }] });
+        }
     }
 
-    parts.push({ text: userText });
+    // Ensure first turn is 'user' (Gemini API requirement)
+    if (contents.length > 0 && contents[0].role === 'model') {
+        contents.unshift({ role: 'user', parts: [{ text: '(bắt đầu hội thoại)' }] });
+    }
+
+    // Add current user message (with optional image)
+    const currentParts: unknown[] = [];
+    if (previewImage) {
+        const base64Data = previewImage.includes(',') ? previewImage.split(',')[1] : previewImage;
+        if (base64Data) currentParts.push({ inlineData: { mimeType: 'image/png', data: base64Data } });
+    }
+    currentParts.push({ text: userText });
+
+    // Merge with last entry if also 'user', otherwise push new entry
+    const lastEntry = contents[contents.length - 1];
+    if (lastEntry && lastEntry.role === 'user') {
+        (lastEntry.parts as unknown[]).push(...currentParts);
+    } else {
+        contents.push({ role: 'user', parts: currentParts });
+    }
 
     const geminiKey = getApiKey();
     // ── Chat dùng LITE_MODEL (rẻ, đủ thông minh cho hội thoại) ──
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LITE_MODEL}:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ systemInstruction, contents: [{ role: 'user', parts }] }),
+        body: JSON.stringify({ systemInstruction, contents }),
         signal,
     });
 
@@ -168,8 +199,9 @@ export async function sendChatMessage(
                 const followUpText = `Nội dung tài liệu đã được tải:\n${combinedDocsText}\n\nHãy trả lời câu hỏi của học sinh dựa trên tài liệu này.`;
                 
                 // Call Gemini again with the doc context attached silently
+                // Re-use multi-turn contents and append RAG follow-up
                 const followUpContents = [
-                    { role: 'user', parts: parts },
+                    ...contents,
                     { role: 'model', parts: [{ text: `[FETCH_DOC] Đang đọc ${docNames.join(', ')}...` }] },
                     { role: 'user', parts: [{ text: followUpText }] }
                 ];
@@ -542,6 +574,7 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
             contents: [{ role: 'user', parts }],
             generationConfig: {
                 temperature: 0.2,
+                responseMimeType: 'application/json',
             }
         }),
     });
@@ -553,23 +586,100 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
     const data = await res.json();
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    try {
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            let cleanJson = jsonMatch[0].replace(/,\s*([}\]])/g, '$1');
-            const parsed = JSON.parse(cleanJson) as ExamGrade;
-            parsed.errors = parsed.errors || [];
-            parsed.improvements = parsed.improvements || [];
-            parsed.weaknesses = parsed.weaknesses || [];
-            parsed.strengths = parsed.strengths || [];
-            if (parsed.score > parsed.maxScore) parsed.score = parsed.maxScore;
-            const capScore = parsed.maxScore * 0.95;
-            if (parsed.score > capScore) parsed.score = capScore;
-            return parsed;
-        }
-        throw new Error('Failed to parse grading JSON from AI response.');
-    } catch (e) {
-        console.error(`[GradeSubmission] Parse error:`, e);
-        throw e;
+    // ── Helper: sanitize and parse AI JSON robustly ──
+    function tryParseGradingJson(text: string): ExamGrade | null {
+        // Strip markdown code fences
+        let clean = text
+            .replace(/^[\s\S]*?```(?:json)?\s*/i, '')
+            .replace(/\s*```[\s\S]*$/i, '')
+            .trim();
+
+        // Extract outermost JSON object
+        const jsonMatch = clean.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return null;
+        clean = jsonMatch[0];
+
+        // Fix trailing commas before } or ]
+        clean = clean.replace(/,\s*([}\]])/g, '$1');
+
+        // Fix unescaped newlines inside JSON string values
+        clean = clean.replace(/(?<=:\s*")([\s\S]*?)(?=")/g, (match) =>
+            match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')
+        );
+
+        // Attempt 1: direct parse
+        try {
+            return JSON.parse(clean) as ExamGrade;
+        } catch { /* continue */ }
+
+        // Attempt 2: fix unescaped double-quotes inside string values
+        // Strategy: replace content between key-value pairs more aggressively
+        try {
+            const fixedQuotes = clean.replace(
+                /:\s*"((?:[^"\\]|\\.)*)"/g,
+                (_, content: string) => {
+                    // Re-escape any unescaped quotes within the value
+                    const escaped = content.replace(/(?<!\\)"/g, '\\"');
+                    return `: "${escaped}"`;
+                }
+            );
+            return JSON.parse(fixedQuotes) as ExamGrade;
+        } catch { /* continue */ }
+
+        // Attempt 3: try to extract fields individually via regex
+        try {
+            const getNum = (key: string) => {
+                const m = clean.match(new RegExp(`"${key}"\\s*:\\s*([\\d.]+)`));
+                return m ? parseFloat(m[1]) : 0;
+            };
+            const getStr = (key: string) => {
+                const m = clean.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`));
+                return m ? m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : '';
+            };
+            const score = getNum('score');
+            const maxScore = getNum('maxScore') || 10;
+            const feedback = getStr('feedback');
+            const details = getStr('details');
+
+            if (feedback || details || score > 0) {
+                return {
+                    score,
+                    maxScore,
+                    feedback,
+                    details,
+                    errors: [],
+                    improvements: [],
+                    weaknesses: [],
+                    strengths: [],
+                };
+            }
+        } catch { /* continue */ }
+
+        return null;
     }
+
+    const parsed = tryParseGradingJson(rawText);
+    if (parsed) {
+        parsed.errors = parsed.errors || [];
+        parsed.improvements = parsed.improvements || [];
+        parsed.weaknesses = parsed.weaknesses || [];
+        parsed.strengths = parsed.strengths || [];
+        if (parsed.score > (parsed.maxScore || 10)) parsed.score = parsed.maxScore || 10;
+        const capScore = (parsed.maxScore || 10) * 0.95;
+        if (parsed.score > capScore) parsed.score = capScore;
+        return parsed;
+    }
+
+    // Fallback: return a graceful error result instead of throwing
+    console.error('[GradeSubmission] All JSON parse attempts failed. Raw text length:', rawText.length);
+    return {
+        score: 0,
+        maxScore: 10,
+        feedback: 'Hệ thống chấm điểm gặp lỗi kỹ thuật khi phân tích kết quả. Vui lòng thử chấm lại.',
+        details: 'AI đã trả về kết quả nhưng định dạng không hợp lệ. Bài làm đã được ghi nhận.',
+        errors: [],
+        improvements: ['Thử chấm lại bài để nhận kết quả chính xác'],
+        weaknesses: [],
+        strengths: [],
+    };
 }
