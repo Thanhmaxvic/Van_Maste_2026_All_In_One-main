@@ -34,7 +34,7 @@ import {
 } from 'firebase/firestore';
 import { getDatabase, ref as rtdbRef, onValue, onDisconnect, set, push } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
-import type { UserProfile, ExamSubmission, ExamGrade, LessonProgress, TeacherProfile } from '../types';
+import type { UserProfile, ExamSubmission, ExamGrade, LessonProgress, TeacherProfile, TimelineItem } from '../types';
 import { calculateUserLevel } from './levelService';
 
 const firebaseConfig = {
@@ -624,7 +624,7 @@ export interface AdminUserEntry {
     strengths?: string[];
     userTraits?: string[];
     lessonProgress?: Record<string, LessonProgress>;
-    customTimeline?: { time: string; title: string; desc: string }[];
+    customTimeline?: TimelineItem[];
     activeLesson?: { sectionId: string; lessonId: string } | null;
     xp?: number;
     streak?: number;

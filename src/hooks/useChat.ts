@@ -24,6 +24,7 @@ import {
     sendGradingRequest,
 } from '../services/geminiApi';
 import type { DiagnosticQuizData } from '../services/geminiApi';
+import type { TimelineItem } from '../types';
 import { playTTS, queueTTS, stopCurrentAudio } from '../services/ttsService';
 import { useAuth } from '../context/AuthContext';
 import { saveTargetScore, saveChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson, updateUserProfile } from '../services/firebaseService';
@@ -679,7 +680,7 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 // Parse [TIMELINE]
                 if (cleanContent.includes('[TIMELINE]')) {
                     const lines = cleanContent.split('\n');
-                    const timelineEvents: { time: string; title: string; desc: string }[] = [];
+                    const timelineEvents: TimelineItem[] = [];
                     const remainingLines: string[] = [];
                     for (const line of lines) {
                         if (line.includes('[TIMELINE]')) {

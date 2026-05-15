@@ -153,14 +153,14 @@ function StudentApp() {
             className="mobile-sidebar-sheet"
             onClick={e => e.stopPropagation()}
           >
-            <Sidebar profile={userProfile} />
+            <Sidebar profile={userProfile} onGoToLesson={(sId, lId) => { startLesson(sId, lId); setActiveTab('chat'); setMobileSidebarOpen(false); }} onGoToExam={() => { setActiveTab('exam'); setMobileSidebarOpen(false); }} />
           </div>
         </div>
       )}
 
       <div className="app-body">
         {/* Left Sidebar — desktop only */}
-        {userProfile && <Sidebar profile={userProfile} />}
+        {userProfile && <Sidebar profile={userProfile} onGoToLesson={(sId, lId) => { startLesson(sId, lId); setActiveTab('chat'); }} onGoToExam={() => setActiveTab('exam')} />}
 
         {/* Main Area */}
         <div className="main-area">
@@ -447,6 +447,7 @@ function StudentApp() {
                   <ProgressDashboard
                     userProfile={userProfile}
                     onGoToLesson={(sId, lId) => { startLesson(sId, lId); setActiveTab('chat'); }}
+                    onGoToExam={() => setActiveTab('exam')}
                   />
                 )}
                 <div style={{ borderTop: '4px solid var(--color-surface-hover)', flex: 1, minHeight: 400 }}>
@@ -463,7 +464,7 @@ function StudentApp() {
           {/* Roadmap Tab (mobile: chứa nội dung sidebar) */}
           {activeTab === 'roadmap' && userProfile && (
             <div className="roadmap-page">
-              <Sidebar profile={userProfile} />
+              <Sidebar profile={userProfile} onGoToLesson={(sId, lId) => { startLesson(sId, lId); setActiveTab('chat'); }} onGoToExam={() => setActiveTab('exam')} />
             </div>
           )}
 

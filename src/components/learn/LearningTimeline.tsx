@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { CheckCircle, Lock, Play, ChevronRight, Star, RefreshCw } from 'lucide-react';
+import { CheckCircle, Lock, Play, ChevronRight, Star, RefreshCw, Target } from 'lucide-react';
 import { CURRICULUM, getLessonKey } from '../../constants/curriculum';
 import type { LessonProgress, UserProfile } from '../../types';
-import { getWeaknessRecommendations, getSpacedRepetitionLessons } from '../../services/recommendationService';
+import { getWeaknessRecommendations, getSpacedRepetitionLessons, generateAdaptiveTimeline } from '../../services/recommendationService';
 
 interface LearningTimelineProps {
     lessonProgress: Record<string, LessonProgress>;
@@ -45,6 +45,22 @@ export default function LearningTimeline({ lessonProgress, onSelectLesson, userP
         for (const r of getSpacedRepetitionLessons(userProfile)) {
             const k = getLessonKey(r.sectionId, r.lessonId);
             if (!map[k]) map[k] = { type: 'review', reason: r.reason };
+        }
+        return map;
+    }, [userProfile]);
+
+    // Compute which lessons are in the current roadmap phase
+    const roadmapBadges = useMemo(() => {
+        const map: Record<string, string> = {}; // lessonKey -> phase label
+        if (!userProfile) return map;
+        const timeline = generateAdaptiveTimeline(userProfile);
+        const current = timeline.find(i => i.status === 'in_progress');
+        if (!current) return map;
+        const phase = current.time;
+        for (const item of timeline) {
+            if (item.time === phase && item.lessonKey && item.status !== 'done') {
+                map[item.lessonKey] = phase;
+            }
         }
         return map;
     }, [userProfile]);
@@ -312,6 +328,7 @@ export default function LearningTimeline({ lessonProgress, onSelectLesson, userP
                     const badge = badges[key];
                     const isRecommended = badge?.type === 'weakness';
                     const needsReview = badge?.type === 'review';
+                    const roadmapPhase = roadmapBadges[key]; // e.g. "GĐ 2"
 
                     return (
                         <div
@@ -319,7 +336,7 @@ export default function LearningTimeline({ lessonProgress, onSelectLesson, userP
                             style={{
                                 background: isRecommended ? '#FFFBEB' : needsReview ? '#F0F9FF' : 'var(--color-surface)',
                                 border: '1px solid',
-                                borderColor: isRecommended ? '#FCD34D' : needsReview ? '#7DD3FC' : isCompleted ? '#bbf7d0' : isInProgress ? 'var(--color-primary-light)' : 'var(--color-border)',
+                                borderColor: roadmapPhase ? '#34D399' : isRecommended ? '#FCD34D' : needsReview ? '#7DD3FC' : isCompleted ? '#bbf7d0' : isInProgress ? 'var(--color-primary-light)' : 'var(--color-border)',
                                 borderRadius: 12,
                                 padding: '12px 16px',
                                 cursor: 'pointer',
@@ -337,6 +354,19 @@ export default function LearningTimeline({ lessonProgress, onSelectLesson, userP
                                 e.currentTarget.style.background = isRecommended ? '#FFFBEB' : needsReview ? '#F0F9FF' : 'var(--color-surface)';
                             }}
                         >
+                            {/* Roadmap phase badge — highest priority */}
+                            {roadmapPhase && (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 4,
+                                    fontSize: 11, fontWeight: 700, marginBottom: 6,
+                                    color: '#059669',
+                                    background: '#D1FAE5',
+                                    padding: '3px 8px', borderRadius: 6, width: 'fit-content',
+                                }}>
+                                    <Target size={11} />
+                                    📌 Lộ trình {roadmapPhase}
+                                </div>
+                            )}
                             {/* Recommendation badge */}
                             {badge && (
                                 <div style={{

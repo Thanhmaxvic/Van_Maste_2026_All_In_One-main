@@ -88,7 +88,20 @@ export interface UserProfile {
     lessonId: string;
   } | null;
   /** Custom AI generated timeline for the student */
-  customTimeline?: { time: string; title: string; desc: string }[];
+  customTimeline?: TimelineItem[];
+}
+
+/** A single milestone in the personalized learning roadmap */
+export interface TimelineItem {
+  time: string;
+  title: string;
+  desc: string;
+  /** Link to a specific lesson key (e.g. "s2-b1") */
+  lessonKey?: string;
+  /** Type of milestone */
+  type?: 'weakness' | 'review' | 'next' | 'exam';
+  /** Computed status — NOT persisted, calculated at render time */
+  status?: 'pending' | 'in_progress' | 'done';
 }
 
 /** Teacher display profile shown to students in chat */

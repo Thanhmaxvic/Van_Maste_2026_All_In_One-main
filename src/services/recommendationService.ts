@@ -290,71 +290,194 @@ export function getAllRecommendations(profile: UserProfile): {
     };
 }
 
+import type { TimelineItem } from '../types';
+
 /**
- * Generate a default personalized timeline for users who have engaged >= 20%
- * but haven't received a custom timeline from the AI yet.
+ * Compute the real-time status of each timeline item based on current profile data.
+ * This is called at render time — statuses are NOT persisted.
  */
-export function generateDefaultTimeline(profile: UserProfile): { time: string; title: string; desc: string }[] {
+export function computeTimelineStatus(
+    timeline: TimelineItem[],
+    profile: UserProfile,
+): TimelineItem[] {
+    const lp = profile.lessonProgress || {};
+    let foundFirstPending = false;
+
+    return timeline.map(item => {
+        let status: TimelineItem['status'] = 'pending';
+
+        if (item.type === 'exam') {
+            // Exam milestones: done if student has submitted enough exams
+            const requiredSubmissions = item.lessonKey === 'exam-1' ? 1 : item.lessonKey === 'exam-3' ? 3 : 2;
+            if ((profile.submissionCount || 0) >= requiredSubmissions) {
+                status = 'done';
+            }
+        } else if (item.lessonKey) {
+            const progress = lp[item.lessonKey];
+            if (progress?.status === 'completed') {
+                status = 'done';
+            } else if (progress?.status === 'in_progress') {
+                status = 'in_progress';
+            }
+        } else if (item.type === 'weakness') {
+            // Weakness milestones without specific lesson: done if weakness resolved
+            const weaknesses = (profile.weaknesses || []).map(w => w.toLowerCase());
+            const titleLower = item.title.toLowerCase();
+            // If the weakness topic no longer appears, it's resolved
+            const stillExists = weaknesses.some(w => titleLower.includes(w) || w.includes(titleLower.split(':').pop()?.trim() || ''));
+            if (!stillExists && (profile.submissionCount || 0) > 0) {
+                status = 'done';
+            }
+        }
+
+        // Mark the first non-done item as "in_progress" (current milestone)
+        if (status === 'pending' && !foundFirstPending) {
+            foundFirstPending = true;
+            status = 'in_progress';
+        }
+
+        return { ...item, status };
+    });
+}
+
+/**
+ * Generate an adaptive, phase-based learning roadmap based on the student's
+ * current weaknesses, lesson progress, diagnostic score, and exam history.
+ * 
+ * Phases:
+ *   GĐ1: Nền tảng — build foundation based on diagnostic level
+ *   GĐ2: Khắc phục — target specific weaknesses
+ *   GĐ3: Nâng cao — advance to harder content
+ *   GĐ4: Thực chiến — practice exams under timed conditions
+ * 
+ * Each item is linked to a specific lesson or action.
+ */
+export function generateAdaptiveTimeline(profile: UserProfile): TimelineItem[] {
     const recs = getAllRecommendations(profile);
-    const timeline = [];
-    
-    // Tuần 1: Khắc phục điểm yếu
-    if (recs.weakness.length > 0) {
-        timeline.push({
-            time: 'Tuần 1',
-            title: `Cải thiện: ${profile.weaknesses?.[0] || 'Điểm yếu'}`,
-            desc: `Tập trung vào bài "${recs.weakness[0].title}" để lấp lỗ hổng kiến thức nền tảng.`
-        });
-    } else {
-        timeline.push({
-            time: 'Tuần 1',
-            title: 'Củng cố kiến thức nền tảng',
-            desc: 'Ôn tập lại các khái niệm cơ bản đã học để xây dựng gốc rễ vững chắc.'
-        });
-    }
+    const lp = profile.lessonProgress || {};
+    const avgScore = profile.avgScore || 0;
+    const diagScore = profile.diagnosticScore ?? 0;
+    const submissions = profile.submissionCount || 0;
+    const timeline: TimelineItem[] = [];
 
-    // Tuần 2: Ôn tập ngắt quãng hoặc Điểm yếu thứ 2
-    if (recs.review.length > 0) {
-        timeline.push({
-            time: 'Tuần 2',
-            title: 'Ôn tập ngắt quãng (Spaced Repetition)',
-            desc: `Hệ thống nhận thấy em cần ôn lại "${recs.review[0].title}" để nhớ lâu hơn.`
-        });
-    } else if (recs.weakness.length > 1) {
-        timeline.push({
-            time: 'Tuần 2',
-            title: `Cải thiện: ${profile.weaknesses?.[1]}`,
-            desc: `Học bài "${recs.weakness[1].title}" để nâng cao kỹ năng xử lý đề.`
-        });
-    } else {
-        timeline.push({
-            time: 'Tuần 2',
-            title: 'Nâng cao kỹ năng phân tích',
-            desc: 'Luyện tập tư duy sâu và các biện pháp nghệ thuật trong văn bản.'
-        });
-    }
+    // ── Determine student level ──
+    const effectiveScore = avgScore > 0 ? avgScore : diagScore;
+    const level: 'basic' | 'standard' | 'advanced' =
+        effectiveScore >= 8 ? 'advanced' : effectiveScore >= 6 ? 'standard' : 'basic';
 
-    // Tuần 3: Bài học tiếp theo
-    if (recs.next) {
-        timeline.push({
-            time: 'Tuần 3',
-            title: `Học mới: ${recs.next.title}`,
-            desc: `Tiếp tục lộ trình với bài học phù hợp với trình độ hiện tại của em.`
-        });
-    } else {
-        timeline.push({
-            time: 'Tuần 3',
-            title: 'Thực hành nâng cao',
-            desc: 'Chuyển sang các bài học có độ khó cao hơn để bứt phá điểm số.'
-        });
-    }
+    // ── GĐ1: Nền tảng ─────────────────────────────────────────────
+    // Pick foundation lessons based on level
+    const foundationLessons = level === 'advanced'
+        ? [{ key: 's1-b3', title: 'Ôn tập tri thức ngữ văn lớp 12' }]
+        : level === 'standard'
+            ? [{ key: 's1-b2', title: 'Ôn tập tri thức ngữ văn lớp 11' }]
+            : [{ key: 's1-b1', title: 'Ôn tập tri thức ngữ văn lớp 10' }];
 
-    // Tuần 4: Đề thi thử
+    // Add reading comprehension foundation
+    const readingLesson = lp['s2-b1']?.status === 'completed'
+        ? { key: 's2-b2', title: 'Thực hành đọc hiểu' }
+        : { key: 's2-b1', title: 'Lý thuyết đọc hiểu' };
+
     timeline.push({
-        time: 'Tuần 4',
-        title: 'Thực chiến đề thi thử',
-        desc: 'Làm đề kiểm tra tổng hợp 120 phút để rèn áp lực thời gian và tâm lý phòng thi.'
+        time: 'GĐ 1',
+        title: `Nền tảng: ${foundationLessons[0].title}`,
+        desc: `Xây dựng kiến thức gốc rễ ${level === 'advanced' ? 'nâng cao' : level === 'standard' ? 'chuẩn' : 'cơ bản'} trước khi đi sâu vào kỹ năng.`,
+        lessonKey: foundationLessons[0].key,
+        type: 'next',
     });
 
-    return timeline;
+    timeline.push({
+        time: 'GĐ 1',
+        title: `Nền tảng: ${readingLesson.title}`,
+        desc: 'Nắm vững kỹ năng đọc hiểu — chiếm 4/10 điểm trong đề thi.',
+        lessonKey: readingLesson.key,
+        type: 'next',
+    });
+
+    // ── GĐ2: Khắc phục ────────────────────────────────────────────
+    if (recs.weakness.length > 0) {
+        for (const rec of recs.weakness.slice(0, 2)) {
+            const lessonKey = getLessonKey(rec.sectionId, rec.lessonId);
+            timeline.push({
+                time: 'GĐ 2',
+                title: `Khắc phục: ${rec.title}`,
+                desc: rec.reason,
+                lessonKey,
+                type: 'weakness',
+            });
+        }
+    } else {
+        // No specific weaknesses — suggest writing practice
+        const writingLesson = lp['s3-b1']?.status === 'completed'
+            ? (lp['s3-b2']?.status === 'completed' ? 's3-b3' : 's3-b2')
+            : 's3-b1';
+        const writingTitle = CURRICULUM.flatMap(s => s.lessons).find(l => getLessonKey(
+            CURRICULUM.find(s => s.lessons.includes(l))!.id, l.id
+        ) === writingLesson)?.title || 'Luyện viết đoạn văn';
+
+        timeline.push({
+            time: 'GĐ 2',
+            title: `Luyện tập: ${writingTitle}`,
+            desc: 'Rèn kỹ năng viết — chiếm 6/10 điểm trong đề thi.',
+            lessonKey: writingLesson,
+            type: 'next',
+        });
+    }
+
+    // ── GĐ3: Nâng cao ─────────────────────────────────────────────
+    if (recs.review.length > 0) {
+        // Prioritize spaced repetition review
+        const rev = recs.review[0];
+        timeline.push({
+            time: 'GĐ 3',
+            title: `Ôn tập: ${rev.title}`,
+            desc: rev.reason,
+            lessonKey: getLessonKey(rev.sectionId, rev.lessonId),
+            type: 'review',
+        });
+    }
+
+    if (recs.next) {
+        timeline.push({
+            time: 'GĐ 3',
+            title: `Học mới: ${recs.next.title}`,
+            desc: recs.next.reason,
+            lessonKey: getLessonKey(recs.next.sectionId, recs.next.lessonId),
+            type: 'next',
+        });
+    } else {
+        // All lessons done — suggest advanced writing
+        const advancedLesson = lp['s4-b3']?.status === 'completed' ? 's4-b2' : 's4-b3';
+        timeline.push({
+            time: 'GĐ 3',
+            title: 'Nâng cao kỹ năng viết bài NLVH',
+            desc: 'Bứt phá điểm số với kỹ năng phân tích văn học nâng cao.',
+            lessonKey: advancedLesson,
+            type: 'next',
+        });
+    }
+
+    // ── GĐ4: Thực chiến ───────────────────────────────────────────
+    const examDesc = submissions === 0
+        ? 'Làm đề thi thử đầu tiên để đánh giá năng lực tổng hợp.'
+        : submissions < 3
+            ? `Đã làm ${submissions} đề. Cần thêm ${3 - submissions} đề để đủ dữ liệu đánh giá chính xác.`
+            : `Đã làm ${submissions} đề (TB: ${avgScore.toFixed(1)}/10). Tiếp tục luyện để nâng điểm.`;
+
+    timeline.push({
+        time: 'GĐ 4',
+        title: 'Thực chiến: Đề thi thử tổng hợp',
+        desc: examDesc,
+        lessonKey: submissions < 1 ? 'exam-1' : submissions < 3 ? 'exam-3' : 'exam-more',
+        type: 'exam',
+    });
+
+    // Apply real-time status computation
+    return computeTimelineStatus(timeline, profile);
 }
+
+/** @deprecated Use generateAdaptiveTimeline instead */
+export function generateDefaultTimeline(profile: UserProfile): TimelineItem[] {
+    return generateAdaptiveTimeline(profile);
+}
+

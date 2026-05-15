@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import type { UserProfile } from '../types';
+import type { UserProfile, TimelineItem } from '../types';
 import { PRONOUN_MAP } from '../constants';
 import { generateWeaknessAdvice, isApiKeyConfigured } from '../services/geminiApi';
 import { CURRICULUM, getLessonKey } from '../constants/curriculum';
-import { generateDefaultTimeline } from '../services/recommendationService';
+import { generateAdaptiveTimeline } from '../services/recommendationService';
 
 interface SidebarProps {
     profile: UserProfile;
+    onGoToLesson?: (sectionId: string, lessonId: string) => void;
+    onGoToExam?: () => void;
 }
 
 function ProgressRing({ pct, size = 70 }: { pct: number; size?: number }) {
@@ -29,7 +31,13 @@ function ProgressRing({ pct, size = 70 }: { pct: number; size?: number }) {
     );
 }
 
-export default function Sidebar({ profile }: SidebarProps) {
+/** Parse a lesson key like "s2-b1" into { sectionId, lessonId } */
+function parseLessonKey(key: string): { sectionId: string; lessonId: string } | null {
+    const m = key.match(/^(s\d+)-(b\d+)$/);
+    return m ? { sectionId: m[1], lessonId: m[2] } : null;
+}
+
+export default function Sidebar({ profile, onGoToLesson, onGoToExam }: SidebarProps) {
     const avg = profile.avgScore ?? 0;
     const target = profile.targetScore ?? 8;
     const pct = Math.min(Math.round((avg / target) * 100), 100);
@@ -53,10 +61,39 @@ export default function Sidebar({ profile }: SidebarProps) {
         ev => ev.time.toLowerCase() !== 'thời gian' && !ev.title.toLowerCase().includes('nội dung') && !ev.title.toLowerCase().includes('sự kiện')
     );
 
-    // Use custom timeline if it exists and has real content, otherwise generate a default one if user has interacted
+    // Use custom timeline if it exists and has real content, otherwise generate adaptive one if user has interacted
     const timelineToDisplay = validCustomTimeline && validCustomTimeline.length > 0 
         ? validCustomTimeline 
-        : (hasInteracted ? generateDefaultTimeline(profile) : null);
+        : (hasInteracted ? generateAdaptiveTimeline(profile) : null);
+
+    // ── Celebration toast state ──
+    const [celebration, setCelebration] = useState<string | null>(null);
+    const [prevDoneCount, setPrevDoneCount] = useState<number>(-1);
+
+    useEffect(() => {
+        if (!timelineToDisplay) return;
+        const doneCount = timelineToDisplay.filter(i => i.status === 'done').length;
+        if (prevDoneCount >= 0 && doneCount > prevDoneCount) {
+            const justCompleted = timelineToDisplay.find((item, idx) => {
+                return item.status === 'done' && idx === doneCount - 1;
+            });
+            setCelebration(`🎉 Hoàn thành: ${justCompleted?.title || 'mục tiêu'}!`);
+            setTimeout(() => setCelebration(null), 4000);
+        }
+        setPrevDoneCount(doneCount);
+    }, [timelineToDisplay?.map(i => i.status).join(',')]);
+
+    const handleTimelineClick = (item: TimelineItem) => {
+        if (!item) return;
+        if (item.type === 'exam') {
+            onGoToExam?.();
+        } else if (item.lessonKey) {
+            const parsed = parseLessonKey(item.lessonKey);
+            if (parsed) {
+                onGoToLesson?.(parsed.sectionId, parsed.lessonId);
+            }
+        }
+    };
 
     useEffect(() => {
         const baseTip = () => {
@@ -72,13 +109,11 @@ export default function Sidebar({ profile }: SidebarProps) {
             return `Em cần ôn luyện thêm. Điểm trung bình hiện tại là ${avg.toFixed(1)}/10.`;
         };
 
-        // Nếu không có API Key hoặc không có điểm yếu, dùng gợi ý tĩnh
         if (!isApiKeyConfigured() || weaknesses.length === 0) {
             setAiTip(baseTip());
             return;
         }
 
-        // Check sessionStorage cache to avoid redundant API calls
         const cacheKey = `aiTip::${weaknesses.join('|')}`;
         const cached = sessionStorage.getItem(cacheKey);
         if (cached) {
@@ -87,8 +122,6 @@ export default function Sidebar({ profile }: SidebarProps) {
         }
 
         let cancelled = false;
-
-        // Gợi ý tạm thời trong lúc chờ AI
         setAiTip(`Điểm yếu chính: ${weaknesses.slice(0, 2).join(', ')}. ${Pronoun} đang chuẩn bị gợi ý khắc phục cho em...`);
 
         const run = async () => {
@@ -97,8 +130,7 @@ export default function Sidebar({ profile }: SidebarProps) {
                 if (!cancelled) {
                     const finalTip = tip || baseTip();
                     setAiTip(finalTip);
-                    // Cache the result for this session
-                    try { sessionStorage.setItem(cacheKey, finalTip); } catch { /* quota exceeded — ignore */ }
+                    try { sessionStorage.setItem(cacheKey, finalTip); } catch { /* quota exceeded */ }
                 }
             } catch {
                 if (!cancelled) {
@@ -108,14 +140,24 @@ export default function Sidebar({ profile }: SidebarProps) {
         };
 
         run();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [avg, target, weaknesses.join('|')]); // use joined string to avoid re-render on reference change
+        return () => { cancelled = true; };
+    }, [avg, target, weaknesses.join('|')]);
 
     return (
         <aside className="sidebar">
+            {/* Celebration toast */}
+            {celebration && (
+                <div style={{
+                    position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999,
+                    background: 'linear-gradient(135deg, #059669, #10B981)', color: '#fff',
+                    padding: '12px 24px', borderRadius: 12, fontWeight: 700, fontSize: 14,
+                    boxShadow: '0 8px 30px rgba(16, 185, 129, 0.4)',
+                    animation: 'slideUp 0.4s ease-out',
+                }}>
+                    {celebration}
+                </div>
+            )}
+
             {/* Score Card */}
             <div className="score-card">
                 <div className="score-ring-wrap">
@@ -151,37 +193,80 @@ export default function Sidebar({ profile }: SidebarProps) {
                 <div className="ai-tip-box">{aiTip}</div>
             </div>
 
-            {/* Custom AI Timeline (Lộ trình cá nhân hoá) */}
+            {/* Adaptive Timeline (Lộ trình cá nhân hoá) */}
             {timelineToDisplay && timelineToDisplay.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                     <div className="sidebar-section-title" style={{ color: '#059669', marginTop: 12 }}>Lộ trình cá nhân hoá</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {timelineToDisplay.map((ev, i) => (
-                            <div key={i} style={{
-                                background: 'var(--color-surface)',
-                                borderLeft: '4px solid #10B981',
-                                borderTop: '1px solid var(--color-border)',
-                                borderRight: '1px solid var(--color-border)',
-                                borderBottom: '1px solid var(--color-border)',
-                                borderRadius: '0 8px 8px 0',
-                                padding: '10px 12px',
-                                boxShadow: 'var(--shadow-sm)'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#047857', background: '#D1FAE5', padding: '2px 6px', borderRadius: 4 }}>
-                                        {ev.time}
-                                    </span>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2 }}>
-                                        {ev.title}
-                                    </span>
-                                </div>
-                                {ev.desc && (
-                                    <div style={{ color: 'var(--color-text-muted)', fontSize: 12, lineHeight: 1.4 }}>
-                                        {ev.desc}
+                        {timelineToDisplay.map((ev, i) => {
+                            const isDone = ev.status === 'done';
+                            const isCurrent = ev.status === 'in_progress';
+                            const isExam = ev.type === 'exam';
+                            const isClickable = !isDone && (!!ev.lessonKey || isExam) && (!!onGoToLesson || !!onGoToExam);
+
+                            return (
+                                <div
+                                    key={i}
+                                    onClick={isClickable ? () => handleTimelineClick(ev) : undefined}
+                                    style={{
+                                        background: isDone ? 'rgba(16, 185, 129, 0.08)' : isCurrent ? 'var(--color-surface)' : 'var(--color-surface)',
+                                        borderLeft: `4px solid ${isDone ? '#10B981' : isCurrent ? '#F59E0B' : 'var(--color-border)'}`,
+                                        borderTop: '1px solid var(--color-border)',
+                                        borderRight: '1px solid var(--color-border)',
+                                        borderBottom: '1px solid var(--color-border)',
+                                        borderRadius: '0 8px 8px 0',
+                                        padding: '10px 12px',
+                                        boxShadow: isCurrent ? '0 2px 8px rgba(245, 158, 11, 0.15)' : 'var(--shadow-sm)',
+                                        cursor: isClickable ? 'pointer' : 'default',
+                                        transition: 'all 0.2s',
+                                        opacity: isDone ? 0.7 : 1,
+                                    }}
+                                    onMouseEnter={isClickable ? (e) => {
+                                        e.currentTarget.style.borderLeftColor = isCurrent ? '#D97706' : '#10B981';
+                                        e.currentTarget.style.transform = 'translateX(2px)';
+                                    } : undefined}
+                                    onMouseLeave={isClickable ? (e) => {
+                                        e.currentTarget.style.borderLeftColor = isDone ? '#10B981' : isCurrent ? '#F59E0B' : 'var(--color-border)';
+                                        e.currentTarget.style.transform = 'translateX(0)';
+                                    } : undefined}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                        <span style={{ fontSize: 14, flexShrink: 0 }}>
+                                            {isDone ? '✅' : isCurrent ? '🔄' : '⬜'}
+                                        </span>
+                                        <span style={{ fontSize: 11, fontWeight: 800, color: '#047857', background: '#D1FAE5', padding: '2px 6px', borderRadius: 4 }}>
+                                            {ev.time}
+                                        </span>
+                                        <span style={{
+                                            fontSize: 13, fontWeight: 700,
+                                            color: isDone ? 'var(--color-text-muted)' : 'var(--color-text)',
+                                            lineHeight: 1.2,
+                                            textDecoration: isDone ? 'line-through' : 'none',
+                                            flex: 1,
+                                        }}>
+                                            {ev.title}
+                                        </span>
                                     </div>
-                                )}
-                            </div>
-                        ))}
+                                    {ev.desc && (
+                                        <div style={{ color: 'var(--color-text-muted)', fontSize: 12, lineHeight: 1.4, marginLeft: 22 }}>
+                                            {ev.desc}
+                                        </div>
+                                    )}
+                                    {isClickable && !isDone && (
+                                        <div style={{
+                                            marginTop: 6, marginLeft: 22,
+                                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                                            fontSize: 11, fontWeight: 700,
+                                            color: isExam ? '#DC2626' : isCurrent ? '#D97706' : '#059669',
+                                            background: isExam ? '#FEE2E2' : isCurrent ? '#FEF3C7' : '#D1FAE5',
+                                            padding: '3px 10px', borderRadius: 6,
+                                        }}>
+                                            {isExam ? '📝 Luyện đề' : isCurrent ? '▶ Học ngay' : '→ Bắt đầu'}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
