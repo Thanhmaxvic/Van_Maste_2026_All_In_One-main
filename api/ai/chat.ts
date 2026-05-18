@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // ── Inline constants (avoid import resolution issues on Vercel) ────────────────
 const LITE_MODEL = 'gemini-2.5-flash-lite';
-const IMAGE_MODEL = 'gemini-2.0-flash-exp';
+const IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
 const CHAT_HISTORY_LIMIT = 8;
 
 const SYSTEM_PROMPT = `Bạn là "Gia sư Ngữ văn 2026", gia sư ôn thi tốt nghiệp THPT môn Ngữ Văn.

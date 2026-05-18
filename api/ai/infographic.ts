@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!apiKey) return res.json({ imageUrl: null });
 
         const { workTitle } = req.body;
-        const model = 'gemini-2.0-flash-exp';
+        const model = 'gemini-3.1-flash-image-preview';
         const prompt = `Create a beautiful, professional educational infographic in Vietnamese about the Vietnamese literary work "${workTitle}". Include: author name, publication year, literary genre, main themes, plot summary, main characters, literary devices. Style: Modern educational poster, warm colors (gold, deep red, cream), Vietnamese cultural aesthetic. Text must be clear, readable Vietnamese.`;
 
         const geminiRes = await fetch(

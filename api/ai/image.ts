@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!apiKey) return res.json({ imageUrl: null });
 
         const { prompt } = req.body;
-        const model = 'gemini-2.0-flash-exp';
+        const model = 'gemini-3.1-flash-image-preview';
 
         const geminiRes = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
