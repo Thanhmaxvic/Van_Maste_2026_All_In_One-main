@@ -280,6 +280,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAI
     }
 
     const cleaned = clean(message.content);
+    const ttsText = cleaned.replace(/\[SỬA\][\s\S]*?\[\/SỬA\]\s*/g, '').trim();
 
     if (message.content.includes('[TIMELINE]')) {
         return (
@@ -346,7 +347,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPlayTTS, onStartAI
                     )}
                     {!isUser && (
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="tts-btn" onClick={() => onPlayTTS(cleaned)}>
+                            <button className="tts-btn" onClick={() => onPlayTTS(ttsText)}>
                                 <Play size={10} /> Đọc
                             </button>
                             <button className="tts-btn" onClick={stopCurrentAudio}>
