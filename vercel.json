@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "tsc && vite build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "functions": {
+    "api/ai/chat.ts": { "maxDuration": 120 },
+    "api/ai/grade.ts": { "maxDuration": 120 },
+    "api/ai/grade-submission.ts": { "maxDuration": 120 },
+    "api/ai/generate.ts": { "maxDuration": 60 },
+    "api/ai/image.ts": { "maxDuration": 60 },
+    "api/ai/infographic.ts": { "maxDuration": 60 },
+    "api/ai/auto-response.ts": { "maxDuration": 30 },
+    "api/ai/proactive.ts": { "maxDuration": 30 },
+    "api/tts/synthesize.ts": { "maxDuration": 30 }
+  },
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

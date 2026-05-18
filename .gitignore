@@ -24,3 +24,6 @@ coverage
 .idea
 *.swp
 *.swo
+
+# Backend
+backend/dist

@@ -139,22 +139,15 @@ function playSingleTTS(
                 const abortController = new AbortController();
                 currentAbortController = abortController;
 
-                const ttsApiKey = import.meta.env.VITE_GOOGLE_TTS_API_KEY || '';
-                const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${ttsApiKey}`, {
+                // Gọi qua Backend API thay vì Google TTS trực tiếp
+                const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+                const response = await fetch(`${apiBaseUrl}/api/tts/synthesize`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     signal: abortController.signal,
                     body: JSON.stringify({
-                        input: { text: clean },
-                        voice: {
-                            languageCode: 'vi-VN',
-                            name: voiceName,
-                        },
-                        audioConfig: {
-                            audioEncoding: 'MP3',
-                            speakingRate: 1.0,
-                            pitch: 0,
-                        },
+                        text: clean,
+                        voiceName,
                     }),
                 });
 
@@ -164,7 +157,7 @@ function playSingleTTS(
                 }
 
                 if (!response.ok) {
-                    throw new Error('Google TTS API Error');
+                    throw new Error('TTS API Error');
                 }
 
                 const data = await response.json();
