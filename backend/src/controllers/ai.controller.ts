@@ -142,7 +142,11 @@ export async function chatHandler(req: Request, res: Response): Promise<void> {
         const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LITE_MODEL}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ systemInstruction, contents }),
+            body: JSON.stringify({
+                systemInstruction,
+                contents,
+                generationConfig: { maxOutputTokens: 8192 },
+            }),
         });
 
         if (!geminiRes.ok) {
