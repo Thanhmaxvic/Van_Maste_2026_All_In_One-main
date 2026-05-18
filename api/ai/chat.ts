@@ -1,18 +1,50 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import {
-    getApiKey, LITE_MODEL, SYSTEM_PROMPT, CHAT_HISTORY_LIMIT,
-    IMAGE_MODEL, setCorsHeaders,
-} from '../_shared/helpers';
+
+// ── Inline constants (avoid import resolution issues on Vercel) ────────────────
+const LITE_MODEL = 'gemini-2.5-flash-lite';
+const IMAGE_MODEL = 'gemini-2.0-flash-exp';
+const CHAT_HISTORY_LIMIT = 8;
+
+const SYSTEM_PROMPT = `Bạn là "Gia sư Ngữ văn 2026", gia sư ôn thi tốt nghiệp THPT môn Ngữ Văn.
+
+QUY TẮC:
+1. Trung bình 100 từ/câu trả lời. Tối đa 200 từ khi cần phân tích sâu. Ưu tiên rõ ràng hơn ngắn gọn. (Lưu ý: Trong chế độ giảng bài, giới hạn được nới lên 200-250 từ/phần.)
+2. KHÔNG emoji. Dùng **in đậm** cho thuật ngữ quan trọng. Dùng "-" khi liệt kê.
+3. Thẳng vào vấn đề, không dài dòng.
+4. XƯNG HÔ MẶC ĐỊNH: Xưng "thầy", gọi học sinh là "em". Chỉ đổi khi hệ thống cung cấp chỉ dẫn khác trong [PROFILE].
+5. CHỐNG LẶP (QUAN TRỌNG): Đọc kĩ lịch sử hội thoại trước khi trả lời. TUYỆT ĐỐI KHÔNG nhắc lại ý đã nói ở các lượt trước.
+
+TAG HỆ THỐNG:
+- [TIMELINE] Thời gian | Sự kiện | Mô tả — cho sơ đồ/timeline
+- [INFOGRAPHIC] tên_tác_phẩm [/INFOGRAPHIC] — tóm tắt tác phẩm
+- [AI_EXAM] {...json...} [/AI_EXAM] — CHỈ cho đề thi tự luận
+- [GEN_IMAGE] prompt_tiếng_anh — tạo ảnh
+- [FETCH_DOC] Tên_Tài_Liệu — tra cứu tài liệu lý thuyết
+- [SỬA] từ sai → từ đúng [/SỬA] — sửa chính tả
+
+DANH SÁCH TÀI LIỆU: Chèo_lớp 10, Sử thi_lớp 10, Thơ văn Nguyễn Trãi_lớp 10, Thơ Đường luật_lớp 10, Thần thoại_lớp 10, Tiểu thuyết (chương hồi)_lớp 10, Truyện ngắn_lớp 10, Tuồng_lớp 10, VB nghị luận_lớp 10, VB thông tin_lớp 10, Bi kịch_lớp 11, Thơ_lớp 11, Truyện kí_lớp 11, Truyện ngắn_lớp 11, Truyện thơ_lớp 11, Tùy bút_lớp 11, Tản văn_lớp 11, VB nghị luận_lớp 11, VB thông tin_lớp 11, Hài kịch_lớp 12, Hồi kí_lớp 12, Nhật kí_lớp 12, Truyện_lớp 12, VB nghị luận_lớp 12, VB thông tin_lớp 12.
+
+TÂM LÝ HỌC SINH (ƯU TIÊN CAO):
+Khi em bộc lộ cảm xúc → xử lý tâm lý TRƯỚC kiến thức. Giọng ấm áp, gần gũi, KHÔNG máy móc.
+
+KIẾN THỨC THPT 2025:
+- Đề thi dùng 100% ngữ liệu NGOÀI SGK.
+- Cấu trúc đề: Đọc hiểu (4đ, 5 câu tự luận) + Viết (6đ: NLXH ~200 chữ 2đ + NLVH 4đ).
+
+CÂU HỎI LUYỆN TẬP: Chỉ hỏi khi vừa giải thích xong khái niệm. KHÔNG hỏi liên tục.`;
 
 export const config = { maxDuration: 120 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    setCorsHeaders(res);
+    // CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') return res.status(204).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
     try {
-        const apiKey = getApiKey();
+        const apiKey = process.env.GOOGLE_API_KEY || '';
         if (!apiKey) return res.status(500).json({ error: 'API_KEY_MISSING' });
 
         const { messages = [], userText, previewImage, userProfile, lessonContext } = req.body;
@@ -25,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
         const examDate = new Date('2026-06-11');
         const daysLeft = Math.max(0, Math.ceil((examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-        const datetimeBlock = `\n[THỜI GIAN HIỆN TẠI]\n- Ngày: ${dayOfWeek}, ${dateStr}\n- Giờ: ${timeStr}\n- Còn ${daysLeft} ngày đến kỳ thi tốt nghiệp THPT (11/06/2026)\n[/THỜI GIAN]\nDựa vào thời gian trên để phản hồi phù hợp.`;
+        const datetimeBlock = `\n[THỜI GIAN HIỆN TẠI]\n- Ngày: ${dayOfWeek}, ${dateStr}\n- Giờ: ${timeStr}\n- Còn ${daysLeft} ngày đến kỳ thi tốt nghiệp THPT (11/06/2026)\n[/THỜI GIAN]`;
 
         // Build profile block
         let profileBlock = '';
@@ -37,26 +69,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const vg = userProfile.voiceGender || 'male';
             const xungHo = vg === 'female' ? 'cô' : 'thầy';
             const diagScore = userProfile.diagnosticScore ?? null;
-            const diagInfo = diagScore != null ? `\n- Diem chan doan dau vao: ${diagScore}/10` : '';
+            const diagInfo = diagScore != null ? `\n- Diem chan doan: ${diagScore}/10` : '';
             const levelHint = (avg !== 'chua co')
                 ? (parseFloat(avg) >= 8 ? 'nang cao' : parseFloat(avg) >= 6 ? 'chuan' : parseFloat(avg) >= 4 ? 'co ban' : 'can ban')
                 : (diagScore != null ? (diagScore >= 8 ? 'nang cao' : diagScore >= 6 ? 'chuan' : 'co ban') : 'chua xac dinh');
 
-            profileBlock = `\n[PROFILE HOC SINH]\n- Ten: ${userProfile.name}\n- Diem TB: ${avg}/10 | Muc tieu: ${target}/10${diagInfo}\n- Trinh do: ${levelHint}\n- Diem yeu: ${weaknesses}\n- Diem manh: ${strengths}\n- Bai da nop: ${userProfile.submissionCount ?? 0}\n- Xung ho: "${xungHo}" - "em"\n[/PROFILE]\n\nCA NHAN HOA:\n- Dua vao profile tren, tu dong dieu chinh cach giang day phu hop trinh do.\n- Khi tao cau hoi trac nghiem/quiz: UU TIEN 60% cau hoi lien quan den DIEM YEU (${weaknesses}), 40% cau hoi ve ky nang khac.\n- Neu trinh do "${levelHint}": ${levelHint === 'nang cao' ? 'hoi cau kho, so sanh sau, phan tich nhieu tang' : levelHint === 'chuan' ? 'hoi cau vua phai, ket hop ly thuyet va thuc hanh' : 'hoi cau co ban, giai thich ky, cho vi du cu the'}.\n- LUON xung ho la "${xungHo}" khi noi voi hoc sinh.`;
+            profileBlock = `\n[PROFILE]\n- Ten: ${userProfile.name}\n- Diem TB: ${avg}/10 | Muc tieu: ${target}/10${diagInfo}\n- Trinh do: ${levelHint}\n- Diem yeu: ${weaknesses}\n- Diem manh: ${strengths}\n- Xung ho: "${xungHo}" - "em"\n[/PROFILE]`;
         }
 
         const systemText = SYSTEM_PROMPT + datetimeBlock + profileBlock + (lessonContext ? `\n\n${lessonContext}` : '');
         const systemInstruction = { parts: [{ text: systemText }] };
 
         // Build multi-turn conversation
-        const contents: { role: string; parts: unknown[] }[] = [];
+        const contents: Array<{ role: string; parts: Array<{ text?: string; inlineData?: any }> }> = [];
         const historySlice = messages.slice(-CHAT_HISTORY_LIMIT);
 
         for (const m of historySlice) {
             const geminiRole = m.role === 'assistant' ? 'model' : 'user';
-            const lastEntry = contents[contents.length - 1];
-            if (lastEntry && lastEntry.role === geminiRole) {
-                (lastEntry.parts as { text: string }[]).push({ text: m.content });
+            const last = contents[contents.length - 1];
+            if (last && last.role === geminiRole) {
+                last.parts.push({ text: m.content });
             } else {
                 contents.push({ role: geminiRole, parts: [{ text: m.content }] });
             }
@@ -67,7 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Add current user message
-        const currentParts: unknown[] = [];
+        const currentParts: Array<{ text?: string; inlineData?: any }> = [];
         if (previewImage) {
             const base64Data = previewImage.includes(',') ? previewImage.split(',')[1] : previewImage;
             if (base64Data) currentParts.push({ inlineData: { mimeType: 'image/png', data: base64Data } });
@@ -75,50 +107,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (userText) currentParts.push({ text: userText });
         if (currentParts.length === 0) currentParts.push({ text: '(tiếp tục)' });
 
-        const lastEntry = contents[contents.length - 1];
-        if (lastEntry && lastEntry.role === 'user') {
-            (lastEntry.parts as unknown[]).push(...currentParts);
+        const lastContent = contents[contents.length - 1];
+        if (lastContent && lastContent.role === 'user') {
+            lastContent.parts.push(...currentParts);
         } else {
             contents.push({ role: 'user', parts: currentParts });
         }
 
-        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LITE_MODEL}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ systemInstruction, contents }),
-        });
+        // Call Gemini
+        const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${LITE_MODEL}:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ systemInstruction, contents }),
+            }
+        );
 
         if (!geminiRes.ok) {
-            return res.status(geminiRes.status).json({ error: `Gemini API error: ${geminiRes.status}` });
+            const errBody = await geminiRes.text().catch(() => '');
+            return res.status(geminiRes.status).json({ error: `Gemini API error: ${geminiRes.status}`, detail: errBody });
         }
 
         const data = await geminiRes.json();
         let aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
 
-        // Handle image generation
+        // Handle image generation tag
         let generatedImageUrl: string | null = null;
         if (aiContent.includes('[GEN_IMAGE]')) {
             const imagePrompt = aiContent.split('[GEN_IMAGE]')[1].split('\n')[0].trim();
             try {
-                const imgRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: imagePrompt }] }],
-                        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
-                    }),
-                });
+                const imgRes = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: imagePrompt }] }],
+                            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+                        }),
+                    }
+                );
                 if (imgRes.ok) {
                     const imgData = await imgRes.json();
-                    const parts = imgData?.candidates?.[0]?.content?.parts || [];
-                    for (const part of parts) {
+                    const imgParts = imgData?.candidates?.[0]?.content?.parts || [];
+                    for (const part of imgParts) {
                         if (part.inlineData?.mimeType?.startsWith('image/')) {
                             generatedImageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
                             break;
                         }
                     }
                 }
-            } catch { /* ignore image errors */ }
+            } catch (_e) { /* ignore image errors */ }
         }
 
         const cleanedContent = aiContent.replace(/\[GEN_IMAGE\].*/s, '').replace(/\[FETCH_DOC\].*/s, '');
