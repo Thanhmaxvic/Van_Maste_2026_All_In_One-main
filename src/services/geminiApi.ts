@@ -30,18 +30,30 @@ async function callBackend(
     opts?: { signal?: AbortSignal }
 ): Promise<any> {
     const baseUrl = getApiBaseUrl();
-    const res = await fetch(`${baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: opts?.signal,
-    });
-    if (!res.ok) {
+    const maxAttempts = 2; // 1 initial + 1 retry for 503/429
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const res = await fetch(`${baseUrl}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: opts?.signal,
+        });
+        if (res.ok) return res.json();
+
+        // Retry once on 503/429 (server overloaded / rate limit)
+        if ((res.status === 503 || res.status === 429) && attempt < maxAttempts - 1) {
+            console.warn(`[Frontend] ${endpoint} returned ${res.status}, retrying in 3s...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            continue;
+        }
+
         let errorDetail = '';
         try { errorDetail = await res.text(); } catch { /* ignore */ }
         throw new Error(`Backend API error: ${res.status} — ${errorDetail}`);
     }
-    return res.json();
+
+    throw new Error('Backend API error: max retries exhausted');
 }
 
 // ================================================================

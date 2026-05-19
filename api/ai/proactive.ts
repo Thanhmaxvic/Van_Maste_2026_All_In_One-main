@@ -2,6 +2,30 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = { maxDuration: 30 };
 
+const LITE_MODEL = 'gemini-2.5-flash-lite';
+const FALLBACK_MODEL = 'gemini-2.5-flash';
+
+async function callWithRetry(apiKey: string, body: object): Promise<any> {
+    const models = [LITE_MODEL, FALLBACK_MODEL];
+    for (const model of models) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (res.ok) return res.json();
+            if (res.status === 503 || res.status === 429) {
+                await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+                continue;
+            }
+            return null; // non-retryable
+        }
+    }
+    return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -21,18 +45,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .join('\n');
         const fullPrompt = `${proactivePrompt}\n\nLịch sử chat:\n${historyText}`;
 
-        const model = 'gemini-2.5-flash-lite';
-        const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
-            }
-        );
-
-        if (!geminiRes.ok) return res.json({ text: null });
-        const data = await geminiRes.json();
+        const data = await callWithRetry(apiKey, { contents: [{ parts: [{ text: fullPrompt }] }] });
+        if (!data) return res.json({ text: null });
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
         return res.json({ text: text?.trim() || null });
     } catch (error: any) {

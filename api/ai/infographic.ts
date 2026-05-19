@@ -2,6 +2,27 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = { maxDuration: 60 };
 
+const IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
+
+async function callImageWithRetry(apiKey: string, body: object): Promise<any> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (res.ok) return res.json();
+        if (res.status === 503 || res.status === 429) {
+            console.warn(`[Infographic] ${IMAGE_MODEL} returned ${res.status}, retry ${attempt + 1}/3`);
+            await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt)));
+            continue;
+        }
+        return null;
+    }
+    return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -14,23 +35,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!apiKey) return res.json({ imageUrl: null });
 
         const { workTitle } = req.body;
-        const model = 'gemini-3.1-flash-image-preview';
         const prompt = `Create a beautiful, professional educational infographic in Vietnamese about the Vietnamese literary work "${workTitle}". Include: author name, publication year, literary genre, main themes, plot summary, main characters, literary devices. Style: Modern educational poster, warm colors (gold, deep red, cream), Vietnamese cultural aesthetic. Text must be clear, readable Vietnamese.`;
 
-        const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
-                }),
-            }
-        );
+        const data = await callImageWithRetry(apiKey, {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+        });
 
-        if (!geminiRes.ok) return res.json({ imageUrl: null });
-        const data = await geminiRes.json();
+        if (!data) return res.json({ imageUrl: null });
         const parts = data.candidates?.[0]?.content?.parts || [];
         for (const part of parts) {
             if (part.inlineData?.mimeType?.startsWith('image/')) {

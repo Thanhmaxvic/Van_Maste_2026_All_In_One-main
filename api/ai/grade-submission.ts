@@ -11,7 +11,29 @@ const GRADING_RUBRIC = `NGUYÊN TẮC CHẤM BẮT BUỘC:
 
 const AI_DETECTION = `⑧ PHÁT HIỆN AI: Chỉ quét NLXH/NLVH. Cơ chế: cần ≥1 dấu hiệu cấu trúc (A1/A2) + ≥2 dấu hiệu phụ (B1/B2/B3). Phạt 50% điểm câu vi phạm.`;
 
+const PRIMARY_MODEL = 'gemini-2.5-flash';
+
 export const config = { maxDuration: 120 };
+
+async function callWithRetry(apiKey: string, body: object): Promise<any> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${PRIMARY_MODEL}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (res.ok) return res.json();
+        if (res.status === 503 || res.status === 429) {
+            console.warn(`[GradeSubmission] ${PRIMARY_MODEL} returned ${res.status}, retry ${attempt + 1}/3`);
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+            continue;
+        }
+        const errBody = await res.text().catch(() => '');
+        throw { status: res.status, detail: errBody };
+    }
+    throw { status: 503, detail: 'All retries exhausted' };
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -34,28 +56,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             parts.push({ text: `\n--- NỘI DUNG VĂN BẢN ĐÍNH KÈM ---\n${fileText}\n---` });
         }
 
-        const model = 'gemini-2.5-flash';
-        const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts }],
-                    generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
-                }),
-            }
-        );
-
-        if (!geminiRes.ok) {
-            const errBody = await geminiRes.text().catch(() => '');
-            return res.status(geminiRes.status).json({ error: `Gemini error: ${geminiRes.status}`, detail: errBody });
-        }
-
-        const data = await geminiRes.json();
+        const data = await callWithRetry(apiKey, {
+            contents: [{ role: 'user', parts }],
+            generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
+        });
         return res.json({ text: data.candidates?.[0]?.content?.parts?.[0]?.text || '' });
     } catch (error: any) {
-        console.error('[GradeSubmission] Error:', error.message);
-        return res.status(500).json({ error: error.message });
+        const status = error?.status || 500;
+        const detail = error?.detail || error?.message || 'Unknown error';
+        console.error(`[GradeSubmission] Error (status=${status}):`, detail);
+        return res.status(status).json({ error: `Gemini error: ${status}`, detail });
     }
 }

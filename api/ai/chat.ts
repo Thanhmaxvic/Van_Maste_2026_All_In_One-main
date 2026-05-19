@@ -2,8 +2,53 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // ── Inline constants (avoid import resolution issues on Vercel) ────────────────
 const LITE_MODEL = 'gemini-2.5-flash-lite';
+const FALLBACK_MODEL = 'gemini-2.5-flash';
 const IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
 const CHAT_HISTORY_LIMIT = 8;
+const MAX_RETRIES = 3;
+const INITIAL_RETRY_DELAY_MS = 1000;
+
+// ── Retry helper with exponential backoff + fallback model ────────────────────
+async function callGeminiWithRetry(
+    apiKey: string,
+    body: object,
+    primaryModel: string = LITE_MODEL,
+    fallbackModel: string = FALLBACK_MODEL,
+): Promise<{ data: any; modelUsed: string }> {
+    const models = [primaryModel, fallbackModel];
+
+    for (const model of models) {
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const geminiRes = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            if (geminiRes.ok) {
+                const data = await geminiRes.json();
+                return { data, modelUsed: model };
+            }
+
+            // Only retry on 503 (overloaded) or 429 (rate limit)
+            if (geminiRes.status === 503 || geminiRes.status === 429) {
+                const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
+                console.warn(`[Chat] ${model} returned ${geminiRes.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
+
+            // Non-retryable error — throw immediately
+            const errBody = await geminiRes.text().catch(() => '');
+            throw { status: geminiRes.status, detail: errBody };
+        }
+        console.warn(`[Chat] All ${MAX_RETRIES} retries exhausted for ${model}, trying fallback...`);
+    }
+
+    // All models and retries exhausted
+    throw { status: 503, detail: 'All models and retries exhausted' };
+}
 
 const SYSTEM_PROMPT = `Bạn là "Gia sư Ngữ văn 2026", gia sư ôn thi tốt nghiệp THPT môn Ngữ Văn.
 
@@ -136,26 +181,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             contents.push({ role: 'user', parts: currentParts });
         }
 
-        // Call Gemini
-        const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${LITE_MODEL}:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    systemInstruction,
-                    contents,
-                    generationConfig: { maxOutputTokens: 8192 },
-                }),
-            }
-        );
+        // Call Gemini with retry + fallback
+        const { data } = await callGeminiWithRetry(apiKey, {
+            systemInstruction,
+            contents,
+            generationConfig: { maxOutputTokens: 8192 },
+        });
 
-        if (!geminiRes.ok) {
-            const errBody = await geminiRes.text().catch(() => '');
-            return res.status(geminiRes.status).json({ error: `Gemini API error: ${geminiRes.status}`, detail: errBody });
-        }
-
-        const data = await geminiRes.json();
         let aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
 
         // Handle image generation tag
@@ -190,7 +222,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const cleanedContent = aiContent.replace(/\[GEN_IMAGE\].*/s, '').replace(/\[FETCH_DOC\].*/s, '');
         return res.json({ text: cleanedContent, generatedImageUrl });
     } catch (error: any) {
-        console.error('[Chat] Error:', error.message);
-        return res.status(500).json({ error: error.message });
+        // Handle structured error from callGeminiWithRetry
+        const status = error?.status || 500;
+        const detail = error?.detail || error?.message || 'Unknown error';
+        console.error(`[Chat] Error (status=${status}):`, detail);
+        return res.status(status).json({ error: `Gemini API error: ${status}`, detail });
     }
 }
