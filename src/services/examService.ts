@@ -335,13 +335,14 @@ RÀNG BUỘC BẮT BUỘC:
     }
 
     // Fallback — hiển thị lỗi thân thiện thay vì raw JSON/code
+    console.error('[gradeWithAI] All JSON parse attempts failed. Raw text:', rawText.substring(0, 500));
     return {
         score: 0,
         maxScore: 10,
-        feedback: 'Hệ thống chấm điểm gặp lỗi kỹ thuật. Vui lòng thử nộp lại bài.',
-        details: 'Không thể phân tích kết quả chi tiết từ AI. Bài làm của em đã được lưu.',
+        feedback: 'AI chấm điểm gặp lỗi kỹ thuật — kết quả trả về không đúng định dạng. Giáo viên vui lòng chấm thủ công.',
+        details: 'Bài làm đã được lưu. AI không thể phân tích kết quả do lỗi định dạng phản hồi.',
         errors: [],
-        improvements: ['Thử nộp lại bài để nhận kết quả chấm chính xác'],
+        improvements: ['Giáo viên có thể chấm thủ công bài này'],
         weaknesses: [],
         strengths: [],
     };

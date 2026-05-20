@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { UploadCloud, FileText, CheckCircle, Loader2, AlertCircle, Clock, User, Check, Edit3, RefreshCw, Trash2 } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, Loader2, AlertCircle, Clock, User, Check, Edit3, RefreshCw, Trash2, BookOpen, Sparkles } from 'lucide-react';
 import type { ExamGrade } from '../../types';
-import { getPendingSubmissions, approveSubmission, rejectSubmission, type PendingSubmission } from '../../services/firebaseService';
+import { getPendingSubmissions, approveSubmission, rejectSubmission, updateSubmissionPendingGrade, type PendingSubmission } from '../../services/firebaseService';
 
 export default function TeacherGrading() {
     const [activeTab, setActiveTab] = useState<'pending' | 'offline'>('pending');
@@ -13,7 +13,13 @@ export default function TeacherGrading() {
     const [isGrading, setIsGrading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
 
+    // Re-grade with answer key (pending tab)
+    const [answerKeyText, setAnswerKeyText] = useState('');
+    const [answerKeyFile, setAnswerKeyFile] = useState<File | null>(null);
+    const [isRegrading, setIsRegrading] = useState(false);
+
     const studentFileRef = useRef<HTMLInputElement>(null);
+    const answerKeyFileRef = useRef<HTMLInputElement>(null);
     const guideFileRef = useRef<HTMLInputElement>(null);
 
     // Pending logic
@@ -50,7 +56,55 @@ export default function TeacherGrading() {
         setResult(p.aiSuggestedGrade);
         setEditScore(p.aiSuggestedGrade?.score ?? '');
         setEditFeedback(p.aiSuggestedGrade?.feedback || '');
+        setAnswerKeyText('');
+        setAnswerKeyFile(null);
         setErrorMsg('');
+    };
+
+    /** Re-grade a pending submission using teacher-provided answer key */
+    const handleRegrade = async () => {
+        if (!selectedPending) return;
+        if (!answerKeyText.trim() && !answerKeyFile) {
+            setErrorMsg('Vui lòng nhập hoặc tải lên đáp án/hướng dẫn chấm trước khi yêu cầu AI chấm lại.');
+            return;
+        }
+
+        setErrorMsg('');
+        setIsRegrading(true);
+        try {
+            let guideContent = answerKeyText;
+
+            // Extract text from uploaded answer key file
+            if (answerKeyFile) {
+                if (answerKeyFile.name.endsWith('.docx') || answerKeyFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                    const mammoth = await import('mammoth');
+                    const arrayBuffer = await answerKeyFile.arrayBuffer();
+                    const result = await mammoth.extractRawText({ arrayBuffer });
+                    guideContent += '\n' + result.value;
+                } else {
+                    const text = await answerKeyFile.text();
+                    guideContent += '\n' + text;
+                }
+            }
+
+            const { gradeWithAI } = await import('../../services/examService');
+            const examInfo = `Đề thi số #${selectedPending.examId}`;
+            const grade = await gradeWithAI(examInfo, guideContent, selectedPending.studentAnswer);
+
+            // Save re-graded result back to Firestore
+            await updateSubmissionPendingGrade(selectedPending.uid, selectedPending.submissionId, grade);
+
+            // Update local state
+            setResult(grade);
+            setEditScore(grade.score);
+            setEditFeedback(grade.feedback);
+            setSelectedPending(prev => prev ? { ...prev, aiSuggestedGrade: grade } : prev);
+        } catch (err: any) {
+            console.error('Regrade error:', err);
+            setErrorMsg('Lỗi khi AI chấm lại: ' + (err.message || 'Không xác định'));
+        } finally {
+            setIsRegrading(false);
+        }
     };
 
     const handleApprove = async () => {
@@ -224,10 +278,65 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                             )}
 
                             {selectedPending && (
-                                <div className="mt-4 pt-4 border-t border-gray-100">
-                                    <h3 className="font-bold text-gray-700 mb-2 text-sm">Nội dung bài làm của học sinh:</h3>
-                                    <div className="bg-gray-50 p-4 rounded border border-gray-200 text-sm text-gray-600 h-48 overflow-y-auto leading-relaxed whitespace-pre-wrap">
-                                        {selectedPending.studentAnswer}
+                                <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+                                    <div>
+                                        <h3 className="font-bold text-gray-700 mb-2 text-sm">Nội dung bài làm của học sinh:</h3>
+                                        <div className="bg-gray-50 p-4 rounded border border-gray-200 text-sm text-gray-600 h-40 overflow-y-auto leading-relaxed whitespace-pre-wrap">
+                                            {selectedPending.studentAnswer}
+                                        </div>
+                                    </div>
+
+                                    {/* Answer key input + Re-grade button */}
+                                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200">
+                                        <h3 className="font-bold text-gray-700 mb-2 text-sm flex items-center gap-2">
+                                            <BookOpen size={16} className="text-blue-500" /> Đáp án / Hướng dẫn chấm
+                                        </h3>
+                                        <textarea
+                                            className="w-full h-28 p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none resize-none transition-shadow text-sm text-gray-800 bg-white"
+                                            placeholder="Dán đáp án hoặc hướng dẫn chấm vào đây để AI chấm lại chính xác hơn..."
+                                            value={answerKeyText}
+                                            onChange={e => setAnswerKeyText(e.target.value)}
+                                        />
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <button
+                                                onClick={() => answerKeyFileRef.current?.click()}
+                                                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-white border border-blue-200 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
+                                            >
+                                                <FileText size={13} />
+                                                {answerKeyFile ? answerKeyFile.name : 'Tải file đáp án'}
+                                            </button>
+                                            <input
+                                                ref={answerKeyFileRef}
+                                                type="file"
+                                                className="hidden"
+                                                accept=".pdf,.doc,.docx,.txt"
+                                                onChange={e => setAnswerKeyFile(e.target.files?.[0] || null)}
+                                            />
+                                            {answerKeyFile && (
+                                                <button
+                                                    onClick={() => setAnswerKeyFile(null)}
+                                                    className="text-xs text-red-400 hover:text-red-600"
+                                                >✕ Xóa file</button>
+                                            )}
+                                        </div>
+
+                                        {errorMsg && activeTab === 'pending' && (
+                                            <div className="mt-2 p-2 bg-red-50 text-red-600 rounded-lg flex items-center gap-2 text-xs">
+                                                <AlertCircle size={14} /> {errorMsg}
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={handleRegrade}
+                                            disabled={isRegrading || (!answerKeyText.trim() && !answerKeyFile)}
+                                            className="w-full mt-3 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-bold py-3 rounded-xl shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            {isRegrading ? (
+                                                <><Loader2 size={18} className="animate-spin" /> AI đang chấm lại...</>
+                                            ) : (
+                                                <><Sparkles size={18} /> Yêu cầu AI chấm lại với đáp án</>
+                                            )}
+                                        </button>
                                     </div>
                                 </div>
                             )}

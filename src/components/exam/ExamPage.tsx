@@ -285,8 +285,11 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
         }
         gradingAbortControllerRef.current = new AbortController();
 
+        // Track submissionId outside try so we can save fallback grade on error
+        let submissionId: string | null = null;
+
         try {
-            const submissionId = await saveExamSubmission(user.uid, examId, cheating ? '[GIAN LẬN] ' + answer : answer);
+            submissionId = await saveExamSubmission(user.uid, examId, cheating ? '[GIAN LẬN] ' + answer : answer);
 
             let examText: string;
             let answerKeyText: string;
@@ -336,7 +339,27 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
                 return;
             }
             console.error('Submit error:', err);
-            setErrorMsg('Có lỗi khi nộp bài. Vui lòng thử lại.');
+
+            // ── Lưu fallback grade để submission không bị mắc kẹt ở status 'pending' ──
+            // Nếu submission đã lưu nhưng AI grading thất bại, ghi fallback grade
+            // để giáo viên vẫn thấy bài và có thể chấm thủ công
+            if (submissionId) {
+                const fallbackGrade = {
+                    score: 0,
+                    maxScore: 10,
+                    feedback: 'AI chấm điểm gặp lỗi kỹ thuật. Giáo viên vui lòng chấm thủ công.',
+                    details: `Lỗi: ${err.message || 'Không xác định'}. Bài làm của học sinh đã được lưu đầy đủ.`,
+                    errors: [],
+                    improvements: [],
+                    weaknesses: [],
+                    strengths: [],
+                };
+                updateSubmissionPendingGrade(user.uid, submissionId, fallbackGrade).catch(e =>
+                    console.error('Không thể lưu fallback grade:', e)
+                );
+            }
+
+            setErrorMsg('Có lỗi khi chấm bài. Bài làm đã được lưu và gửi cho giáo viên chấm thủ công.');
             setStatus('error');
         } finally {
             if (gradingAbortControllerRef.current?.signal.aborted === false) {

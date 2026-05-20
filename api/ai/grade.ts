@@ -40,7 +40,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const data = await callWithRetry(apiKey, {
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
         });
-        return res.json({ text: data.candidates?.[0]?.content?.parts?.[0]?.text || '{}' });
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!text) {
+            // AI returned empty response — return a structured fallback grade
+            return res.json({ text: JSON.stringify({
+                score: 0,
+                maxScore: 10,
+                feedback: 'AI không trả về kết quả chấm. Vui lòng thử lại hoặc giáo viên chấm thủ công.',
+                details: 'Phản hồi AI trống — có thể do quá tải hoặc lỗi nội dung.',
+                errors: [],
+                improvements: [],
+                weaknesses: [],
+                strengths: []
+            }) });
+        }
+        return res.json({ text });
     } catch (error: any) {
         const status = error?.status || 500;
         const detail = error?.detail || error?.message || 'Unknown error';

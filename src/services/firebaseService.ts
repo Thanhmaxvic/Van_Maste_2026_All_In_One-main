@@ -384,8 +384,8 @@ export async function getPendingSubmissions(): Promise<PendingSubmission[]> {
                 const aiGrade: ExamGrade = sData.aiSuggestedGrade || {
                     score: 0,
                     maxScore: 10,
-                    feedback: 'Lỗi parse điểm AI',
-                    details: 'AI không thể tạo điểm nháp',
+                    feedback: 'AI chưa hoàn thành chấm điểm — có thể do lỗi kết nối hoặc quá tải. Giáo viên vui lòng chấm thủ công.',
+                    details: 'Bài làm của học sinh đã được lưu đầy đủ. AI không thể tạo điểm nháp do lỗi kỹ thuật.',
                     errors: [], improvements: [], weaknesses: [], strengths: []
                 };
 
