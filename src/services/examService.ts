@@ -257,10 +257,11 @@ BƯỚC 6 (BẮT BUỘC): TỰ KIỂM TRA — Kiểm tra NLXH: a+b+c−d, NLVH: 
 }
 
 RÀNG BUỘC BẮT BUỘC:
+- ĐƠN VỊ ĐIỂM NHỎ NHẤT LÀ 0.25đ (QUY TẮC CỨNG): Đơn vị điểm nhỏ nhất cho bất kỳ ý nhỏ, ý thành phần (b1/b2/b3), tiêu chí (a/b/c/d), điểm tổng từng câu hay điểm tổng toàn bài BẮT BUỘC phải là 0.25đ hoặc bội số của 0.25đ (tức là chỉ được dùng các mức: 0.0đ, 0.25đ, 0.5đ, 0.75đ, 1.0đ, 1.25đ, 1.5đ, v.v.). TUYỆT ĐỐI KHÔNG tự ý chia nhỏ điểm thành các mức lẻ như 0.1đ, 0.15đ, 0.2đ, 0.3đ, 0.35đ, 0.4đ, v.v. Mỗi ý nhỏ/tiêu chí nhỏ chỉ có thể được chấm điểm trọn vẹn của ý đó (ví dụ 0.25đ hoặc 0.5đ) hoặc 0.0đ nếu học sinh không làm được/thiếu ý.
 - maxScore PHẢI = tổng điểm thực tế của đề thi (ví dụ: đề đọc hiểu 5 câu = 4đ → maxScore=4, đề viết 2 câu = 6đ → maxScore=6, đề full = 10đ → maxScore=10)
 - Bài trống: {"score":0,"maxScore":<tổng điểm đề>,"feedback":"Học sinh không nộp bài làm.","details":"Bài trống — 0 điểm.","errors":[],"improvements":["Cần viết bài đầy đủ"],"weaknesses":["không viết bài"],"strengths":[]}
 - errors[] phải liệt kê TẤT CẢ lỗi quan trọng (thiếu ý, không đủ chữ, sai đáp án, thiếu dẫn chứng, thiếu phân tích nghệ thuật, lỗi diễn đạt/chính tả)
-- details PHẢI ghi rõ từng câu CÓ TRONG ĐỀ, với breakdown a/b/c/d cho câu viết
+- details PHẢI ghi rõ từng câu CÓ TRONG ĐỀ, với breakdown a/b/c/d cho câu viết và từng ý nhỏ b1/b2/b3 đều phải tuân thủ nghiêm ngặt đơn vị điểm tối thiểu 0.25đ
 - QUY TẮC SÀN: Nếu thí sinh CÓ LÀM BÀI câu viết nhưng điểm nội dung < điểm trừ lỗi → vẫn cho 0.25đ câu đó`;
 
     const rawText = await sendGradingRequest(prompt, signal);
@@ -346,6 +347,8 @@ RÀNG BUỘC BẮT BUỘC:
         if (parsed.score > capScore) {
             parsed.score = capScore;
         }
+        // Round score to the nearest multiple of 0.25
+        parsed.score = Math.round(parsed.score * 4) / 4;
         return parsed;
     }
 

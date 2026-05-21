@@ -178,6 +178,7 @@ ${guideText}
 """
 
 HƯỚNG DẪN CHUNG:
+- ĐƠN VỊ ĐIỂM NHỎ NHẤT LÀ 0.25đ (QUY TẮC CỨNG): Đơn vị điểm nhỏ nhất cho bất kỳ ý nhỏ, ý thành phần (b1/b2/b3), tiêu chí (a/b/c/d), điểm tổng từng câu hay điểm tổng toàn bài BẮT BUỘC phải là 0.25đ hoặc bội số của 0.25đ (tức là chỉ được dùng các mức: 0.0đ, 0.25đ, 0.5đ, 0.75đ, 1.0đ, 1.25đ, 1.5đ, v.v.). TUYỆT ĐỐI KHÔNG tự ý chia nhỏ điểm thành các mức lẻ như 0.1đ, 0.15đ, 0.2đ, 0.3đ, 0.35đ, 0.4đ, v.v. Mỗi ý nhỏ/tiêu chí nhỏ chỉ có thể được chấm điểm trọn vẹn của ý đó (ví dụ 0.25đ hoặc 0.5đ) hoặc 0.0đ nếu học sinh không làm được/thiếu ý.
 - Đánh giá theo hướng mở, khuyến khích sáng tạo, tránh áp đặt.
 - Bài có ý tưởng riêng → xem xét tính thuyết phục để chấm hợp lí.
 - Câu sai hoặc không trả lời → 0đ.

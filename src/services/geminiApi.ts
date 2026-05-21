@@ -436,6 +436,8 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
         if (parsed.score > (parsed.maxScore || 10)) parsed.score = parsed.maxScore || 10;
         const capScore = (parsed.maxScore || 10) * 0.95;
         if (parsed.score > capScore) parsed.score = capScore;
+        // Round score to the nearest multiple of 0.25
+        parsed.score = Math.round(parsed.score * 4) / 4;
         return parsed;
     }
 

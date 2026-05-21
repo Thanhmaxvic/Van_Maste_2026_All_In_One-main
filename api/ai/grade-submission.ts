@@ -7,7 +7,7 @@ const GRADING_RUBRIC = `HƯỚNG DẪN CHUNG:
 - LƯU Ý: CHỈ ÁP DỤNG nguyên tắc tương ứng với phần CÓ TRONG ĐỀ. Đề chỉ Đọc hiểu → bỏ qua ③④. Đề chỉ Viết → bỏ qua ②. maxScore = tổng điểm thực tế của đề.
 
 NGUYÊN TẮC CHẤM BẮT BUỘC:
-NGUYÊN TẮC VÀNG: Bài làm THPT trung bình thực tế đạt 4.0–6.0/10. Bài khá đạt 6.5–7.5. Bài giỏi đạt 7.5–8.5. Chỉ bài xuất sắc toàn diện mới đạt 8.5+.
+⓪ ĐƠN VỊ ĐIỂM NHỎ NHẤT LÀ 0.25đ (QUY TẮC CỨNG): Đơn vị điểm nhỏ nhất cho bất kỳ ý nhỏ, ý thành phần (b1/b2/b3), tiêu chí (a/b/c/d), điểm tổng từng câu hay điểm tổng toàn bài BẮT BUỘC phải là 0.25đ hoặc bội số của 0.25đ (tức là chỉ được dùng các mức: 0.0đ, 0.25đ, 0.5đ, 0.75đ, 1.0đ, 1.25đ, 1.5đ, v.v.). TUYỆT ĐỐI KHÔNG tự ý chia nhỏ điểm thành các mức lẻ như 0.1đ, 0.15đ, 0.2đ, 0.3đ, 0.35đ, 0.4đ, v.v. Mỗi ý nhỏ/tiêu chí nhỏ chỉ có thể được chấm điểm trọn vẹn của ý đó (ví dụ 0.25đ hoặc 0.5đ) hoặc 0.0đ nếu học sinh không làm được/thiếu ý.
 ① CHỈ cho điểm khi ĐÃ VIẾT ĐỦ Ý. Thiếu ý → trừ điểm. Suy đoán "ý ngầm" là SAI.
 ② ĐỌC HIỂU: Đối chiếu TỪNG Ý trong đáp án. Đúng+đủ → tối đa. Thiếu ý → 50–75%. Chung chung → 25–50%. Sai → 0đ.
 ③ CÂU VIẾT ĐOẠN — NLXH (2.0đ): (a) YC chung 0.5đ: vấn đề nghị luận 0.25đ + hình thức đoạn văn+dung lượng 100-300 chữ 0.25đ (không đáp ứng 1/2 → 0đ phần a). (b) YC cụ thể 1.25đ: chấm theo đáp án. (c) Sáng tạo 0.25đ: ý đột phá hoặc diễn đạt tinh tế. (d) Trừ lỗi: 4-6 lỗi −0.5đ, 7-8 lỗi −0.75đ, >8 lỗi không quá 1.0đ cả câu. SÀN: có làm bài nhưng trừ>nội dung → 0.25đ.
