@@ -636,6 +636,7 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
                     examId={examId}
                     onClose={() => setShowGrading(false)}
                     onNewExam={handleNewExam}
+                    isDiagnostic={diagnosticMode}
                 />
             )}
         </div>

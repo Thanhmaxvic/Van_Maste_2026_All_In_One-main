@@ -7,9 +7,10 @@ interface GradingResultProps {
     examId: number;
     onClose: () => void;
     onNewExam: () => void;
+    isDiagnostic?: boolean;
 }
 
-export default function GradingResult({ grade, examId, onClose, onNewExam }: GradingResultProps) {
+export default function GradingResult({ grade, examId, onClose, onNewExam, isDiagnostic = false }: GradingResultProps) {
     const percentage = Math.round((grade.score / grade.maxScore) * 100);
 
     const getScoreColor = () => {
@@ -41,9 +42,15 @@ export default function GradingResult({ grade, examId, onClose, onNewExam }: Gra
 
                     <div className="text-5xl mb-2">{getScoreEmoji()}</div>
                     <h2 className="font-black text-xl mb-1 mt-2">Điểm AI Gợi Ý (Chờ Duyệt)</h2>
-                    <p className="text-white/90 text-xs bg-black/20 px-3 py-1 rounded-full inline-block mt-1 mb-2">
-                        Điểm sẽ được cập nhật chính thức sau khi Giáo viên duyệt
-                    </p>
+                    {isDiagnostic ? (
+                        <div className="bg-black/25 border border-white/20 text-white text-xs px-4 py-2.5 rounded-2xl inline-block mt-2 mb-2 max-w-sm mx-auto text-left leading-relaxed">
+                            <strong>📌 Quy đổi chẩn đoán đầu vào:</strong> Điểm gốc bài làm là <strong>{grade.score}/{grade.maxScore}</strong>đ được quy đổi sang <strong>hệ 10 (tương đương {((grade.score / grade.maxScore) * 10).toFixed(1)}/10)</strong> để lưu hồ sơ học tập và cá nhân hóa lộ trình của em.
+                        </div>
+                    ) : (
+                        <p className="text-white/90 text-xs bg-black/20 px-3 py-1 rounded-full inline-block mt-1 mb-2">
+                            Điểm sẽ được cập nhật chính thức sau khi Giáo viên duyệt
+                        </p>
+                    )}
                     <p className="text-white/80 text-sm">Đề thi số #{examId}</p>
 
                     {/* Score circle */}
