@@ -170,12 +170,22 @@ export default function TeacherGrading() {
                 guideText += `\n[Tài liệu hướng dẫn đính kèm: ${gradingGuideFile.name}]`;
             }
 
-            const prompt = `Bạn là giám khảo chấm thi môn Ngữ Văn. 
+            const prompt = `Bạn là giám khảo chấm thi môn Ngữ Văn THPT. 
 Dưới đây là bài làm của học sinh (đã được đính kèm dưới dạng ảnh/tài liệu).
 HÃY CHẤM ĐIỂM DỰA TRÊN HƯỚNG DẪN CHẤM SAU ĐÂY:
 """
 ${guideText}
 """
+
+HƯỚNG DẪN CHUNG:
+- Đánh giá theo hướng mở, khuyến khích sáng tạo, tránh áp đặt.
+- Bài có ý tưởng riêng → xem xét tính thuyết phục để chấm hợp lí.
+- Câu sai hoặc không trả lời → 0đ.
+
+RUBRIC CHẤM PHẦN VIẾT:
+1. Câu viết đoạn NLXH (2.0đ): (a) YC chung 0.5đ: vấn đề nghị luận 0.25đ + hình thức đoạn văn+dung lượng 100-300 chữ 0.25đ. (b) YC cụ thể 1.25đ: chấm theo đáp án. (c) Sáng tạo 0.25đ. (d) Trừ lỗi: 4-6 lỗi −0.5đ, 7-8 lỗi −0.75đ, >8 lỗi không quá 1.0đ.
+2. Câu viết bài NLVH (4.0đ): (a) YC chung 1.0đ: vấn đề 0.25đ + dung lượng 400-800 chữ 0.25đ + bằng chứng thuyết phục 0.25đ + bằng chứng đời sống/đọc hiểu 0.25đ. (b) YC cụ thể 2.5đ: chấm theo đáp án. (c) Sáng tạo 0.5đ: ý mới 0.25đ + diễn đạt 0.25đ. (d) Trừ lỗi: 6-8 lỗi −0.5đ, 9-12 lỗi −1.0đ, >12 lỗi không quá 2.0đ.
+QUY TẮC SÀN: Nếu thí sinh CÓ LÀM BÀI nhưng điểm trừ > điểm nội dung → vẫn cho 0.25đ/câu.
 
 Nếu bài làm là file văn bản, hãy đọc cẩn thận. Nếu bài làm là ảnh chụp tự luận, hãy nhận diện chữ viết tay và chấm kỹ.
 Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu trúc:
@@ -183,7 +193,7 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
   "score": <điểm số>,
   "maxScore": 10,
   "feedback": "<Nhận xét tổng quan>",
-  "details": "<Chi tiết từng phần>",
+  "details": "<Chi tiết từng phần — câu viết ghi rõ: a.YC chung + b.YC cụ thể + c.Sáng tạo − d.Trừ lỗi = điểm>",
   "errors": [{"quote": "...", "issue": "...", "suggestion": "..."}],
   "improvements": ["..."],
   "weaknesses": ["..."],

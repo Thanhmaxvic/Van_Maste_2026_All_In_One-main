@@ -195,6 +195,8 @@ export async function gradeWithAI(
 
     const prompt = `Bạn là giám khảo chấm thi THPT môn Ngữ Văn. Nhiệm vụ: chấm điểm CHÍNH XÁC và NGHIÊM KHẮC theo đúng hướng dẫn chấm chính thức — KHÔNG hào phóng, KHÔNG suy đoán có ý khi bài làm không thể hiện rõ.
 
+NGUYÊN TẮC VÀNG: Bài làm THPT trung bình thực tế đạt 4.0–6.0/10. Bài khá đạt 6.5–7.5. Bài giỏi đạt 7.5–8.5. Chỉ bài xuất sắc toàn diện mới đạt 8.5+. Nếu bạn cho điểm > 7.0, bạn PHẢI giải thích cụ thể tại sao bài xứng đáng điểm cao đó.
+
 ══════════════════════════════════════════
 ${GRADING_RUBRIC_PROMPT}
 
@@ -219,10 +221,22 @@ ${studentAnswer}
 QUY TRÌNH CHẤM — thực hiện tuần tự TRƯỚC khi xuất JSON:
 
 BƯỚC 1: Liệt kê từng câu trong hướng dẫn chấm và thang điểm tương ứng
-BƯỚC 2: Với mỗi câu, đọc tiêu chí → kiểm tra bài làm có đáp ứng không → ghi điểm thực tế
-BƯỚC 3: Kiểm tra yêu cầu độ dài từng phần (nếu có)
-BƯỚC 4: Áp dụng giới hạn điểm (nguyên tắc ⑥) nếu có lỗi nghiêm trọng
-BƯỚC 5: Tính tổng điểm
+BƯỚC 2: Với mỗi câu ĐỌC HIỂU, liệt kê TỪNG Ý trong đáp án → kiểm tra bài làm có viết ý đó không (CÓ/KHÔNG) → chỉ cho điểm những ý CÓ
+BƯỚC 3: Với câu VIẾT ĐOẠN (NLXH 2.0đ), chấm theo 4 tiêu chí:
+   - (a) YC chung (0.5đ): Xác định đúng vấn đề (0.25đ)? + Hình thức đoạn văn + dung lượng 100-300 chữ (0.25đ)? Nếu không đáp ứng 1/2 → 0đ phần a.
+   - (b) YC cụ thể (1.25đ): Đối chiếu từng ý trong đáp án → cho điểm ý đã viết.
+   - (c) Sáng tạo (0.25đ): Có ý đột phá hoặc diễn đạt tinh tế?
+   - (d) Trừ lỗi: Đếm số lỗi diễn đạt/chính tả/dùng từ/viết câu → 4-6 lỗi −0.5đ, 7-8 lỗi −0.75đ, >8 lỗi không quá 1.0đ.
+   - Tổng = a+b+c−d. Nếu tổng < 0 nhưng có làm bài → sàn 0.25đ.
+BƯỚC 4: Với câu VIẾT BÀI (NLVH 4.0đ), chấm theo 4 tiêu chí:
+   - (a) YC chung (1.0đ): Vấn đề (0.25đ) + Dung lượng 400-800 chữ (0.25đ) + Bằng chứng thuyết phục (0.25đ) + Bằng chứng đời sống/đọc hiểu (0.25đ).
+   - (b) YC cụ thể (2.5đ): Đối chiếu từng luận điểm trong đáp án.
+   - (c) Sáng tạo (0.5đ): Ý mới (0.25đ) + Diễn đạt (0.25đ).
+   - (d) Trừ lỗi: 6-8 lỗi −0.5đ, 9-12 lỗi −1.0đ, >12 lỗi không quá 2.0đ.
+   - Tổng = a+b+c−d. Nếu tổng < 0 nhưng có làm bài → sàn 0.25đ.
+BƯỚC 5: Áp dụng giới hạn điểm (nguyên tắc ⑤) — đếm số lỗi nghiêm trọng
+BƯỚC 6: Tính tổng điểm
+BƯỚC 7 (BẮT BUỘC): TỰ KIỂM TRA — Nếu tổng > 7.0, kiểm tra lại: "Bài có thiếu sót gì không?" Nếu CÓ bất kỳ thiếu sót → hạ điểm. Nếu tổng > 8.0, bài phải HOÀN TOÀN không thiếu sót.
 
 ══════════════════════════════════════════
 ĐẦU RA — Trả về JSON THUẦN (không markdown, không \`\`\`):
@@ -230,11 +244,11 @@ BƯỚC 5: Tính tổng điểm
   "score": <điểm thực tế, tính đến 0.25>,
   "maxScore": <tổng điểm tối đa>,
   "feedback": "<nhận xét thẳng thắn: nêu cụ thể thiếu sót, không khen chung chung>",
-  "details": "<chấm chi tiết từng câu: Câu X (Y/Z điểm): lý do được/bị trừ điểm>",
+  "details": "<chấm chi tiết từng câu theo cấu trúc: Câu Đọc hiểu X (Y/Z điểm): ý đạt/không đạt. Câu NLXH (Y/2.0đ): a.YC chung=Yđ + b.YC cụ thể=Yđ + c.Sáng tạo=Yđ − d.Trừ lỗi=Yđ = Zđ. Câu NLVH (Y/4.0đ): a.YC chung=Yđ + b.YC cụ thể=Yđ + c.Sáng tạo=Yđ − d.Trừ lỗi=Yđ = Zđ>",
   "errors": [
     {
       "quote": "<trích đoạn hoặc mô tả lỗi cụ thể>",
-      "issue": "<Thiếu ý / Không đủ chữ (X/Y chữ) / Sai đáp án / Thiếu dẫn chứng / Lập luận yếu / Thiếu phân tích>",
+      "issue": "<Thiếu ý / Không đủ chữ (X/Y chữ) / Sai đáp án / Thiếu dẫn chứng / Lập luận yếu / Thiếu phân tích nghệ thuật / Chỉ tóm tắt không phân tích / Lỗi diễn đạt>",
       "suggestion": "<hướng dẫn sửa cụ thể>"
     }
   ],
@@ -245,8 +259,11 @@ BƯỚC 5: Tính tổng điểm
 
 RÀNG BUỘC BẮT BUỘC:
 - Bài trống: {"score":0,"maxScore":10,"feedback":"Học sinh không nộp bài làm.","details":"Bài trống — 0/10 điểm.","errors":[],"improvements":["Cần viết bài đầy đủ"],"weaknesses":["không viết bài"],"strengths":[]}
-- errors[] phải liệt kê TẤT CẢ lỗi quan trọng (thiếu ý, không đủ chữ, sai đáp án, thiếu dẫn chứng)
-- Nếu bài thiếu ý/thiếu chữ nhưng AI vẫn cho điểm cao → vi phạm nguyên tắc chấm`;
+- errors[] phải liệt kê TẤT CẢ lỗi quan trọng (thiếu ý, không đủ chữ, sai đáp án, thiếu dẫn chứng, thiếu phân tích nghệ thuật, lỗi diễn đạt/chính tả)
+- Nếu bài thiếu ý/thiếu chữ nhưng AI vẫn cho điểm cao → vi phạm nguyên tắc chấm
+- details PHẢI ghi rõ từng câu với breakdown a/b/c/d cho câu viết
+- QUY TẮC SÀN: Nếu thí sinh CÓ LÀM BÀI câu viết nhưng điểm nội dung < điểm trừ lỗi → vẫn cho 0.25đ câu đó
+- Nếu score > 7.0 mà errors[] có > 0 mục → BẮT BUỘC giảm score`;
 
     const rawText = await sendGradingRequest(prompt, signal);
 

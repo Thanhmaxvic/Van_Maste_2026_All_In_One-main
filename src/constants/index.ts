@@ -81,44 +81,72 @@ export const AI_DETECTION_PROMPT = `⑧ PHÁT HIỆN SỬ DỤNG AI ĐỂ VIẾT
 
    LƯU Ý CUỐI: Nếu có cờ "[GIAN LẬN]" ở đầu bài nhưng văn phong bài viết HOÀN TOÀN CỦA CON NGƯỜI (không thoả mãn điều kiện văn phong AI): Châm chước giữ nguyên điểm, nhưng vẫn để lại một lời nhắc nhở nhẹ ở feedback: "Hệ thống ghi nhận em đã chuyển tab trong lúc thi, em rút kinh nghiệm nhé."`;
 
-/** Prompt chấm điểm dùng chung cho cả examService và geminiApi — 7 nguyên tắc chấm nghiêm ngặt */
-export const GRADING_RUBRIC_PROMPT = `NGUYÊN TẮC CHẤM BẮT BUỘC (vi phạm = chấm sai):
+/** Prompt chấm điểm dùng chung cho cả examService và geminiApi — theo Hướng dẫn chấm chính thức THPT */
+export const GRADING_RUBRIC_PROMPT = `HƯỚNG DẪN CHUNG:
+- Đáp án theo yêu cầu đánh giá năng lực → tập trung xem xét phương hướng và cách thức giải quyết vấn đề; đánh giá theo hướng mở, khuyến khích sáng tạo, tránh áp đặt.
+- Tuân thủ Đáp án, Hướng dẫn chấm. Bài làm có ý tưởng riêng và cách triển khai khác → xem xét tính thuyết phục để chấm hợp lí.
+- Đánh giá bao quát nội dung VÀ hình thức; phát hiện và chấm đúng bài viết có cá tính, sáng tạo, chân thực.
+- Câu trả lời sai hoặc không trả lời → 0 điểm.
+
+NGUYÊN TẮC CHẤM BẮT BUỘC (vi phạm = chấm sai):
 
 ① CHỈ cho điểm khi học sinh ĐÃ VIẾT ĐỦ Ý theo hướng dẫn chấm.
    - Thiếu ý → trừ điểm phần đó, KHÔNG cho điểm toàn phần
-   - Suy đoán "có ý ngầm" là SAI nguyên tắc
+   - Suy đoán "có lẽ em muốn nói..." hoặc "ý ngầm" là SAI nguyên tắc — chỉ chấm những gì VIẾT RA
+   - Viết lan man không đúng trọng tâm = KHÔNG đạt ý đó
 
-② YÊU CẦU ĐỘ DÀI: Nếu đề ghi "khoảng X chữ":
-   - Bài viết < 75% số chữ yêu cầu: trừ 0.25–0.5đ phần đó (chưa triển khai đủ)
-   - Ví dụ: yêu cầu ~200 chữ, viết 140 chữ = chỉ đạt 70% → PHẢI trừ điểm
+② CÂU ĐỌC HIỂU: PHẢI đối chiếu TỪNG Ý trong đáp án chính thức.
+   - Trả lời đúng ý chính VÀ đủ ý phụ → tối đa
+   - Đúng ý chính nhưng thiếu ý phụ → 50–75% điểm câu đó
+   - Trả lời chung chung, không cụ thể theo đáp án → 25–50% điểm
+   - Trả lời sai/lạc đề → 0 điểm câu đó
 
-③ CÂU ĐỌC HIỂU: Chỉ cho điểm tối đa khi trả lời đúng VÀ đủ ý theo đáp án.
-   - Trả lời đúng nhưng thiếu ý → cho một nửa điểm câu đó
-   - Trả lời sai/thiếu ý chính → 0 điểm câu đó
+③ CÂU VIẾT ĐOẠN — NGHỊ LUẬN XÃ HỘI (NLXH, 2.0 điểm): Chấm theo 4 tiêu chí:
+   (a) YÊU CẦU CHUNG (0.5đ):
+       - Xác định đúng vấn đề nghị luận: 0.25đ
+       - Đảm bảo hình thức đoạn văn (diễn dịch/quy nạp/phối hợp) + dung lượng 100–300 chữ: 0.25đ
+       - Nếu KHÔNG đáp ứng 1 trong 2 yêu cầu trên → 0 điểm phần (a)
+   (b) YÊU CẦU CỤ THỂ (1.25đ): Chấm theo Đáp án — đối chiếu từng ý trong đáp án, chỉ cho điểm ý đã viết ra.
+   (c) SÁNG TẠO (0.25đ): Đáp ứng 1 trong 2 yêu cầu sau:
+       - Có những ý đột phá, vượt ra ngoài Đáp án nhưng có sức thuyết phục
+       - Có cách diễn đạt tinh tế, độc đáo
+   (d) TRỪ ĐIỂM LỖI (diễn đạt, chính tả, dùng từ, viết câu):
+       - 4–6 lỗi: trừ 0.5đ
+       - 7–8 lỗi: trừ 0.75đ
+       - Trên 8 lỗi: không chấm vượt quá 1.0đ tổng điểm cả câu
+   QUY TẮC SÀN: Nếu thí sinh CÓ LÀM BÀI nhưng điểm trừ lỗi > điểm nội dung → vẫn cho 0.25đ (để phân biệt với thí sinh không làm)
 
-④ CÂU NGHỊ LUẬN XÃ HỘI: Kiểm tra đủ 4 tiêu chí:
-   (a) Có đủ bố cục mở/thân/kết rõ ràng
-   (b) Luận điểm rõ ràng, đúng hướng yêu cầu
-   (c) Có dẫn chứng cụ thể (người thật, sự kiện thật)
-   (d) Đủ số chữ yêu cầu (xem ②)
-   Thiếu tiêu chí nào → trừ điểm tương ứng
+④ CÂU VIẾT BÀI — NGHỊ LUẬN VĂN HỌC (NLVH, 4.0 điểm): Chấm theo 4 tiêu chí:
+   (a) YÊU CẦU CHUNG (1.0đ):
+       - Xác định đúng vấn đề nghị luận: 0.25đ
+       - Dung lượng khoảng 600 chữ (cho phép 400–800 chữ): 0.25đ
+       - Bằng chứng thuyết phục, bao quát các khía cạnh của vấn đề: 0.25đ
+       - Sử dụng bằng chứng từ đời sống hoặc từ văn bản đọc hiểu: 0.25đ
+   (b) YÊU CẦU CỤ THỂ (2.5đ): Chấm theo Đáp án — đối chiếu từng luận điểm, mỗi luận điểm thiếu trừ điểm tương ứng.
+   (c) SÁNG TẠO (0.5đ):
+       - Ý mới có sức thuyết phục: 0.25đ
+       - Diễn đạt tinh tế, độc đáo: 0.25đ
+   (d) TRỪ ĐIỂM LỖI (diễn đạt, chính tả, dùng từ, viết câu):
+       - 6–8 lỗi: trừ 0.5đ
+       - 9–12 lỗi: trừ 1.0đ
+       - Trên 12 lỗi: không chấm quá 2.0đ tổng điểm cả câu
+   QUY TẮC SÀN: Nếu thí sinh CÓ LÀM BÀI nhưng điểm trừ lỗi > điểm nội dung → vẫn cho 0.25đ (để phân biệt với thí sinh không làm)
 
-⑤ CÂU NGHỊ LUẬN VĂN HỌC: Kiểm tra:
-   (a) Phân tích đúng tác phẩm/đoạn trích theo hướng dẫn
-   (b) Có dẫn chứng trực tiếp từ văn bản (trích thơ/văn)
-   (c) Đủ các luận điểm chính mà hướng dẫn chấm yêu cầu
-   Thiếu luận điểm nào trong hướng dẫn → trừ điểm phần đó
+⑤ GIỚI HẠN ĐIỂM CAO — BẮT BUỘC TUÂN THỦ:
+   - ≥ 3 lỗi nghiêm trọng: điểm tổng ≤ 5.0
+   - ≥ 2 lỗi nghiêm trọng (thiếu ý chính / thiếu dẫn chứng / không đủ chữ): điểm tổng ≤ 7.0
+   - ≥ 1 lỗi nghiêm trọng: điểm tổng ≤ 8.0
+   - KHÔNG BAO GIỜ cho 10/10. Điểm tổng tối đa tuyệt đối = 9.5
+   - Bài "xuất sắc" thực tế của học sinh THPT thường đạt 7.5–8.5, KHÔNG PHẢI 9.0+
+   - Điểm 8.5+ chỉ dành cho bài thực sự xuất sắc ở MỌI tiêu chí
+   Lỗi nghiêm trọng bao gồm: thiếu ý chính trong đáp án, thiếu dẫn chứng, không đủ chữ, lạc đề, chỉ tóm tắt không phân tích
 
-⑥ GIỚI HẠN ĐIỂM CAO:
-   - ≥ 2 lỗi nghiêm trọng (thiếu ý chính / thiếu dẫn chứng / không đủ chữ): điểm ≤ 7.0
-   - ≥ 1 lỗi nghiêm trọng: điểm ≤ 8.0
-   - KHÔNG BAO GIỜ cho điểm tối đa (10/10). Điểm tổng tối đa tuyệt đối = 9.5
-   - Bài xuất sắc nhất cũng chỉ đạt 8.75–9.5 điểm
-
-⑦ GIỚI HẠN ĐIỂM CÂU VIẾT (NGHỊ LUẬN):
-   - Câu nghị luận xã hội: điểm tối đa = 100% thang điểm
-   - Câu nghị luận văn học: điểm tối đa = 90% thang điểm
-   - Chỉ câu đọc hiểu mới được phép cho điểm tối đa nếu đúng hoàn toàn`;
+⑥ TỰ KIỂM TRA (BẮT BUỘC): Sau khi tính tổng điểm, PHẢI tự hỏi:
+   - "Bài này có bao nhiêu lỗi nghiêm trọng?" → áp dụng giới hạn ⑤
+   - "Câu NLXH: a+b+c−d = bao nhiêu? Có cần áp dụng sàn 0.25đ không?"
+   - "Câu NLVH: a+b+c−d = bao nhiêu? Có cần áp dụng sàn 0.25đ không?"
+   - "Nếu giám khảo thật đọc bài này, họ có cho điểm này không?" → nếu nghi ngờ, hạ 0.25–0.5đ
+   - Nếu tổng điểm > 8.0 nhưng bài có BẤT KỲ thiếu sót nào → hạ xuống ≤ 8.0`;
 
 /** Delay proactive idle question */
 export const PROACTIVE_DELAY_MS = 120_000; // 120 giây (2 phút) — tiết kiệm API, HS cần thời gian đọc/suy nghĩ
