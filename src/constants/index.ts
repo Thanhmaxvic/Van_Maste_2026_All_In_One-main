@@ -87,6 +87,7 @@ export const GRADING_RUBRIC_PROMPT = `HƯỚNG DẪN CHUNG:
 - Tuân thủ Đáp án, Hướng dẫn chấm. Bài làm có ý tưởng riêng và cách triển khai khác → xem xét tính thuyết phục để chấm hợp lí.
 - Đánh giá bao quát nội dung VÀ hình thức; phát hiện và chấm đúng bài viết có cá tính, sáng tạo, chân thực.
 - Câu trả lời sai hoặc không trả lời → 0 điểm.
+- LƯU Ý: Các nguyên tắc dưới đây bao gồm cả Đọc hiểu, Viết đoạn (NLXH), và Viết bài (NLVH). CHỈ ÁP DỤNG nguyên tắc tương ứng với phần CÓ TRONG ĐỀ THI. Nếu đề chỉ có Đọc hiểu → bỏ qua ③④. Nếu đề chỉ có Viết → bỏ qua ②. maxScore = tổng điểm thực tế của các câu có trong đề (KHÔNG mặc định 10).
 
 NGUYÊN TẮC CHẤM BẮT BUỘC (vi phạm = chấm sai):
 

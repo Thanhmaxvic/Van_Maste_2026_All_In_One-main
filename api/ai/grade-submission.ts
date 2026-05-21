@@ -4,6 +4,7 @@ const GRADING_RUBRIC = `HƯỚNG DẪN CHUNG:
 - Đáp án theo yêu cầu đánh giá năng lực → đánh giá theo hướng mở, khuyến khích sáng tạo, tránh áp đặt.
 - Bài làm có ý tưởng riêng → xem xét tính thuyết phục để chấm hợp lí.
 - Câu trả lời sai hoặc không trả lời → 0 điểm.
+- LƯU Ý: CHỈ ÁP DỤNG nguyên tắc tương ứng với phần CÓ TRONG ĐỀ. Đề chỉ Đọc hiểu → bỏ qua ③④. Đề chỉ Viết → bỏ qua ②. maxScore = tổng điểm thực tế của đề.
 
 NGUYÊN TẮC CHẤM BẮT BUỘC:
 NGUYÊN TẮC VÀNG: Bài làm THPT trung bình thực tế đạt 4.0–6.0/10. Bài khá đạt 6.5–7.5. Bài giỏi đạt 7.5–8.5. Chỉ bài xuất sắc toàn diện mới đạt 8.5+.
