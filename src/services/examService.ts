@@ -220,28 +220,34 @@ ${studentAnswer}
 ══════════════════════════════════════════
 QUY TRÌNH CHẤM — thực hiện tuần tự TRƯỚC khi xuất JSON:
 
-BƯỚC 1: Liệt kê từng câu trong hướng dẫn chấm và thang điểm tương ứng. Xác định đề có phần nào: Đọc hiểu? NLXH? NLVH? → maxScore = tổng điểm các câu thực tế có trong đề.
-BƯỚC 2 (nếu có câu Đọc hiểu): Với mỗi câu ĐỌC HIỂU, liệt kê TỪNG Ý trong đáp án → kiểm tra bài làm có viết ý đó không (CÓ/KHÔNG) → chỉ cho điểm những ý CÓ
+LƯU Ý: MỌI ĐIỂM SỐ phải là bội số 0.25 (0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5...). KHÔNG cho điểm lẻ (0.1, 0.3, 0.33, 1.1...).
+
+BƯỚC 1: Liệt kê từng câu trong hướng dẫn chấm. Tách đáp án mỗi câu thành DANH SÁCH CÁC Ý NHỎ, mỗi ý gắn mức điểm (0.25đ hoặc 0.5đ). Xác định đề có phần nào: Đọc hiểu? NLXH? NLVH? → maxScore = tổng điểm các câu thực tế có trong đề.
+BƯỚC 2 (nếu có câu Đọc hiểu): Với mỗi câu ĐỌC HIỂU:
+   - Liệt kê các ý nhỏ trong đáp án (mỗi ý = 0.25đ hoặc 0.5đ).
+   - Quét bài làm: tìm TỪ KHOÁ / CỤM TỪ / DIỄN ĐẠT TƯƠNG ĐƯƠNG với từng ý.
+   - Có ý → cộng điểm ý đó (✓). Thiếu ý → 0đ (✗). Sai ý → 0đ (✗).
+   - Điểm câu = tổng điểm các ý đạt (bội số 0.25đ).
 BƯỚC 3 (nếu có câu NLXH): Với câu VIẾT ĐOẠN (NLXH 2.0đ), chấm theo 4 tiêu chí:
    - (a) YC chung (0.5đ): Xác định đúng vấn đề (0.25đ)? + Hình thức đoạn văn + dung lượng 100-300 chữ (0.25đ)? Nếu không đáp ứng 1/2 → 0đ phần a.
-   - (b) YC cụ thể (1.25đ): Đối chiếu từng ý trong đáp án → cho điểm ý đã viết.
+   - (b) YC cụ thể (1.25đ): Tách đáp án thành các ý nhỏ (mỗi ý 0.25đ). Tìm từ khoá/diễn đạt tương đương trong bài làm → có ý = cộng điểm ý đó, thiếu = 0đ. Tổng b = tổng ý đạt.
    - (c) Sáng tạo (0.25đ): Có ý đột phá hoặc diễn đạt tinh tế?
    - (d) Trừ lỗi: Đếm số lỗi diễn đạt/chính tả/dùng từ/viết câu → 4-6 lỗi −0.5đ, 7-8 lỗi −0.75đ, >8 lỗi không quá 1.0đ.
-   - Tổng = a+b+c−d. Nếu tổng < 0 nhưng có làm bài → sàn 0.25đ.
+   - Tổng = a+b+c−d (làm tròn đến bội 0.25). Nếu tổng < 0 nhưng có làm bài → sàn 0.25đ.
 BƯỚC 4 (nếu có câu NLVH): Với câu VIẾT BÀI (NLVH 4.0đ), chấm theo 4 tiêu chí:
    - (a) YC chung (1.0đ): Vấn đề (0.25đ) + Dung lượng 400-800 chữ (0.25đ) + Bằng chứng thuyết phục (0.25đ) + Bằng chứng đời sống/đọc hiểu (0.25đ).
-   - (b) YC cụ thể (2.5đ): Đối chiếu từng luận điểm trong đáp án.
+   - (b) YC cụ thể (2.5đ): Tách đáp án thành luận điểm/ý nhỏ (mỗi ý 0.25đ hoặc 0.5đ). Tìm từ khoá/diễn đạt tương đương → có luận điểm = cộng, thiếu = 0đ. Tổng b = tổng luận điểm đạt.
    - (c) Sáng tạo (0.5đ): Ý mới (0.25đ) + Diễn đạt (0.25đ).
    - (d) Trừ lỗi: 6-8 lỗi −0.5đ, 9-12 lỗi −1.0đ, >12 lỗi không quá 2.0đ.
-   - Tổng = a+b+c−d. Nếu tổng < 0 nhưng có làm bài → sàn 0.25đ.
+   - Tổng = a+b+c−d (làm tròn đến bội 0.25). Nếu tổng < 0 nhưng có làm bài → sàn 0.25đ.
 BƯỚC 5: Áp dụng giới hạn điểm (nguyên tắc ⑤) — đếm số lỗi nghiêm trọng
-BƯỚC 6: Tính tổng điểm
-BƯỚC 7 (BẮT BUỘC): TỰ KIỂM TRA — Nếu tổng > 7.0, kiểm tra lại: "Bài có thiếu sót gì không?" Nếu CÓ bất kỳ thiếu sót → hạ điểm. Nếu tổng > 8.0, bài phải HOÀN TOÀN không thiếu sót.
+BƯỚC 6: Tính tổng điểm (PHẢI là bội số 0.25)
+BƯỚC 7 (BẮT BUỘC): TỰ KIỂM TRA — Nếu tổng > 7.0, kiểm tra lại: "Bài có thiếu sót gì không?" Nếu CÓ bất kỳ thiếu sót → hạ điểm. Nếu tổng > 8.0, bài phải HOÀN TOÀN không thiếu sót. Kiểm tra tất cả điểm đều là bội 0.25.
 
 ══════════════════════════════════════════
 ĐẦU RA — Trả về JSON THUẦN (không markdown, không \`\`\`):
 {
-  "score": <điểm thực tế, tính đến 0.25>,
+  "score": <điểm thực tế, BẮT BUỘC bội số 0.25 (ví dụ: 0, 0.25, 0.5, 2.75, 5.0, 7.25...)>,
   "maxScore": <tổng điểm tối đa thực tế của các câu trong đề — VÍ DỤ: đề chỉ đọc hiểu=4, đề chỉ viết=6, đề full=10>,
   "feedback": "<nhận xét thẳng thắn: nêu cụ thể thiếu sót, không khen chung chung>",
   "details": "<chấm chi tiết từng câu CÓ TRONG ĐỀ: Câu Đọc hiểu X (Y/Z điểm): ý đạt/không đạt. Câu NLXH (Y/2.0đ): a.YC chung=Yđ + b.YC cụ thể=Yđ + c.Sáng tạo=Yđ − d.Trừ lỗi=Yđ = Zđ. Câu NLVH (Y/4.0đ): a.YC chung=Yđ + b.YC cụ thể=Yđ + c.Sáng tạo=Yđ − d.Trừ lỗi=Yđ = Zđ. Bỏ phần không có trong đề.>",

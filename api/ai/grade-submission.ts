@@ -7,13 +7,14 @@ const GRADING_RUBRIC = `HƯỚNG DẪN CHUNG:
 - LƯU Ý: CHỈ ÁP DỤNG nguyên tắc tương ứng với phần CÓ TRONG ĐỀ. Đề chỉ Đọc hiểu → bỏ qua ③④. Đề chỉ Viết → bỏ qua ②. maxScore = tổng điểm thực tế của đề.
 
 NGUYÊN TẮC CHẤM BẮT BUỘC:
+QUY TẮC THANG ĐIỂM: Mọi điểm số PHẢI là bội số 0.25. KHÔNG cho điểm lẻ như 0.1, 0.3, 0.33...
 NGUYÊN TẮC VÀNG: Bài làm THPT trung bình thực tế đạt 4.0–6.0/10. Bài khá đạt 6.5–7.5. Bài giỏi đạt 7.5–8.5. Chỉ bài xuất sắc toàn diện mới đạt 8.5+.
-① CHỈ cho điểm khi ĐÃ VIẾT ĐỦ Ý. Thiếu ý → trừ điểm. Suy đoán "ý ngầm" là SAI.
-② ĐỌC HIỂU: Đối chiếu TỪNG Ý trong đáp án. Đúng+đủ → tối đa. Thiếu ý → 50–75%. Chung chung → 25–50%. Sai → 0đ.
-③ CÂU VIẾT ĐOẠN — NLXH (2.0đ): (a) YC chung 0.5đ: vấn đề nghị luận 0.25đ + hình thức đoạn văn+dung lượng 100-300 chữ 0.25đ (không đáp ứng 1/2 → 0đ phần a). (b) YC cụ thể 1.25đ: chấm theo đáp án. (c) Sáng tạo 0.25đ: ý đột phá hoặc diễn đạt tinh tế. (d) Trừ lỗi: 4-6 lỗi −0.5đ, 7-8 lỗi −0.75đ, >8 lỗi không quá 1.0đ cả câu. SÀN: có làm bài nhưng trừ>nội dung → 0.25đ.
-④ CÂU VIẾT BÀI — NLVH (4.0đ): (a) YC chung 1.0đ: vấn đề 0.25đ + dung lượng 400-800 chữ 0.25đ + bằng chứng thuyết phục 0.25đ + bằng chứng đời sống/đọc hiểu 0.25đ. (b) YC cụ thể 2.5đ: chấm theo đáp án. (c) Sáng tạo 0.5đ: ý mới 0.25đ + diễn đạt 0.25đ. (d) Trừ lỗi: 6-8 lỗi −0.5đ, 9-12 lỗi −1.0đ, >12 lỗi không quá 2.0đ cả câu. SÀN: có làm bài nhưng trừ>nội dung → 0.25đ.
+① PHƯƠNG PHÁP CHẤM: Tách đáp án thành DANH SÁCH Ý NHỎ (mỗi ý 0.25đ hoặc 0.5đ). Đọc bài làm, tìm TỪ KHOÁ/DIỄN ĐẠT TƯƠNG ĐƯƠNG với từng ý → có ý = cộng điểm, thiếu ý = 0đ ý đó. Suy đoán "ý ngầm" là SAI.
+② ĐỌC HIỂU: Tách đáp án mỗi câu thành ý nhỏ (0.25đ/0.5đ). Quét bài làm tìm từ khoá tương đương. Có ý = cộng. Thiếu = 0đ. Sai = 0đ. Điểm câu = tổng ý đạt (bội 0.25đ).
+③ CÂU VIẾT ĐOẠN — NLXH (2.0đ): (a) YC chung 0.5đ: vấn đề nghị luận 0.25đ + hình thức đoạn văn+dung lượng 100-300 chữ 0.25đ (không đáp ứng 1/2 → 0đ phần a). (b) YC cụ thể 1.25đ: tách đáp án thành ý nhỏ (0.25đ), tìm từ khoá tương đương → có ý = cộng, thiếu = 0đ. (c) Sáng tạo 0.25đ. (d) Trừ lỗi: 4-6 lỗi −0.5đ, 7-8 lỗi −0.75đ, >8 lỗi không quá 1.0đ. SÀN: có làm bài nhưng trừ>nội dung → 0.25đ.
+④ CÂU VIẾT BÀI — NLVH (4.0đ): (a) YC chung 1.0đ: vấn đề 0.25đ + dung lượng 400-800 chữ 0.25đ + bằng chứng thuyết phục 0.25đ + bằng chứng đời sống/đọc hiểu 0.25đ. (b) YC cụ thể 2.5đ: tách đáp án thành luận điểm (0.25đ-0.5đ), tìm từ khoá tương đương → có ý = cộng, thiếu = 0đ. (c) Sáng tạo 0.5đ: ý mới 0.25đ + diễn đạt 0.25đ. (d) Trừ lỗi: 6-8 lỗi −0.5đ, 9-12 lỗi −1.0đ, >12 lỗi không quá 2.0đ. SÀN: có làm bài nhưng trừ>nội dung → 0.25đ.
 ⑤ GIỚI HẠN: ≥3 lỗi → ≤5.0. ≥2 lỗi → ≤7.0. ≥1 lỗi → ≤8.0. Tối đa 9.5. Điểm 8.5+ phải xuất sắc MỌI tiêu chí.
-⑥ TỰ KIỂM TRA: Nếu score>7.0 mà có lỗi → hạ điểm. Nếu score>8.0 bài phải KHÔNG thiếu sót. Kiểm tra NLXH: a+b+c−d. Kiểm tra NLVH: a+b+c−d. Áp dụng sàn 0.25đ nếu cần.`;
+⑥ TỰ KIỂM TRA: Nếu score>7.0 mà có lỗi → hạ điểm. Nếu score>8.0 bài phải KHÔNG thiếu sót. Kiểm tra mọi điểm đều là bội 0.25.`;
 
 const AI_DETECTION = `⑨ PHÁT HIỆN AI: Chỉ quét NLXH/NLVH. Cơ chế: cần ≥1 dấu hiệu cấu trúc (A1/A2) + ≥2 dấu hiệu phụ (B1/B2/B3). Phạt 50% điểm câu vi phạm.`;
 
