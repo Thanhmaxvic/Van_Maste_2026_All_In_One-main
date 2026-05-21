@@ -91,28 +91,23 @@ export const GRADING_RUBRIC_PROMPT = `HƯỚNG DẪN CHUNG:
 
 NGUYÊN TẮC CHẤM BẮT BUỘC (vi phạm = chấm sai):
 
-QUY TẮC THANG ĐIỂM: Mọi điểm số (điểm từng câu, điểm từng ý, điểm tổng) PHẢI là bội số của 0.25. Thang điểm nhỏ nhất = 0.25đ. KHÔNG BAO GIỜ cho điểm lẻ như 0.1, 0.3, 0.15, 0.33, 1.1, 1.33...
-
-① PHƯƠNG PHÁP CHẤM — ĐẾM Ý VÀ TÌM TỪ KHOÁ:
-   - Với MỖI CÂU trong đáp án: tách thành DANH SÁCH các ý nhỏ, mỗi ý gắn với mức điểm cố định (thường 0.25đ hoặc 0.5đ).
-   - Đọc bài làm học sinh: tìm TỪ KHOÁ hoặc DIỄN ĐẠT TƯƠNG ĐƯƠNG với từng ý trong đáp án.
-   - Học sinh diễn đạt KHÁC LỜI nhưng ĐÚNG Ý → vẫn được điểm ý đó.
-   - Thiếu ý nào → KHÔNG cho điểm ý đó. Suy đoán "ý ngầm" là SAI nguyên tắc — chỉ chấm những gì VIẾT RA.
-   - Viết lan man không đúng trọng tâm = KHÔNG đạt ý đó.
+① CHỈ cho điểm khi học sinh ĐÃ VIẾT ĐỦ Ý theo hướng dẫn chấm.
+   - Thiếu ý → trừ điểm phần đó, KHÔNG cho điểm toàn phần
+   - Suy đoán "có lẽ em muốn nói..." hoặc "ý ngầm" là SAI nguyên tắc — chỉ chấm những gì VIẾT RA
+   - Viết lan man không đúng trọng tâm = KHÔNG đạt ý đó
 
 ② CÂU ĐỌC HIỂU: PHẢI đối chiếu TỪNG Ý trong đáp án chính thức.
-   - Tách đáp án mỗi câu thành các ý nhỏ, mỗi ý = 0.25đ hoặc 0.5đ (theo thang điểm ghi trong hướng dẫn chấm).
-   - Quét bài làm: tìm từ khoá / cụm từ / ý tương đương với từng ý đáp án.
-   - Có ý → cộng điểm ý đó. Thiếu ý → 0đ ý đó. Sai ý → 0đ ý đó.
-   - Điểm câu = tổng điểm các ý đạt được (bội số 0.25đ).
-   - Trả lời sai hoàn toàn / lạc đề → 0 điểm câu đó.
+   - Trả lời đúng ý chính VÀ đủ ý phụ → tối đa
+   - Đúng ý chính nhưng thiếu ý phụ → 50–75% điểm câu đó
+   - Trả lời chung chung, không cụ thể theo đáp án → 25–50% điểm
+   - Trả lời sai/lạc đề → 0 điểm câu đó
 
 ③ CÂU VIẾT ĐOẠN — NGHỊ LUẬN XÃ HỘI (NLXH, 2.0 điểm): Chấm theo 4 tiêu chí:
    (a) YÊU CẦU CHUNG (0.5đ):
        - Xác định đúng vấn đề nghị luận: 0.25đ
        - Đảm bảo hình thức đoạn văn (diễn dịch/quy nạp/phối hợp) + dung lượng 100–300 chữ: 0.25đ
        - Nếu KHÔNG đáp ứng 1 trong 2 yêu cầu trên → 0 điểm phần (a)
-   (b) YÊU CẦU CỤ THỂ (1.25đ): Tách đáp án thành các ý nhỏ (mỗi ý 0.25đ). Đọc bài làm, tìm từ khoá/diễn đạt tương đương với từng ý → có ý = cộng điểm, thiếu ý = 0đ ý đó. Tổng phần b = tổng điểm các ý đạt.
+   (b) YÊU CẦU CỤ THỂ (1.25đ): Chấm theo Đáp án — đối chiếu từng ý trong đáp án, chỉ cho điểm ý đã viết ra.
    (c) SÁNG TẠO (0.25đ): Đáp ứng 1 trong 2 yêu cầu sau:
        - Có những ý đột phá, vượt ra ngoài Đáp án nhưng có sức thuyết phục
        - Có cách diễn đạt tinh tế, độc đáo
@@ -128,7 +123,7 @@ QUY TẮC THANG ĐIỂM: Mọi điểm số (điểm từng câu, điểm từng
        - Dung lượng khoảng 600 chữ (cho phép 400–800 chữ): 0.25đ
        - Bằng chứng thuyết phục, bao quát các khía cạnh của vấn đề: 0.25đ
        - Sử dụng bằng chứng từ đời sống hoặc từ văn bản đọc hiểu: 0.25đ
-   (b) YÊU CẦU CỤ THỂ (2.5đ): Tách đáp án thành các luận điểm/ý nhỏ (mỗi ý 0.25đ hoặc 0.5đ). Đọc bài làm, tìm từ khoá/diễn đạt tương đương với từng luận điểm → có ý = cộng điểm, thiếu ý = 0đ ý đó. Tổng phần b = tổng điểm các luận điểm đạt.
+   (b) YÊU CẦU CỤ THỂ (2.5đ): Chấm theo Đáp án — đối chiếu từng luận điểm, mỗi luận điểm thiếu trừ điểm tương ứng.
    (c) SÁNG TẠO (0.5đ):
        - Ý mới có sức thuyết phục: 0.25đ
        - Diễn đạt tinh tế, độc đáo: 0.25đ
@@ -138,21 +133,10 @@ QUY TẮC THANG ĐIỂM: Mọi điểm số (điểm từng câu, điểm từng
        - Trên 12 lỗi: không chấm quá 2.0đ tổng điểm cả câu
    QUY TẮC SÀN: Nếu thí sinh CÓ LÀM BÀI nhưng điểm trừ lỗi > điểm nội dung → vẫn cho 0.25đ (để phân biệt với thí sinh không làm)
 
-⑤ GIỚI HẠN ĐIỂM CAO — BẮT BUỘC TUÂN THỦ:
-   - ≥ 3 lỗi nghiêm trọng: điểm tổng ≤ 5.0
-   - ≥ 2 lỗi nghiêm trọng (thiếu ý chính / thiếu dẫn chứng / không đủ chữ): điểm tổng ≤ 7.0
-   - ≥ 1 lỗi nghiêm trọng: điểm tổng ≤ 8.0
-   - KHÔNG BAO GIỜ cho 10/10. Điểm tổng tối đa tuyệt đối = 9.5
-   - Bài "xuất sắc" thực tế của học sinh THPT thường đạt 7.5–8.5, KHÔNG PHẢI 9.0+
-   - Điểm 8.5+ chỉ dành cho bài thực sự xuất sắc ở MỌI tiêu chí
-   Lỗi nghiêm trọng bao gồm: thiếu ý chính trong đáp án, thiếu dẫn chứng, không đủ chữ, lạc đề, chỉ tóm tắt không phân tích
-
-⑥ TỰ KIỂM TRA (BẮT BUỘC): Sau khi tính tổng điểm, PHẢI tự hỏi:
-   - "Bài này có bao nhiêu lỗi nghiêm trọng?" → áp dụng giới hạn ⑤
+⑤ TỰ KIỂM TRA (BẮT BUỘC): Sau khi tính tổng điểm, PHẢI tự hỏi:
    - "Câu NLXH: a+b+c−d = bao nhiêu? Có cần áp dụng sàn 0.25đ không?"
    - "Câu NLVH: a+b+c−d = bao nhiêu? Có cần áp dụng sàn 0.25đ không?"
-   - "Nếu giám khảo thật đọc bài này, họ có cho điểm này không?" → nếu nghi ngờ, hạ 0.25–0.5đ
-   - Nếu tổng điểm > 8.0 nhưng bài có BẤT KỲ thiếu sót nào → hạ xuống ≤ 8.0`;
+   - "Nếu giám khảo thật đọc bài này, họ có cho điểm này không?" → nếu nghi ngờ, hạ 0.25–0.5đ`;
 
 /** Delay proactive idle question */
 export const PROACTIVE_DELAY_MS = 120_000; // 120 giây (2 phút) — tiết kiệm API, HS cần thời gian đọc/suy nghĩ

@@ -182,14 +182,9 @@ HƯỚNG DẪN CHUNG:
 - Bài có ý tưởng riêng → xem xét tính thuyết phục để chấm hợp lí.
 - Câu sai hoặc không trả lời → 0đ.
 
-PHƯƠNG PHÁP CHẤM:
-- MỌI ĐIỂM SỐ phải là bội số 0.25 (0, 0.25, 0.5, 0.75...). KHÔNG cho điểm lẻ (0.1, 0.3, 0.33...).
-- Tách đáp án thành DANH SÁCH Ý NHỎ (mỗi ý 0.25đ hoặc 0.5đ). Đọc bài làm, tìm TỪ KHOÁ/DIỄN ĐẠT TƯƠNG ĐƯƠNG → có ý = cộng điểm, thiếu ý = 0đ.
-- Câu đọc hiểu: tách ý nhỏ (0.25đ/0.5đ), quét từ khoá, điểm câu = tổng ý đạt.
-
 RUBRIC CHẤM PHẦN VIẾT:
-1. Câu viết đoạn NLXH (2.0đ): (a) YC chung 0.5đ: vấn đề nghị luận 0.25đ + hình thức đoạn văn+dung lượng 100-300 chữ 0.25đ. (b) YC cụ thể 1.25đ: tách đáp án thành ý nhỏ (0.25đ), tìm từ khoá tương đương → cộng/trừ. (c) Sáng tạo 0.25đ. (d) Trừ lỗi: 4-6 lỗi −0.5đ, 7-8 lỗi −0.75đ, >8 lỗi không quá 1.0đ.
-2. Câu viết bài NLVH (4.0đ): (a) YC chung 1.0đ: vấn đề 0.25đ + dung lượng 400-800 chữ 0.25đ + bằng chứng thuyết phục 0.25đ + bằng chứng đời sống/đọc hiểu 0.25đ. (b) YC cụ thể 2.5đ: tách đáp án thành luận điểm (0.25đ-0.5đ), tìm từ khoá tương đương → cộng/trừ. (c) Sáng tạo 0.5đ: ý mới 0.25đ + diễn đạt 0.25đ. (d) Trừ lỗi: 6-8 lỗi −0.5đ, 9-12 lỗi −1.0đ, >12 lỗi không quá 2.0đ.
+1. Câu viết đoạn NLXH (2.0đ): (a) YC chung 0.5đ: vấn đề nghị luận 0.25đ + hình thức đoạn văn+dung lượng 100-300 chữ 0.25đ. (b) YC cụ thể 1.25đ: chấm theo đáp án. (c) Sáng tạo 0.25đ. (d) Trừ lỗi: 4-6 lỗi −0.5đ, 7-8 lỗi −0.75đ, >8 lỗi không quá 1.0đ.
+2. Câu viết bài NLVH (4.0đ): (a) YC chung 1.0đ: vấn đề 0.25đ + dung lượng 400-800 chữ 0.25đ + bằng chứng thuyết phục 0.25đ + bằng chứng đời sống/đọc hiểu 0.25đ. (b) YC cụ thể 2.5đ: chấm theo đáp án. (c) Sáng tạo 0.5đ: ý mới 0.25đ + diễn đạt 0.25đ. (d) Trừ lỗi: 6-8 lỗi −0.5đ, 9-12 lỗi −1.0đ, >12 lỗi không quá 2.0đ.
 QUY TẮC SÀN: Nếu thí sinh CÓ LÀM BÀI nhưng điểm trừ > điểm nội dung → vẫn cho 0.25đ/câu.
 
 Nếu bài làm là file văn bản, hãy đọc cẩn thận. Nếu bài làm là ảnh chụp tự luận, hãy nhận diện chữ viết tay và chấm kỹ.
