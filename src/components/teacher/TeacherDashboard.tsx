@@ -370,112 +370,127 @@ export default function TeacherDashboard() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredUsers.map((u, i) => (
-                                <tr key={u.uid}>
-                                    <td>{i + 1}</td>
-                                    {editingUserId === u.uid ? (
-                                        <>
-                                            <td className="td-cell-name">
-                                                <input type="text" value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} className="td-input text-xs p-1 h-auto" />
-                                            </td>
-                                            <td className="td-cell-email">
-                                                <input type="email" value={editFormData.email} onChange={e => setEditFormData({ ...editFormData, email: e.target.value })} className="td-input text-xs p-1 h-auto" />
-                                            </td>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <td className="td-cell-name">{u.name}</td>
-                                            <td className="td-cell-email">{u.email}</td>
-                                        </>
-                                    )}
-                                    <td>
-                                        <span className={`td-level-badge ${u.role === 'teacher' ? 'bg-indigo-500/20 text-indigo-400' : ''}`}>
-                                            {u.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
-                                        </span>
-                                    </td>
-                                    <td><span className="td-level-badge">{u.level}</span></td>
-                                    <td className="td-cell-score">
-                                        {editingUserId === u.uid ? (
-                                            <input type="number" step="0.1" value={editFormData.avgScore} onChange={e => setEditFormData({ ...editFormData, avgScore: Number(e.target.value) })} className="td-input text-xs p-1 h-auto w-16" />
-                                        ) : (
-                                            u.avgScore > 0 ? u.avgScore.toFixed(1) : '--'
-                                        )}
-                                    </td>
-                                    <td>{u.submissionCount}</td>
-                                    <td className="td-cell-score">
-                                        {editingUserId === u.uid ? (
-                                            <input type="number" step="0.1" value={editFormData.bestScore} onChange={e => setEditFormData({ ...editFormData, bestScore: Number(e.target.value) })} className="td-input text-xs p-1 h-auto w-16" />
-                                        ) : (
-                                            u.bestScore != null && u.bestScore > 0 ? u.bestScore.toFixed(1) : '--'
-                                        )}
-                                    </td>
-                                    <td>
-                                        <span className={`td-status-badge ${u.isOnboarded ? 'active' : 'pending'}`}>
-                                            {u.isOnboarded ? 'Hoạt động' : 'Chưa onboard'}
-                                        </span>
-                                    </td>
-                                    <td className="flex gap-2 flex-wrap">
+                            {filteredUsers.map((u, i) => {
+                                const isUserAdmin = u.role === 'teacher';
+                                const canEditOrResetUser = !isUserAdmin || isMainAdmin;
+                                return (
+                                    <tr key={u.uid}>
+                                        <td>{i + 1}</td>
                                         {editingUserId === u.uid ? (
                                             <>
-                                                <button onClick={handleSaveUser} disabled={savingUser} className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-xs font-semibold text-green-400 transition-colors">
-                                                    {savingUser ? '...' : 'Lưu'}
-                                                </button>
-                                                <button onClick={() => setEditingUserId(null)} disabled={savingUser} className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors">
-                                                    Hủy
-                                                </button>
+                                                <td className="td-cell-name">
+                                                    <input type="text" value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} className="td-input text-xs p-1 h-auto" />
+                                                </td>
+                                                <td className="td-cell-email">
+                                                    <input type="email" value={editFormData.email} onChange={e => setEditFormData({ ...editFormData, email: e.target.value })} className="td-input text-xs p-1 h-auto" />
+                                                </td>
                                             </>
                                         ) : (
                                             <>
-                                                <button
-                                                    onClick={() => handleEditClick(u)}
-                                                    className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-xs font-semibold text-blue-400 transition-colors"
-                                                    title="Sửa thông tin"
-                                                >
-                                                    Sửa
-                                                </button>
-                                                <button
-                                                    onClick={() => handleToggleRole(u.uid, u.role)}
-                                                    className={`px-3 py-1 border rounded-lg text-xs font-semibold transition-colors ${
-                                                        isMainAdmin
-                                                            ? 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80'
-                                                            : 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed'
-                                                    }`}
-                                                    disabled={!isMainAdmin}
-                                                    title={isMainAdmin ? 'Chuyển đổi Học sinh / Giáo viên' : 'Chỉ tài khoản admin chính mới được phép đổi quyền'}
-                                                >
-                                                    Đổi quyền
-                                                </button>
-                                                <button
-                                                    onClick={() => setViewingStudent(u)}
-                                                    className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-xs font-semibold text-purple-400 transition-colors"
-                                                    title="Xem thực trạng học tập"
-                                                >
-                                                    <GraduationCap size={12} className="inline mr-1" />
-                                                    Học tập
-                                                </button>
-                                                <button
-                                                    onClick={async () => {
-                                                        if (!u.email) return alert('Người dùng này không có email hợp lệ.');
-                                                        if (window.confirm(`Gửi email khôi phục mật khẩu đến ${u.email}?`)) {
-                                                            try {
-                                                                const { sendResetPasswordEmail } = await import('../../services/firebaseService');
-                                                                await sendResetPasswordEmail(u.email);
-                                                                alert('Đã gửi email khôi phục mật khẩu thành công. Lời khuyên: báo người dùng kiểm tra hộp thư (cả hộp thư rác).');
-                                                            } catch (e: any) {
-                                                                alert('Lỗi: ' + e.message);
+                                                <td className="td-cell-name">{u.name}</td>
+                                                <td className="td-cell-email">{u.email}</td>
+                                            </>
+                                        )}
+                                        <td>
+                                            <span className={`td-level-badge ${u.role === 'teacher' ? 'bg-indigo-500/20 text-indigo-400' : ''}`}>
+                                                {u.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                                            </span>
+                                        </td>
+                                        <td><span className="td-level-badge">{u.level}</span></td>
+                                        <td className="td-cell-score">
+                                            {editingUserId === u.uid ? (
+                                                <input type="number" step="0.1" value={editFormData.avgScore} onChange={e => setEditFormData({ ...editFormData, avgScore: Number(e.target.value) })} className="td-input text-xs p-1 h-auto w-16" />
+                                            ) : (
+                                                u.avgScore > 0 ? u.avgScore.toFixed(1) : '--'
+                                            )}
+                                        </td>
+                                        <td>{u.submissionCount}</td>
+                                        <td className="td-cell-score">
+                                            {editingUserId === u.uid ? (
+                                                <input type="number" step="0.1" value={editFormData.bestScore} onChange={e => setEditFormData({ ...editFormData, bestScore: Number(e.target.value) })} className="td-input text-xs p-1 h-auto w-16" />
+                                            ) : (
+                                                u.bestScore != null && u.bestScore > 0 ? u.bestScore.toFixed(1) : '--'
+                                            )}
+                                        </td>
+                                        <td>
+                                            <span className={`td-status-badge ${u.isOnboarded ? 'active' : 'pending'}`}>
+                                                {u.isOnboarded ? 'Hoạt động' : 'Chưa onboard'}
+                                            </span>
+                                        </td>
+                                        <td className="flex gap-2 flex-wrap">
+                                            {editingUserId === u.uid ? (
+                                                <>
+                                                    <button onClick={handleSaveUser} disabled={savingUser} className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-xs font-semibold text-green-400 transition-colors">
+                                                        {savingUser ? '...' : 'Lưu'}
+                                                    </button>
+                                                    <button onClick={() => setEditingUserId(null)} disabled={savingUser} className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors">
+                                                        Hủy
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleEditClick(u)}
+                                                        className={`px-3 py-1 border rounded-lg text-xs font-semibold transition-colors ${
+                                                            canEditOrResetUser
+                                                                ? 'bg-blue-500/20 hover:bg-blue-500/30 border-blue-500/30 text-blue-400'
+                                                                : 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed'
+                                                        }`}
+                                                        disabled={!canEditOrResetUser}
+                                                        title={canEditOrResetUser ? 'Sửa thông tin' : 'Chỉ tài khoản admin chính mới được sửa tài khoản admin khác'}
+                                                    >
+                                                        Sửa
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleToggleRole(u.uid, u.role)}
+                                                        className={`px-3 py-1 border rounded-lg text-xs font-semibold transition-colors ${
+                                                            isMainAdmin
+                                                                ? 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80'
+                                                                : 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed'
+                                                        }`}
+                                                        disabled={!isMainAdmin}
+                                                        title={isMainAdmin ? 'Chuyển đổi Học sinh / Giáo viên' : 'Chỉ tài khoản admin chính mới được phép đổi quyền'}
+                                                    >
+                                                        Đổi quyền
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setViewingStudent(u)}
+                                                        className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-xs font-semibold text-purple-400 transition-colors"
+                                                        title="Xem thực trạng học tập"
+                                                    >
+                                                        <GraduationCap size={12} className="inline mr-1" />
+                                                        Học tập
+                                                    </button>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!canEditOrResetUser) return;
+                                                            if (!u.email) return alert('Người dùng này không có email hợp lệ.');
+                                                            if (window.confirm(`Gửi email khôi phục mật khẩu đến ${u.email}?`)) {
+                                                                try {
+                                                                    const { sendResetPasswordEmail } = await import('../../services/firebaseService');
+                                                                    await sendResetPasswordEmail(u.email);
+                                                                    alert('Đã gửi email khôi phục mật khẩu thành công. Lời khuyên: báo người dùng kiểm tra hộp thư (cả hộp thư rác).');
+                                                                } catch (e: any) {
+                                                                    alert('Lỗi: ' + e.message);
+                                                                }
                                                             }
-                                                        }
-                                                    }}
-                                                    className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-red-400 text-xs font-semibold transition-colors"
-                                                    title="Gửi email đặt lại mật khẩu"
-                                                >
-                                                    Mật khẩu
-                                                </button>
-                                            </>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
+                                                        }}
+                                                        className={`px-3 py-1 border rounded-lg text-xs font-semibold transition-colors ${
+                                                            canEditOrResetUser
+                                                                ? 'bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-400'
+                                                                : 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed'
+                                                        }`}
+                                                        disabled={!canEditOrResetUser}
+                                                        title={canEditOrResetUser ? 'Gửi email đặt lại mật khẩu' : 'Chỉ tài khoản admin chính mới được khôi phục mật khẩu admin khác'}
+                                                    >
+                                                        Mật khẩu
+                                                    </button>
+                                                </>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                             {filteredUsers.length === 0 && (
                                 <tr>
                                     <td colSpan={10} className="td-empty-row">

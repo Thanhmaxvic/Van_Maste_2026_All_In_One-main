@@ -79,6 +79,18 @@ export async function directUpdateEmail(newEmail: string) {
 }
 
 export async function sendResetPasswordEmail(email: string) {
+    const currentEmail = auth.currentUser?.email?.toLowerCase();
+    if (currentEmail !== 'admin@vanmaster.com') {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', email.trim()));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            const targetData = snap.docs[0].data() as UserProfile;
+            if (targetData.role === 'teacher') {
+                throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền gửi yêu cầu đặt lại mật khẩu cho tài khoản admin khác.");
+            }
+        }
+    }
     return sendPasswordResetEmail(auth, email);
 }
 
@@ -179,9 +191,19 @@ export async function completeAssessment(uid: string, diagnosticScore: number) {
 }
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
-    if (data.role !== undefined) {
-        if (auth.currentUser?.email?.toLowerCase() !== 'admin@vanmaster.com') {
-            throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền thay đổi vai trò/quyền hạn.");
+    const isUpdatingRole = data.role !== undefined;
+    const isUpdatingEmail = data.email !== undefined;
+
+    if (isUpdatingRole || isUpdatingEmail) {
+        const currentEmail = auth.currentUser?.email?.toLowerCase();
+        if (currentEmail !== 'admin@vanmaster.com') {
+            const targetDoc = await getDoc(doc(db, 'users', uid));
+            if (targetDoc.exists()) {
+                const targetData = targetDoc.data() as UserProfile;
+                if (targetData.role === 'teacher' || isUpdatingRole) {
+                    throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền sửa đổi quyền hoặc thông tin tài khoản admin khác.");
+                }
+            }
         }
     }
     await updateDoc(doc(db, 'users', uid), data as Record<string, unknown>);
