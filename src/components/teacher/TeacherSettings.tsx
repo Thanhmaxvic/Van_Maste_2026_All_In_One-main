@@ -7,6 +7,7 @@ import type { TeacherProfile } from '../../types';
 
 export default function TeacherSettings() {
     const { user } = useAuth();
+    const isMainAdmin = user?.email?.toLowerCase() === 'admin@vanmaster.com';
     const [profile, setProfile] = useState<Partial<TeacherProfile>>({
         name: '',
         avatarUrl: '',
@@ -322,7 +323,7 @@ export default function TeacherSettings() {
 
                         <div className="border-t border-white/10"></div>
 
-                        <div className="ts-form-group mb-0">
+                        <div className="ts-form-group mb-0 relative">
                             <label>Thêm quản trị viên (Phân quyền Admin)</label>
                             <p className="text-xs text-white/50 mb-2">Người dùng mang email này sẽ có toàn quyền truy cập trang quản lý.</p>
                             <div className="flex gap-2 items-center">
@@ -330,11 +331,12 @@ export default function TeacherSettings() {
                                     type="email"
                                     value={newAdminEmail}
                                     onChange={e => setNewAdminEmail(e.target.value)}
-                                    placeholder="Nhập email của người dùng cần cấp quyền..."
+                                    placeholder={isMainAdmin ? "Nhập email của người dùng cần cấp quyền..." : "Chỉ tài khoản admin chính mới được phép cấp quyền"}
                                     className="ts-input flex-1 m-0"
+                                    disabled={!isMainAdmin}
                                 />
                                 <button
-                                    disabled={addingAdmin || !newAdminEmail}
+                                    disabled={!isMainAdmin || addingAdmin || !newAdminEmail}
                                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
                                     onClick={async () => {
                                         if (!newAdminEmail) return;
@@ -344,6 +346,9 @@ export default function TeacherSettings() {
                                             await grantAdminRoleByEmail(newAdminEmail);
                                             alert(`Đã cấp quyền Admin thành công cho ${newAdminEmail}!`);
                                             setNewAdminEmail('');
+                                            // Reload admin list
+                                            const { getAdminUsers } = await import('../../services/firebaseService');
+                                            getAdminUsers().then(setAdminList);
                                         } catch (e: any) {
                                             alert('Lỗi: ' + e.message);
                                         } finally {
@@ -354,6 +359,13 @@ export default function TeacherSettings() {
                                     Cấp quyền admin
                                 </button>
                             </div>
+                            {!isMainAdmin && (
+                                <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg">
+                                    <span className="text-xs text-white/70 font-semibold bg-gray-900/95 px-3 py-1.5 rounded border border-white/10">
+                                        Chỉ tài khoản admin chính (admin@vanmaster.com) mới có quyền cấp Admin
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="border-t border-white/10"></div>

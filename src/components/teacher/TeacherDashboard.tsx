@@ -10,8 +10,11 @@ import {
     type AdminUserEntry,
 } from '../../services/firebaseService';
 import { detectAvailableExams } from '../../services/examService';
+import { useAuth } from '../../context/AuthContext';
 
 export default function TeacherDashboard() {
+    const { user } = useAuth();
+    const isMainAdmin = user?.email?.toLowerCase() === 'admin@vanmaster.com';
     const [users, setUsers] = useState<AdminUserEntry[]>([]);
     const [totalExams, setTotalExams] = useState(0);
     const [registeredCount, setRegisteredCount] = useState(0);
@@ -72,6 +75,10 @@ export default function TeacherDashboard() {
     };
 
     const handleToggleRole = async (uid: string, currentRole?: string) => {
+        if (!isMainAdmin) {
+            alert('Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền thay đổi vai trò/quyền hạn.');
+            return;
+        }
         const newRole = currentRole === 'teacher' ? 'student' : 'teacher';
         if (!window.confirm(`Bạn có chắc muốn chuyển tài khoản này thành ${newRole === 'teacher' ? 'Giáo viên/Admin' : 'Học sinh'}?`)) {
             return;
@@ -428,8 +435,13 @@ export default function TeacherDashboard() {
                                                 </button>
                                                 <button
                                                     onClick={() => handleToggleRole(u.uid, u.role)}
-                                                    className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors"
-                                                    title="Chuyển đổi Học sinh / Giáo viên"
+                                                    className={`px-3 py-1 border rounded-lg text-xs font-semibold transition-colors ${
+                                                        isMainAdmin
+                                                            ? 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80'
+                                                            : 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed'
+                                                    }`}
+                                                    disabled={!isMainAdmin}
+                                                    title={isMainAdmin ? 'Chuyển đổi Học sinh / Giáo viên' : 'Chỉ tài khoản admin chính mới được phép đổi quyền'}
                                                 >
                                                     Đổi quyền
                                                 </button>

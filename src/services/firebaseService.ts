@@ -179,6 +179,11 @@ export async function completeAssessment(uid: string, diagnosticScore: number) {
 }
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
+    if (data.role !== undefined) {
+        if (auth.currentUser?.email?.toLowerCase() !== 'admin@vanmaster.com') {
+            throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền thay đổi vai trò/quyền hạn.");
+        }
+    }
     await updateDoc(doc(db, 'users', uid), data as Record<string, unknown>);
 }
 
@@ -665,6 +670,9 @@ export async function getAllUsers(): Promise<AdminUserEntry[]> {
 }
 
 export async function grantAdminRoleByEmail(email: string): Promise<void> {
+    if (auth.currentUser?.email?.toLowerCase() !== 'admin@vanmaster.com') {
+        throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền cấp quyền Admin.");
+    }
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('email', '==', email.trim()));
     const snap = await getDocs(q);
