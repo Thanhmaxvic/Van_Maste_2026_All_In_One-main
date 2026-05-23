@@ -14,6 +14,7 @@ export function useSpeechRecognition(
     const [isRecording, setIsRecording] = useState(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognitionRef = useRef<any>(null);
+    const lastFinalIndexRef = useRef(-1);
     const onFinalRef = useRef(onFinal);
     const onInterimRef = useRef(onInterim);
 
@@ -40,7 +41,10 @@ export function useSpeechRecognition(
             for (let i = e.resultIndex; i < e.results.length; i++) {
                 const t = e.results[i][0].transcript;
                 if (e.results[i].isFinal) {
-                    finalText += t;
+                    if (i > lastFinalIndexRef.current) {
+                        finalText += t;
+                        lastFinalIndexRef.current = i;
+                    }
                 } else {
                     interim += t;
                 }
@@ -75,6 +79,7 @@ export function useSpeechRecognition(
 
     const startRecording = useCallback(() => {
         try {
+            lastFinalIndexRef.current = -1;
             recognitionRef.current?.start();
             setIsRecording(true);
         } catch {

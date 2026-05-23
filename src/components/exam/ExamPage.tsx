@@ -209,9 +209,8 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
         recog.continuous = true;
         recog.interimResults = true;
 
-        // Note: we don't clear answer, we append to it.
-        // We'll use a local variable to keep track of what's been added in THIS session
-        let sessionFinal = '';
+        // Keep track of the last finalized result index we have already appended
+        let lastFinalIndex = -1;
 
         recog.onresult = (event: ISpeechRecognitionEvent) => {
             let interim = '';
@@ -220,14 +219,16 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const t = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
-                    newFinalAdded += t + ' ';
+                    if (i > lastFinalIndex) {
+                        newFinalAdded += t + ' ';
+                        lastFinalIndex = i;
+                    }
                 } else {
                     interim = t;
                 }
             }
 
             if (newFinalAdded) {
-                sessionFinal += newFinalAdded;
                 setAnswer(prev => prev + newFinalAdded);
             }
             setInterimAnswer(interim);
