@@ -101,6 +101,23 @@ function GradeBubble({ grade }: { grade: ExamGrade }) {
                 </div>
             </div>
 
+            {/* Notice banner */}
+            <div style={{
+                fontSize: 12,
+                background: 'rgba(255, 255, 255, 0.12)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                padding: '8px 12px',
+                borderRadius: 12,
+                marginBottom: 12,
+                display: 'flex',
+                gap: 8,
+                alignItems: 'flex-start',
+                lineHeight: 1.45
+            }}>
+                <span style={{ fontSize: 14, lineHeight: 1 }}>📌</span>
+                <span>Bài làm của em đã được gửi để Giáo viên duyệt điểm. Điểm chính thức sẽ được cộng sau khi được chấp nhận.</span>
+            </div>
+
             <div style={{ fontSize: 13, lineHeight: 1.6, opacity: 0.9, marginBottom: 12 }}>{grade.feedback}</div>
 
             {grade.errors.length > 0 && (

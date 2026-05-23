@@ -73,6 +73,16 @@ export default function GradingResult({ grade, examId, onClose, onNewExam, isDia
 
                 {/* Body */}
                 <div className="p-6 space-y-5">
+                    {/* Notice */}
+                    {!isDiagnostic && (
+                        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-blue-800 text-xs leading-relaxed flex items-start gap-2.5 shadow-sm">
+                            <span className="text-sm leading-none animate-pulse">📌</span>
+                            <div>
+                                Bài làm của em đã được gửi để Giáo viên duyệt điểm. Điểm chính thức sẽ được cộng sau khi được chấp nhận.
+                            </div>
+                        </div>
+                    )}
+
                     {/* Tổng nhận xét */}
                     <div className="bg-slate-50 rounded-2xl p-4">
                         <div className="flex items-center gap-2 mb-2">
