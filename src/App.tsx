@@ -3,6 +3,7 @@ import { Send, Mic, MicOff, Camera, Loader2, X, BookOpen, GraduationCap, ArrowRi
 import { useAuth } from './context/AuthContext';
 import { useChat } from './hooks/useChat';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
+import { smartMergeWithPunctuation } from './utils/speechUtils';
 import SplashScreen from './components/SplashScreen';
 import Header from './components/Header';
 import TabNav from './components/TabNav';
@@ -116,7 +117,7 @@ function StudentApp() {
   const committedRef = useRef('');
   const { isRecording, toggleRecording } = useSpeechRecognition(
     (final) => {
-      committedRef.current += ' ' + final;
+      committedRef.current = smartMergeWithPunctuation(committedRef.current, final);
       setInput(committedRef.current.trim());
     },
     (interim) => {
@@ -391,6 +392,18 @@ function StudentApp() {
                     <button onClick={() => setPreviewImage(null)} style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <X size={11} />
                     </button>
+                  </div>
+                )}
+
+                {isRecording && (
+                  <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-xs text-sky-800 flex items-start gap-2 shadow-sm animate-in fade-in duration-200">
+                    <span className="text-sm">💡</span>
+                    <div>
+                      <p className="font-semibold mb-0.5">Hướng dẫn nhập giọng nói:</p>
+                      <p className="text-sky-700 leading-normal">
+                        Nói rõ ràng, dừng 1 chút để tự động chấm câu, sau khi nhập xong nhấn nút dừng để ghi nhận nội dung. Tự sửa thêm khi muốn điều chỉnh.
+                      </p>
+                    </div>
                   </div>
                 )}
 

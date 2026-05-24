@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { deduplicateConsecutive, deduplicateRepeatedPhrases, punctuateVietnamese, smartMergeWithPunctuation } from '../../utils/speechUtils';
 import { Loader2, Send, RefreshCw, CheckCircle, AlertCircle, Mic, MicOff, Square, Play, Maximize2, Clock, Trophy } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 import { pickRandomExam, fetchDocxAsText, gradeWithAI, detectAvailableExams } from '../../services/examService';
@@ -211,17 +212,34 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
 
         // Keep track of the last finalized result index we have already appended
         let lastFinalIndex = -1;
+        let lastFinalTranscript = '';
 
         recog.onresult = (event: ISpeechRecognitionEvent) => {
             let interim = '';
             let newFinalAdded = '';
 
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                const t = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
+                const result = event.results[i];
+                const t = result[0].transcript;
+                if (result.isFinal) {
                     if (i > lastFinalIndex) {
+                        // Skip ghost results with zero confidence (common on Android)
+                        if ((result[0] as any).confidence === 0) {
+                            lastFinalIndex = i;
+                            continue;
+                        }
+
+                        const trimmed = t.trim();
+
+                        // Skip exact duplicate of the last final transcript (mobile debounce)
+                        if (trimmed && trimmed === lastFinalTranscript) {
+                            lastFinalIndex = i;
+                            continue;
+                        }
+
                         newFinalAdded += t + ' ';
                         lastFinalIndex = i;
+                        lastFinalTranscript = trimmed;
                     }
                 } else {
                     interim = t;
@@ -229,7 +247,12 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
             }
 
             if (newFinalAdded) {
-                setAnswer(prev => prev + newFinalAdded);
+                const cleaned = deduplicateRepeatedPhrases(deduplicateConsecutive(newFinalAdded.trim()));
+                const punctuated = punctuateVietnamese(cleaned);
+                setAnswer(prev => {
+                    if (!prev.trim()) return punctuated.charAt(0).toUpperCase() + punctuated.slice(1);
+                    return smartMergeWithPunctuation(prev, punctuated);
+                });
             }
             setInterimAnswer(interim);
         };
@@ -555,24 +578,34 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
                         <>
                             {/* Voice input banner */}
                             {voiceSupported && (
-                                <div className={`flex items-center justify-between px-4 py-2 text-xs transition-all ${isRecording ? 'bg-red-50 border-b border-red-200' : 'bg-slate-50 border-b border-slate-100'}`}>
-                                    <div className="flex items-center gap-2">
-                                        {isRecording ? (
-                                            <>
-                                                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
-                                                <span className="text-red-600 font-semibold">Đang nghe... Nói để điền bài</span>
-                                            </>
-                                        ) : (
-                                            <span className="text-slate-500">Dùng giọng nói để điền bài thi nhanh hơn</span>
-                                        )}
+                                <div className={`flex flex-col gap-2 px-4 py-2.5 text-xs transition-all ${isRecording ? 'bg-red-50 border-b border-red-200' : 'bg-slate-50 border-b border-slate-100'}`}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            {isRecording ? (
+                                                <>
+                                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+                                                    <span className="text-red-600 font-semibold">Đang nghe... Nói để điền bài</span>
+                                                </>
+                                            ) : (
+                                                <span className="text-slate-500">Dùng giọng nói để điền bài thi nhanh hơn</span>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={toggleRecording}
+                                            disabled={!isActive}
+                                            className={`flex items-center gap-1.5 font-bold px-3 py-1.5 rounded-xl transition-all disabled:opacity-40 ${isRecording ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-[#0EA5E9] text-white hover:bg-sky-600'}`}
+                                        >
+                                            {isRecording ? <><Square size={11} /> Dừng</> : <><Mic size={11} /> Nói</>}
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={toggleRecording}
-                                        disabled={!isActive}
-                                        className={`flex items-center gap-1.5 font-bold px-3 py-1.5 rounded-xl transition-all disabled:opacity-40 ${isRecording ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-[#0EA5E9] text-white hover:bg-sky-600'}`}
-                                    >
-                                        {isRecording ? <><Square size={11} /> Dừng</> : <><Mic size={11} /> Nói</>}
-                                    </button>
+                                    {isRecording && (
+                                        <div className="text-[11px] text-red-700 bg-white/70 rounded-lg p-2 leading-relaxed border border-red-100 flex items-start gap-1.5">
+                                            <span>💡</span>
+                                            <div>
+                                                <strong>Hướng dẫn nói:</strong> Nói rõ ràng, dừng 1 chút để tự động chấm câu, sau khi nhập xong nhấn nút dừng để ghi nhận nội dung. Tự sửa thêm khi muốn điều chỉnh.
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -589,8 +622,8 @@ export default function ExamPage({ diagnosticMode = false, onDiagnosticDone, onG
                                     placeholder={isActive ? (isRecording ? '' : 'Viết hoặc nói bài làm của em tại đây...') : 'Nhấn Bắt Đầu để mở khoa bài làm...'}
                                     className="w-full h-full min-h-[500px] bg-transparent text-slate-800 resize-none focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                     style={{
-                                        fontFamily: "'TQ-Kingston', 'Handlee', 'Caveat', cursive",
-                                        fontSize: '18px',
+                                        fontFamily: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+                                        fontSize: '16px',
                                         lineHeight: '32px',
                                         paddingTop: '4px',
                                     }}
