@@ -62,7 +62,32 @@ interface QuizState {
 const QUIZ_INIT: QuizState = { phase: 'idle', data: null, currentQ: 0, userAnswers: [] };
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
-export function useChat(onStartDiagnosticExam?: () => void) {
+export interface PracticeState {
+    hasContent: boolean;
+    activeType: 'graphic' | 'quiz' | 'exam' | null;
+    quizState: {
+        phase: 'idle' | 'loading' | 'reading' | 'questioning' | 'done';
+        data: DiagnosticQuizData | null;
+        currentQ: number;
+        userAnswers: string[];
+    };
+    examState: {
+        awaitingTypeChoice: boolean;
+        activeExam: AIExamData | null;
+        isLoading: boolean;
+    };
+    graphicState: {
+        isLoading: boolean;
+        prompt: string;
+        imageUrl: string | null;
+        history: { prompt: string; url: string }[];
+    };
+}
+
+export function useChat(
+    onStartDiagnosticExam?: () => void,
+    onPracticeTrigger?: (type: 'graphic' | 'quiz' | 'exam') => void
+) {
     const { user, userProfile, setUserProfile } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -77,6 +102,206 @@ export function useChat(onStartDiagnosticExam?: () => void) {
     const [quizState, setQuizState] = useState<QuizState>(QUIZ_INIT);
     const [awaitingTaskInterrupt, setAwaitingTaskInterrupt] = useState(false);
     const pendingInterruptMsgRef = useRef<string>('');
+
+    const [practiceState, setPracticeState] = useState<PracticeState>({
+        hasContent: false,
+        activeType: null,
+        quizState: { phase: 'idle', data: null, currentQ: 0, userAnswers: [] },
+        examState: { awaitingTypeChoice: false, activeExam: null, isLoading: false },
+        graphicState: { isLoading: false, prompt: '', imageUrl: null, history: [] }
+    });
+
+    const loadSecondaryQuiz = useCallback(async () => {
+        setPracticeState(prev => ({
+            ...prev,
+            quizState: { ...prev.quizState, phase: 'loading' }
+        }));
+        try {
+            const data = await generateDiagnosticMCQ(QUIZ_GENERATION_PROMPT, abortControllerRef.current?.signal);
+            if (!data) {
+                setPracticeState(prev => ({
+                    ...prev,
+                    quizState: { ...prev.quizState, phase: 'idle' }
+                }));
+                return;
+            }
+            setPracticeState(prev => ({
+                ...prev,
+                quizState: { phase: 'reading', data, currentQ: 0, userAnswers: [] }
+            }));
+        } catch (err) {
+            console.error('Secondary Quiz generation error:', err);
+            setPracticeState(prev => ({
+                ...prev,
+                quizState: { ...prev.quizState, phase: 'idle' }
+            }));
+        }
+    }, []);
+
+    const loadSecondaryExam = useCallback(async (choice: string) => {
+        let examType: 'reading' | 'writing' | 'full';
+        if (choice === 'b') examType = 'writing';
+        else if (choice === 'c') examType = 'full';
+        else examType = 'reading';
+
+        setPracticeState(prev => ({
+            ...prev,
+            examState: { ...prev.examState, awaitingTypeChoice: false, isLoading: true }
+        }));
+
+        try {
+            const { buildExamFromPool } = await import('../services/examPoolService');
+            const exam = await buildExamFromPool(examType, abortControllerRef.current?.signal);
+            if (!exam) {
+                setPracticeState(prev => ({
+                    ...prev,
+                    examState: { ...prev.examState, isLoading: false }
+                }));
+                return;
+            }
+            setPracticeState(prev => ({
+                ...prev,
+                examState: { awaitingTypeChoice: false, activeExam: exam, isLoading: false }
+            }));
+        } catch (err) {
+            console.error('Secondary exam generation error:', err);
+            setPracticeState(prev => ({
+                ...prev,
+                examState: { ...prev.examState, isLoading: false }
+            }));
+        }
+    }, []);
+
+    const loadSecondaryGraphic = useCallback(async (topic: string) => {
+        setPracticeState(prev => ({
+            ...prev,
+            graphicState: { ...prev.graphicState, isLoading: true, prompt: topic, imageUrl: null }
+        }));
+        try {
+            const imgUrl = await generateInfographic(topic, abortControllerRef.current?.signal);
+            if (imgUrl) {
+                setPracticeState(prev => ({
+                    ...prev,
+                    graphicState: {
+                        isLoading: false,
+                        prompt: topic,
+                        imageUrl: imgUrl,
+                        history: [{ prompt: topic, url: imgUrl }, ...prev.graphicState.history].slice(0, 10)
+                    }
+                }));
+            } else {
+                setPracticeState(prev => ({
+                    ...prev,
+                    graphicState: { ...prev.graphicState, isLoading: false }
+                }));
+            }
+        } catch (err) {
+            console.error('Graphic generation error:', err);
+            setPracticeState(prev => ({
+                ...prev,
+                graphicState: { ...prev.graphicState, isLoading: false }
+            }));
+        }
+    }, []);
+
+    const startSecondaryGraphicDirect = useCallback((topic?: string) => {
+        setPracticeState(prev => ({
+            ...prev,
+            hasContent: true,
+            activeType: 'graphic',
+            graphicState: { ...prev.graphicState, imageUrl: null }
+        }));
+        if (topic) {
+            loadSecondaryGraphic(topic);
+        }
+    }, [loadSecondaryGraphic]);
+
+    const startSecondaryQuizDirect = useCallback(() => {
+        setPracticeState(prev => ({
+            ...prev,
+            hasContent: true,
+            activeType: 'quiz',
+            quizState: { phase: 'loading', data: null, currentQ: 0, userAnswers: [] }
+        }));
+        loadSecondaryQuiz();
+    }, [loadSecondaryQuiz]);
+
+    const startSecondaryExamDirect = useCallback(() => {
+        setPracticeState(prev => ({
+            ...prev,
+            hasContent: true,
+            activeType: 'exam',
+            examState: { awaitingTypeChoice: true, activeExam: null, isLoading: false }
+        }));
+    }, []);
+
+    const answerSecondaryQuiz = useCallback(async (answer: string) => {
+        setPracticeState(prev => {
+            const { quizState } = prev;
+            if (quizState.phase !== 'questioning' || !quizState.data) return prev;
+
+            const newAnswers = [...quizState.userAnswers, answer];
+            const nextQ = quizState.currentQ + 1;
+
+            if (nextQ >= 10) {
+                // Submit asynchronously in background
+                let correct = 0;
+                quizState.data.questions.forEach((q, i) => {
+                    if ((newAnswers[i] || '').toLowerCase() === q.correct) correct++;
+                });
+                const rawScore = +(correct / 10 * 10).toFixed(1);
+                const score = Math.min(rawScore, 9.5);
+
+                if (user) {
+                    const studentRef = quizState.data.questions.map((q, i) => {
+                        const userAns = newAnswers[i]?.toLowerCase() || '?';
+                        return `Câu ${i + 1}: ${q.q}\n- Đáp án em chọn: ${userAns.toUpperCase()}\n- Đáp án đúng: ${q.correct.toUpperCase()}`;
+                    }).join('\n\n');
+
+                    import('../services/firebaseService').then(async ({ saveExamSubmission, updateSubmissionPendingGrade, completeAssessment }) => {
+                        const subId = await saveExamSubmission(user.uid, 8888, `[BÀI TRẮC NGHIỆM AI - TAB THỰC HÀNH]\n\n${studentRef}`);
+                        const aiGrade = {
+                            score,
+                            maxScore: 10,
+                            feedback: `Bài trắc nghiệm tab Thực hành: Đúng ${correct}/10 câu.`,
+                            details: 'Chấm trắc nghiệm tự động',
+                            errors: [], improvements: [], weaknesses: [], strengths: []
+                        };
+                        await updateSubmissionPendingGrade(user.uid, subId, aiGrade);
+                        await completeAssessment(user.uid, score);
+                    }).catch(console.error);
+
+                    setUserProfile(p => p ? {
+                        ...p,
+                        diagnosticScore: score,
+                        assessmentDone: true,
+                        isOnboarded: true,
+                    } : p);
+                }
+
+                return {
+                    ...prev,
+                    quizState: { ...quizState, userAnswers: newAnswers, phase: 'done' }
+                };
+            } else {
+                return {
+                    ...prev,
+                    quizState: { ...quizState, userAnswers: newAnswers, currentQ: nextQ }
+                };
+            }
+        });
+    }, [user, setUserProfile]);
+
+    const clearPracticeState = useCallback(() => {
+        setPracticeState({
+            hasContent: false,
+            activeType: null,
+            quizState: { phase: 'idle', data: null, currentQ: 0, userAnswers: [] },
+            examState: { awaitingTypeChoice: false, activeExam: null, isLoading: false },
+            graphicState: { isLoading: false, prompt: '', imageUrl: null, history: [] }
+        });
+    }, []);
+
 
     // Synchronous "busy" tracking — refs update immediately, unlike React state
     const busyRef = useRef(false);
@@ -531,7 +756,8 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         const wantsQuiz = /trắc\s*nghiệm|quiz|kiểm\s*tra\s*trắc|bài\s*tập\s*trắc|làm\s*trắc|câu\s*hỏi\s*trắc|test\s*trắc/i.test(lower)
             && !/đề\s*thi|thi\s*thử|120\s*phút|90\s*phút/i.test(lower);
         if (wantsQuiz && !activeLesson) {
-            startQuizFlow();
+            startSecondaryQuizDirect();
+            addAssistant(`Thầy đã khởi tạo bài trắc nghiệm cho em ở tab **Thực hành** rồi nhé. Em hãy click sang tab **Thực hành** (cạnh tab Giải Trí) để làm bài nha!`);
             return;
         }
 
@@ -539,11 +765,24 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         const wantsExam = /tạo\s*đề|ra\s*đề|cho em\s*đề|đề thi ngữ văn|(?:thầy|cô)\s*ra\s*đề/i.test(lower)
             && !/trắc\s*nghiệm/i.test(lower);
         if (wantsExam) {
-            startExamFlow();
+            if (activeLesson) {
+                onPracticeTrigger?.('exam');
+            } else {
+                startSecondaryExamDirect();
+                addAssistant(`Thầy đã chuẩn bị bài thi thử cho em ở tab **Thực hành** rồi nhé. Em hãy click sang tab **Thực hành** (cạnh tab Giải Trí) để chọn loại đề và làm bài nha!`);
+            }
             return;
         }
-        // Quiz answers are now handled via handleQuizAnswer (clickable buttons)
-        // No need to handle quiz answers from text input
+
+        // ── Detect graphic requests from chat ─────────────────────────
+        const wantsGraphic = /tạo\s*(?:ảnh|hình)\s*đồ\s*họa|vẽ\s*đồ\s*họa|đồ\s*họa\s*kiến\s*thức/i.test(lower);
+        if (wantsGraphic && !activeLesson) {
+            let topic = val.replace(/tạo\s*(?:ảnh|hình)\s*đồ\s*họa|vẽ\s*đồ\s*họa|đồ\s*họa\s*kiến\s*thức/i, '').trim();
+            if (!topic) topic = "Ngữ văn";
+            startSecondaryGraphicDirect(topic);
+            addAssistant(`Thầy đang vẽ đồ hoạ học tập về "${topic}" cho em ở tab **Thực hành** rồi nhé. Em hãy click sang tab **Thực hành** (cạnh tab Giải Trí) để xem nha!`);
+            return;
+        }
 
         // ── Detect lesson exit / switch intent while in lesson mode ────────
         if (activeLesson) {
@@ -874,12 +1113,13 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
     // ── Awaiting exam type choice ─────────────────────────────────────────────
     const startExamFlow = useCallback(() => {
-        if (isLoading || busyRef.current) return;
-        setAwaitingExamTypeChoice(true);
-        const syntheticUser: Message = { role: 'user', content: 'Thầy ơi, tạo đề thi cho em với' };
-        setMessages(prev => [...prev, syntheticUser]);
-        addAssistant(`Em muốn luyện đề loại nào?`, true, { quickReplies: ['Đọc hiểu (30 phút)', 'Phần Viết (90 phút)', 'Đề tổng hợp (120 phút)'] });
-    }, [addAssistant, isLoading]);
+        if (activeLesson) {
+            onPracticeTrigger?.('exam');
+        } else {
+            startSecondaryExamDirect();
+            onPracticeTrigger?.('exam');
+        }
+    }, [activeLesson, onPracticeTrigger, startSecondaryExamDirect]);
 
     const handleExamTypeChoice = useCallback(async (choice: string) => {
         setAwaitingExamTypeChoice(false);
@@ -920,15 +1160,16 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 addAssistant('Đã dừng tạo đề thi. Em muốn làm gì tiếp theo?', true, { quickReplies: getDynamicSuggestions('exam') });
             }
         }
-    }, [addAssistant, autoSpeak, resetProactiveTimer, playNotification]);
+    }, [addAssistant, autoSpeak, resetProactiveTimer, playNotification, pronoun, startBusy, endBusy]);
 
-    const startGraphicFlow = () => {
-        if (isLoading || busyRef.current) return;
-        const syntheticUser: Message = { role: 'user', content: 'Em muốn tạo ảnh đồ hoạ ạ' };
-        setMessages(prev => [...prev, syntheticUser]);
-        const msg = `Em muốn tạo ảnh đồ hoạ về tác phẩm hay nhân vật nào? Gõ tên chủ đề để ${pronoun} vẽ cho em nhé.`;
-        addAssistant(msg);
-    };
+    const startGraphicFlow = useCallback(() => {
+        if (activeLesson) {
+            onPracticeTrigger?.('graphic');
+        } else {
+            startSecondaryGraphicDirect();
+            onPracticeTrigger?.('graphic');
+        }
+    }, [activeLesson, onPracticeTrigger, startSecondaryGraphicDirect]);
 
     // ── Citation flow ───────────────────────────────────────────────────────
     const startCitationFlow = useCallback(() => {
@@ -941,11 +1182,13 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
     // ── Quiz flow (clickable buttons) ────────────────────────────────────────
     const startQuizFlow = useCallback(() => {
-        if (isLoading || busyRef.current) return;
-        const syntheticUser: Message = { role: 'user', content: 'Em muốn làm quiz trắc nghiệm ạ' };
-        setMessages(prev => [...prev, syntheticUser]);
-        startInlineQuiz();
-    }, [startInlineQuiz, isLoading]);
+        if (activeLesson) {
+            onPracticeTrigger?.('quiz');
+        } else {
+            startSecondaryQuizDirect();
+            onPracticeTrigger?.('quiz');
+        }
+    }, [activeLesson, onPracticeTrigger, startSecondaryQuizDirect]);
 
     // ── Handle quiz answer from clickable buttons ────────────────────────────
     const handleQuizAnswer = useCallback(async (answer: string) => {
@@ -1132,6 +1375,9 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
         handleSend, handleMagicRewrite, handlePlayTTS, startDiagnosis, handleFileSelect,
         startGraphicFlow, startExamFlow, handleExamTypeChoice, startLesson, exitLesson,
         startCitationFlow, startQuizFlow, handleQuizAnswer, abortCurrentTask,
+        practiceState, setPracticeState,
+        startSecondaryQuizDirect, startSecondaryExamDirect, startSecondaryGraphicDirect,
+        answerSecondaryQuiz, loadSecondaryExam, loadSecondaryGraphic, clearPracticeState,
         addGradeMsg: (grade: ExamGrade, resolvedWeaknesses?: string[]) => {
             const safeScore = grade.score ?? 0;
             const safeMax = grade.maxScore && grade.maxScore > 0 ? grade.maxScore : 10;

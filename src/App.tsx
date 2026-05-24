@@ -10,6 +10,7 @@ import TabNav from './components/TabNav';
 import Sidebar from './components/Sidebar';
 import ChatMessage from './components/chat/ChatMessage';
 import ChatBubble from './components/chat/ChatBubble';
+import Practice from './components/practice/Practice';
 import { incrementTotalVisits, trackOnlinePresence } from './services/firebaseService';
 import { findLesson, CURRICULUM } from './constants/curriculum';
 import { getSpacedRepetitionLessons } from './services/recommendationService';
@@ -53,7 +54,7 @@ function LazyFallback() {
   );
 }
 
-type Tab = 'chat' | 'learn' | 'exam' | 'stats' | 'games' | 'roadmap';
+type Tab = 'chat' | 'learn' | 'exam' | 'stats' | 'games' | 'practice' | 'roadmap';
 
 function StudentApp() {
   const { user, userProfile } = useAuth();
@@ -63,6 +64,20 @@ function StudentApp() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeAIExam, setActiveAIExam] = useState<AIExamData | null>(null);
   const [pendingTabSwitch, setPendingTabSwitch] = useState<Tab | null>(null);
+
+  const [practiceTriggerType, setPracticeTriggerType] = useState<'graphic' | 'quiz' | 'exam' | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  const onPracticeTrigger = useCallback((type: 'graphic' | 'quiz' | 'exam') => {
+    setPracticeTriggerType(type);
+    setShowExitConfirm(true);
+  }, []);
 
   const onStartDiagnosticExam = useCallback(() => {
     setIsDiagnosing(true);
@@ -75,7 +90,39 @@ function StudentApp() {
     handleSend, handlePlayTTS, addGradeMsg, startGraphicFlow, startExamFlow,
     startLesson, exitLesson, activeLesson: activeLessonState,
     startCitationFlow, startQuizFlow, handleQuizAnswer, abortCurrentTask,
-  } = useChat(onStartDiagnosticExam);
+    practiceState, setPracticeState,
+    startSecondaryQuizDirect, startSecondaryExamDirect, startSecondaryGraphicDirect,
+    answerSecondaryQuiz, loadSecondaryExam, loadSecondaryGraphic,
+  } = useChat(onStartDiagnosticExam, onPracticeTrigger);
+
+  const handleConfirmExitYes = useCallback(() => {
+    setShowExitConfirm(false);
+    if (!practiceTriggerType) return;
+    exitLesson();
+    if (practiceTriggerType === 'graphic') {
+      startSecondaryGraphicDirect();
+    } else if (practiceTriggerType === 'quiz') {
+      startSecondaryQuizDirect();
+    } else if (practiceTriggerType === 'exam') {
+      startSecondaryExamDirect();
+    }
+    setActiveTab('practice');
+    setPracticeTriggerType(null);
+  }, [practiceTriggerType, exitLesson, startSecondaryGraphicDirect, startSecondaryQuizDirect, startSecondaryExamDirect]);
+
+  const handleConfirmExitNo = useCallback(() => {
+    setShowExitConfirm(false);
+    if (!practiceTriggerType) return;
+    if (practiceTriggerType === 'graphic') {
+      startSecondaryGraphicDirect();
+    } else if (practiceTriggerType === 'quiz') {
+      startSecondaryQuizDirect();
+    } else if (practiceTriggerType === 'exam') {
+      startSecondaryExamDirect();
+    }
+    triggerToast("Nội dung yêu cầu về đồ hoạ, quiz, tạo đề đã chuyển sang tab Thực hành");
+    setPracticeTriggerType(null);
+  }, [practiceTriggerType, startSecondaryGraphicDirect, startSecondaryQuizDirect, startSecondaryExamDirect]);
 
   // Resolve active lesson title for the banner
   const activeLessonInfo = activeLessonState
@@ -165,7 +212,7 @@ function StudentApp() {
 
         {/* Main Area */}
         <div className="main-area">
-          <TabNav active={activeTab} onChange={handleTabChange} />
+          <TabNav active={activeTab} onChange={handleTabChange} showPracticeTab={practiceState.hasContent} />
 
           {/* Chat Tab */}
           {activeTab === 'chat' && (
@@ -509,6 +556,19 @@ function StudentApp() {
               <MiniGamesHub />
             </Suspense>
           )}
+
+          {/* Practice Tab */}
+          {activeTab === 'practice' && (
+            <Practice
+              practiceState={practiceState}
+              setPracticeState={setPracticeState}
+              startSecondaryQuizDirect={startSecondaryQuizDirect}
+              startSecondaryExamDirect={startSecondaryExamDirect}
+              answerSecondaryQuiz={answerSecondaryQuiz}
+              loadSecondaryExam={loadSecondaryExam}
+              loadSecondaryGraphic={loadSecondaryGraphic}
+            />
+          )}
         </div>
       </div>
 
@@ -544,6 +604,44 @@ function StudentApp() {
                 Ở lại đợi xíu ⏳
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lesson Exit / Switch Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="confirm-modal-overlay animate-fade-in" onClick={() => { setShowExitConfirm(false); setPracticeTriggerType(null); }}>
+          <div className="confirm-modal-box glassmorphism-modal" onClick={e => e.stopPropagation()}>
+            <span className="confirm-modal-emoji">🧠</span>
+            <div className="confirm-modal-title">Khởi tạo ở cửa sổ mới</div>
+            <div className="confirm-modal-text">
+              Để tạo {practiceTriggerType === 'graphic' ? 'Đồ hoạ học tập' : practiceTriggerType === 'quiz' ? 'Trắc nghiệm AI' : 'Đề thi thử'}, chúng ta sẽ chuyển sang cửa sổ mới.<br />
+              Em có muốn thoát bài học hiện tại để chuyển sang không?
+            </div>
+            <div className="confirm-modal-actions">
+              <button
+                className="btn-cancel-task"
+                onClick={handleConfirmExitYes}
+              >
+                Có, thoát và chuyển sang 🚀
+              </button>
+              <button
+                className="btn-stay"
+                onClick={handleConfirmExitNo}
+              >
+                Không, tiếp tục học bài 📚
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="toast-notification animate-slide-in">
+          <div className="toast-content">
+            <span className="toast-icon">✨</span>
+            <span>{toastMessage}</span>
           </div>
         </div>
       )}
