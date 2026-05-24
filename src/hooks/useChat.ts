@@ -951,7 +951,16 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                 let cleanContent = aiContent;
 
                 // Handle [SỬA] correction tags → format as readable styled text
-                cleanContent = cleanContent.replace(/\[SỬA\]\s*(.*?)\s*\[\/SỬA\]/g, '📝 **Sửa:** $1');
+                // First, strip hallucinated corrections where "before" === "after"
+                cleanContent = cleanContent.replace(/\[SỬA\]\s*(.*?)\s*\[\/SỬA\]/g, (_match, inner: string) => {
+                    // Extract "từ sai" → "từ đúng" pattern
+                    const parts = inner.split('→').map((s: string) => s.replace(/"/g, '').trim());
+                    if (parts.length === 2 && parts[0].toLowerCase() === parts[1].toLowerCase()) {
+                        // Hallucinated correction — same word on both sides, strip entirely
+                        return '';
+                    }
+                    return `📝 **Sửa:** ${inner}`;
+                });
 
                 // Strip leaked internal lesson context markers that AI may accidentally echo
                 cleanContent = cleanContent
