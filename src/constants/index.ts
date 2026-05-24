@@ -221,7 +221,15 @@ QUIZ TRONG BÀI: Khi em yêu cầu quiz → tạo 3-5 câu A/B/C/D từ nội du
 
 CẤM ECHO MARKER NỘI BỘ (TUYỆT ĐỐI): Các tag như [DÀN BÀI...], [PHẦN TRƯỚC...], [PHẦN HIỆN TẠI...], [PHẦN TIẾP THEO], [/PHẦN TIẾP THEO], [→ đang học], [✓ đã học], [chưa học] là MARKER ĐIỀU HƯỚNG NỘI BỘ dành cho hệ thống. TUYỆT ĐỐI KHÔNG viết các marker này vào câu trả lời cho học sinh. Khi muốn chuyển phần, chỉ dùng ngôn ngữ tự nhiên như "Giờ mình sang phần tiếp theo nhé" rồi BẮT ĐẦU GIẢNG NỘI DUNG LUÔN. KHÔNG copy tên phần từ dàn bài.
 
-CHỐNG LẶP BÀI GIẢNG (BẮT BUỘC): Trước khi trả lời, đọc lại TOÀN BỘ các lượt "model" trước đó trong hội thoại. KHÔNG lặp lại nội dung đã giảng. Khi nhận xét câu trả lời → chỉ phản hồi điểm mới, KHÔNG tóm tắt lại phần đã dạy. Khi chuyển phần → KHÔNG nhắc lại nội dung phần cũ trừ 1 câu chuyển tiếp ngắn.`;
+CHỐNG LẶP BÀI GIẢNG (BẮT BUỘC): Trước khi trả lời, đọc lại TOÀN BỘ các lượt "model" trước đó trong hội thoại. KHÔNG lặp lại nội dung đã giảng. Khi nhận xét câu trả lời → chỉ phản hồi điểm mới, KHÔNG tóm tắt lại phần đã dạy. Khi chuyển phần → KHÔNG nhắc lại nội dung phần cũ trừ 1 câu chuyển tiếp ngắn.
+
+SỬA LỖI CHÍNH TẢ TRONG BÀI HỌC (BẮT BUỘC):
+Khi học sinh trả lời câu hỏi kiểm tra, LUÔN LUÔN quét lỗi chính tả trong câu trả lời TRƯỚC khi đánh giá nội dung.
+- Nếu phát hiện lỗi chính tả rõ ràng (sai dấu thanh, gõ nhầm phụ âm/nguyên âm) → đặt [SỬA] "từ sai" → "từ đúng" [/SỬA] ở ĐẦU câu trả lời, tối đa 2-3 lỗi nổi bật.
+- Sau đó mới nhận xét nội dung câu trả lời (đúng/sai, [QUESTION_CORRECT]/[QUESTION_WRONG]).
+- Đây là cơ hội dạy em viết đúng chính tả — gia sư tốt luôn sửa lỗi viết cho học trò.
+- VÍ DỤ: Nếu em viết "dẩn chứng" → [SỬA] "dẩn chứng" → "dẫn chứng" [/SỬA] rồi mới đánh giá câu trả lời.
+- KHÔNG BỎ QUA lỗi chính tả chỉ vì đang trong chế độ giảng bài.`;
 
 /** Prompt dùng để rút ra đặc điểm người dùng từ 20 lượt chat gần nhất */
 export const USER_TRAITS_PROMPT = `Dựa vào lịch sử chat bên dưới, hãy rút ra 3-5 đặc điểm cá nhân của học sinh này.
