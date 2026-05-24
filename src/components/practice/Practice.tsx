@@ -75,32 +75,32 @@ export default function Practice({
                         <Brain size={16} />
                         <span>KHÔNG GIAN LUYỆN TẬP</span>
                     </div>
-                    <h2>Thực Hành & Bổ Trợ</h2>
+                    <h2>Thực hành & Bổ trợ</h2>
                     <p className="practice-subtitle">Nơi rèn luyện nâng cao năng lực đọc viết, ghi nhớ kiến thức trực quan và tự đánh giá bản thân.</p>
                 </div>
 
                 {/* Sub Tab Selection */}
                 <div className="practice-tabs">
-                    <button 
+                    <button
                         className={`practice-tab-btn ${activeType === 'graphic' ? 'active' : ''}`}
                         onClick={() => handleSubTabChange('graphic')}
                     >
                         <Sparkles size={16} />
-                        <span>Đồ Hoạ Kiến Thức</span>
+                        <span>Đồ hoạ kiến thức</span>
                     </button>
-                    <button 
+                    <button
                         className={`practice-tab-btn ${activeType === 'quiz' ? 'active' : ''}`}
                         onClick={() => handleSubTabChange('quiz')}
                     >
                         <BookOpen size={16} />
-                        <span>Trắc Nghiệm AI</span>
+                        <span>Trắc nghiệm AI</span>
                     </button>
-                    <button 
+                    <button
                         className={`practice-tab-btn ${activeType === 'exam' ? 'active' : ''}`}
                         onClick={() => handleSubTabChange('exam')}
                     >
                         <GraduationCap size={16} />
-                        <span>Đề Thi Thử THPT</span>
+                        <span>Đề thi thử THPT</span>
                     </button>
                 </div>
             </div>
@@ -111,7 +111,7 @@ export default function Practice({
                 {activeType === 'graphic' && (
                     <div className="practice-graphic-panel">
                         <div className="graphic-control-card">
-                            <h3>Tạo Đồ Hoạ Trực Quan Bằng AI</h3>
+                            <h3>Tạo đồ hoạ trực quan bằng AI</h3>
                             <p>Nhập tác phẩm văn học, nhân vật hoặc chuyên đề kiến thức để AI phân tích vẽ bản đồ tư duy / đồ hoạ học tập.</p>
                             <form onSubmit={handleCreateGraphicSubmit} className="graphic-form">
                                 <input
@@ -130,7 +130,7 @@ export default function Practice({
                                     ) : (
                                         <>
                                             <Sparkles size={16} />
-                                            <span>Tạo Đồ Hoạ</span>
+                                            <span>Tạo đồ hoạ</span>
                                         </>
                                     )}
                                 </button>
@@ -153,13 +153,13 @@ export default function Practice({
                                     <div className="result-img-container">
                                         <img src={graphicState.imageUrl} alt={graphicState.prompt} />
                                         <div className="image-overlay-actions">
-                                            <button 
+                                            <button
                                                 title="Phóng to"
                                                 onClick={() => setZoomedImage(graphicState.imageUrl)}
                                             >
                                                 <Maximize2 size={18} />
                                             </button>
-                                            <button 
+                                            <button
                                                 title="Tải xuống"
                                                 onClick={() => handleDownload(graphicState.imageUrl!, graphicState.prompt)}
                                             >
@@ -190,8 +190,8 @@ export default function Practice({
                                 </div>
                                 <div className="history-grid">
                                     {graphicState.history.map((item, idx) => (
-                                        <div 
-                                            key={idx} 
+                                        <div
+                                            key={idx}
                                             className={`history-card ${graphicState.prompt === item.prompt ? 'active' : ''}`}
                                             onClick={() => setPracticeState(prev => ({
                                                 ...prev,
@@ -236,7 +236,7 @@ export default function Practice({
                                 </div>
                                 <div className="reading-actions">
                                     <p>💡 Đọc kĩ đoạn văn trên trước khi bấm bắt đầu làm bài trắc nghiệm 10 câu.</p>
-                                    <button 
+                                    <button
                                         onClick={() => setPracticeState(prev => ({
                                             ...prev,
                                             quizState: { ...prev.quizState, phase: 'questioning' }
@@ -255,8 +255,8 @@ export default function Practice({
                                 <div className="quiz-status-header">
                                     <span className="q-progress">Câu {quizState.currentQ + 1} trên 10</span>
                                     <div className="progress-bar-container">
-                                        <div 
-                                            className="progress-bar-fill" 
+                                        <div
+                                            className="progress-bar-fill"
                                             style={{ width: `${(quizState.currentQ / 10) * 100}%` }}
                                         />
                                     </div>
@@ -264,7 +264,7 @@ export default function Practice({
 
                                 <div className="quiz-question-card">
                                     <h3>{quizState.data.questions[quizState.currentQ].q}</h3>
-                                    
+
                                     <div className="quiz-options-list">
                                         {['a', 'b', 'c', 'd'].map((optKey) => {
                                             const optionText = (quizState.data!.questions[quizState.currentQ] as any)[optKey];
@@ -290,18 +290,18 @@ export default function Practice({
                                     <div className="trophy-badge">
                                         <GraduationCap size={40} />
                                     </div>
-                                    <h3>Nộp Bài Thành Công!</h3>
+                                    <h3>Nộp bài thành công!</h3>
                                     <p>Chúc mừng em đã hoàn thành bài trắc nghiệm chẩn đoán năng lực đọc hiểu văn bản.</p>
                                 </div>
 
                                 <div className="results-breakdown">
-                                    <h4>Chi Tiết Đáp Án Đúng / Sai</h4>
+                                    <h4>Chi tiết đáp án đúng / Sai</h4>
                                     <div className="results-list">
                                         {quizState.data.questions.map((q, idx) => {
                                             const userAns = quizState.userAnswers[idx]?.toLowerCase() || '';
                                             const correctAns = q.correct.toLowerCase();
                                             const isRight = userAns === correctAns;
-                                            
+
                                             const getOptionText = (key: string) => {
                                                 return (q as any)[key] || '';
                                             };
@@ -361,16 +361,16 @@ export default function Practice({
                     <div className="practice-exam-panel">
                         {examState.awaitingTypeChoice && (
                             <div className="exam-choice-view">
-                                <h3>Chọn Loại Đề Luyện Thi THPT</h3>
+                                <h3>Chọn loại đề luyện thi THPT</h3>
                                 <p>Đề thi được biên soạn chuẩn cấu trúc ma trận của Bộ Giáo dục & Đào tạo với hệ thống AI chấm điểm và sửa lỗi chi tiết.</p>
-                                
+
                                 <div className="exam-types-grid">
                                     <div className="exam-type-card" onClick={() => loadSecondaryExam('a')}>
                                         <div className="card-icon reading"><BookOpen size={24} /></div>
-                                        <h4>Phần I: Đọc Hiểu</h4>
+                                        <h4>Phần I: Đọc hiểu</h4>
                                         <span className="exam-time">Thời gian: 30 phút</span>
                                         <p>Tập trung củng cố kiến thức đọc hiểu văn bản nghị luận xã hội, văn học, các biện pháp tu từ.</p>
-                                        <button className="select-exam-btn">Chọn Đề Này</button>
+                                        <button className="select-exam-btn">Chọn đề này</button>
                                     </div>
 
                                     <div className="exam-type-card" onClick={() => loadSecondaryExam('b')}>
@@ -383,10 +383,10 @@ export default function Practice({
 
                                     <div className="exam-type-card featured" onClick={() => loadSecondaryExam('c')}>
                                         <div className="card-icon full"><Sparkles size={24} /></div>
-                                        <h4>Đề Tổng Hợp Toàn Diện</h4>
+                                        <h4>Đề tổng hợp toàn diện</h4>
                                         <span className="exam-time">Thời gian: 120 phút</span>
-                                        <p>Đề thi đầy đủ cả Đọc hiểu & Làm văn mô phỏng kì thi THPT Quốc Gia thực tế.</p>
-                                        <button className="select-exam-btn">Chọn Đề Này</button>
+                                        <p>Đề thi đầy đủ cả đọc hiểu & Làm văn mô phỏng kì thi THPT thực tế.</p>
+                                        <button className="select-exam-btn">Chọn đề này</button>
                                     </div>
                                 </div>
                             </div>
@@ -395,15 +395,15 @@ export default function Practice({
                         {examState.isLoading && (
                             <div className="exam-loading-view">
                                 <Loader2 size={48} className="animate-spin text-primary" />
-                                <h4>Đang tổ hợp đề thi từ ngân hàng đề THPT Quốc gia...</h4>
+                                <h4>Đang tổ hợp đề thi từ ngân hàng đề THPT...</h4>
                                 <p>Đồng bộ hoá dữ liệu văn bản nghị luận và cấu trúc ma trận đề thi.</p>
                             </div>
                         )}
 
                         {examState.activeExam && (
                             <div className="exam-workspace-container">
-                                <ExamPage 
-                                    aiExam={examState.activeExam} 
+                                <ExamPage
+                                    aiExam={examState.activeExam}
                                     onGradeComplete={() => {
                                         // Handled in ExamPage internally for display
                                     }}
