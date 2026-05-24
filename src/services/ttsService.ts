@@ -45,7 +45,7 @@ let queueGeneration = 0;
 function cleanTextForTTS(text: string): string {
     return text
         .replace(/\[SỬA\][\s\S]*?\[\/SỬA\]/g, '')
-        .replace(/\[TIMELINE\]|\[GEN_IMAGE\]|\[EXAM_PAPER\]|\[\/EXAM_PAPER\]|\[SECTION_DONE\]|\[QUESTION_CORRECT\]|\[LESSON_DONE\]|[*#_\[\]()]/g, '')
+        .replace(/\[TIMELINE\]|\[GEN_IMAGE\]|\[EXAM_PAPER\]|\[\/EXAM_PAPER\]|\[SECTION_DONE\]|\[QUESTION_CORRECT\]|\[QUESTION_WRONG\]|\[LESSON_DONE\]|\[LESSON_MCQ\]|\[\/LESSON_MCQ\]|\[ANSWER:\s*[A-Da-d]\s*\]|[*#_\[\]()]/g, '')
         .replace(/\*\*/g, '')
         .trim();
 }

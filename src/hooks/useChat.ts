@@ -339,6 +339,9 @@ export function useChat(
         sectionId: string; lessonId: string; docxContent: string;
     } | null>(null);
     const chatTurnCountRef = useRef(0);
+    /** Stores the correct answer letter (A/B/C/D) for the current [LESSON_MCQ] question.
+     *  Set when AI sends a [LESSON_MCQ] block, cleared after student answers. */
+    const lessonMcqAnswerRef = useRef<string | null>(null);
 
     const chatEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -818,6 +821,50 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
             let effectiveInput = val;
             let chatHistory = messages; // default: full history
             let lessonSystemContext: string | undefined;
+
+            // ── Auto-grade [LESSON_MCQ] answers in lesson mode ──
+            // When the AI sent a [LESSON_MCQ] block, lessonMcqAnswerRef stores the correct letter.
+            // When the student clicks an MCQ option, onMCQSelect sends "Câu 1: B" etc.
+            // We intercept here to auto-grade and inject the result for the AI.
+            if (activeLesson && lessonMcqAnswerRef.current) {
+                const correctAnswer = lessonMcqAnswerRef.current;
+                // Extract the student's selected letter from patterns like "Câu 1: B", "B", "b"
+                const mcqAnswerMatch = val.match(/(?:Câu\s*\d+\s*:\s*)?([A-Da-d])\s*$/i);
+                if (mcqAnswerMatch) {
+                    const studentLetter = mcqAnswerMatch[1].toUpperCase();
+                    const isCorrect = studentLetter === correctAnswer;
+                    // Clear the stored answer
+                    lessonMcqAnswerRef.current = null;
+
+                    // Update lesson progress
+                    if (user && userProfile) {
+                        const lessonKey = getLessonKey(activeLesson.sectionId, activeLesson.lessonId);
+                        const lp = userProfile.lessonProgress?.[lessonKey] || {
+                            status: 'in_progress' as const, sectionsTotal: 10, sectionsDone: 0,
+                            currentSectionIndex: 0,
+                            questionsAsked: 0, questionsCorrect: 0,
+                        };
+                        lp.questionsAsked += 1;
+                        if (isCorrect) {
+                            lp.questionsCorrect += 1;
+                            lp.sectionsDone += 1;
+                            lp.currentSectionIndex = (lp.currentSectionIndex || 0) + 1;
+                        }
+                        updateLessonProgress(user.uid, lessonKey, lp).catch(console.error);
+                        setUserProfile(p => p ? {
+                            ...p,
+                            lessonProgress: { ...p.lessonProgress, [lessonKey]: lp },
+                        } : p);
+                    }
+
+                    // Inject auto-grading result into the message so AI responds accordingly
+                    if (isCorrect) {
+                        effectiveInput = `[HỆ THỐNG TỰ ĐỘNG CHẤM — TRẮC NGHIỆM ĐÚNG] Em đã chọn ${studentLetter}, đáp án đúng là ${correctAnswer}. Em trả lời ĐÚNG. Hãy khen ngắn gọn rồi chuyển sang phần tiếp theo. KHÔNG gửi [QUESTION_CORRECT] hay [SECTION_DONE] vì hệ thống đã tự xử lý.`;
+                    } else {
+                        effectiveInput = `[HỆ THỐNG TỰ ĐỘNG CHẤM — TRẮC NGHIỆM SAI] Em đã chọn ${studentLetter}, nhưng đáp án đúng là ${correctAnswer}. Em trả lời SAI. Hãy nhẹ nhàng giải thích tại sao ${correctAnswer} đúng, giảng lại phần liên quan ngắn gọn, rồi hỏi lại câu khác. KHÔNG gửi [QUESTION_WRONG] hay [SECTION_DONE] vì hệ thống đã tự xử lý.`;
+                    }
+                }
+            }
             if (activeLesson) {
                 const lessonKey = getLessonKey(activeLesson.sectionId, activeLesson.lessonId);
                 const lp = userProfile?.lessonProgress?.[lessonKey];
@@ -905,6 +952,22 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
 
                 // Handle [SỬA] correction tags → format as readable styled text
                 cleanContent = cleanContent.replace(/\[SỬA\]\s*(.*?)\s*\[\/SỬA\]/g, '📝 **Sửa:** $1');
+
+                // Strip leaked internal lesson context markers that AI may accidentally echo
+                cleanContent = cleanContent
+                    .replace(/\[PHẦN TIẾP THEO\][\s\S]*?\[\/PHẦN TIẾP THEO\]/g, '')
+                    .replace(/\[PHẦN TIẾP THEO\][^\n]*/g, '')
+                    .replace(/\[\/PHẦN TIẾP THEO\]/g, '')
+                    .replace(/\[PHẦN HIỆN TẠI[^\]]*\][^\n]*/g, '')
+                    .replace(/\[PHẦN TRƯỚC[^\]]*\][^\n]*/g, '')
+                    .replace(/\[DÀN BÀI[^\]]*\][^\n]*/g, '')
+                    .replace(/\[→ đang học\]/g, '')
+                    .replace(/\[✓ đã học\]/g, '')
+                    .replace(/\[chưa học\]/g, '')
+                    .replace(/\[NỘI DUNG LÝ THUYẾT\][^\n]*/g, '')
+                    .replace(/\n{3,}/g, '\n\n')
+                    .trim();
+
                 let aiExamData: AIExamData | null = null;
 
                 // Parse [AI_EXAM] {...} [/AI_EXAM]
@@ -939,6 +1002,39 @@ B. Trả lời 10 câu trắc nghiệm nhanh`;
                     if (timelineEvents.length > 0 && user) {
                         updateUserProfile(user.uid, { customTimeline: timelineEvents }).catch(console.error);
                         setUserProfile(p => p ? { ...p, customTimeline: timelineEvents } : p);
+                    }
+                }
+
+                // ── Parse [LESSON_MCQ]...[ANSWER:X]...[/LESSON_MCQ] — auto-graded MCQ in lesson ──
+                const lessonMcqMatch = cleanContent.match(/\[LESSON_MCQ\]([\s\S]*?)\[\/LESSON_MCQ\]/);
+                if (lessonMcqMatch && activeLesson) {
+                    const mcqBlock = lessonMcqMatch[1];
+                    // Extract correct answer letter from [ANSWER:X]
+                    const answerMatch = mcqBlock.match(/\[ANSWER:\s*([A-Da-d])\s*\]/);
+                    const correctLetter = answerMatch ? answerMatch[1].toUpperCase() : null;
+
+                    if (correctLetter) {
+                        // Store the correct answer for auto-grading when student clicks
+                        lessonMcqAnswerRef.current = correctLetter;
+
+                        // Strip the [LESSON_MCQ], [/LESSON_MCQ] tags and [ANSWER:X] from display
+                        // but keep the question and options text visible for the student
+                        let mcqDisplay = mcqBlock
+                            .replace(/\[ANSWER:\s*[A-Da-d]\s*\]/gi, '')
+                            .trim();
+
+                        // Replace the entire [LESSON_MCQ]...[/LESSON_MCQ] block with the cleaned display text
+                        cleanContent = cleanContent.replace(
+                            /\[LESSON_MCQ\][\s\S]*?\[\/LESSON_MCQ\]/,
+                            mcqDisplay
+                        ).trim();
+                    } else {
+                        // No valid [ANSWER:X] found — just strip the tags
+                        cleanContent = cleanContent
+                            .replace(/\[LESSON_MCQ\]/g, '')
+                            .replace(/\[\/LESSON_MCQ\]/g, '')
+                            .trim();
+                        console.warn('[Lesson] [LESSON_MCQ] thiếu [ANSWER:X] — hiển thị như text thường');
                     }
                 }
 

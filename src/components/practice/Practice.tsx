@@ -75,7 +75,7 @@ export default function Practice({
                         <Brain size={16} />
                         <span>KHÔNG GIAN LUYỆN TẬP</span>
                     </div>
-                    <h2>Thực hành & Bổ trợ</h2>
+                    <h2>Thực hành & bổ trợ</h2>
                     <p className="practice-subtitle">Nơi rèn luyện nâng cao năng lực đọc viết, ghi nhớ kiến thức trực quan và tự đánh giá bản thân.</p>
                 </div>
 
@@ -375,10 +375,10 @@ export default function Practice({
 
                                     <div className="exam-type-card" onClick={() => loadSecondaryExam('b')}>
                                         <div className="card-icon writing"><GraduationCap size={24} /></div>
-                                        <h4>Phần II: Làm Văn</h4>
+                                        <h4>Phần II: Làm văn</h4>
                                         <span className="exam-time">Thời gian: 90 phút</span>
                                         <p>Luyện tập viết các đoạn văn nghị luận xã hội (200 chữ) và bài văn nghị luận văn học phân tích tác phẩm.</p>
-                                        <button className="select-exam-btn">Chọn Đề Này</button>
+                                        <button className="select-exam-btn">Chọn đề Này</button>
                                     </div>
 
                                     <div className="exam-type-card featured" onClick={() => loadSecondaryExam('c')}>
