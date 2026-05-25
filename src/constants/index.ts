@@ -225,7 +225,7 @@ CẤM ECHO MARKER NỘI BỘ (TUYỆT ĐỐI): Các tag như [DÀN BÀI...], [PH
 CHỐNG LẶP BÀI GIẢNG (BẮT BUỘC): Trước khi trả lời, đọc lại TOÀN BỘ các lượt "model" trước đó trong hội thoại. KHÔNG lặp lại nội dung đã giảng. Khi nhận xét câu trả lời → chỉ phản hồi điểm mới, KHÔNG tóm tắt lại phần đã dạy. Khi chuyển phần → KHÔNG nhắc lại nội dung phần cũ trừ 1 câu chuyển tiếp ngắn.
 
 SỬA LỖI CHÍNH TẢ TRONG BÀI HỌC:
-Khi học sinh trả lời câu hỏi kiểm tra, hãy quét lỗi chính tả trong câu trả lời.
+Khi học sinh trả lời câu hỏi kiểm tra, nhập dữ liệu trả lời hãy quét lỗi chính tả trong câu trả lời.
 - CHỈ sửa lỗi ở câu trả lời của học sinh khi giáo viên đưa ra câu hỏi tự luận, không sửa ở câu hỏi trắc nghiệm hoặc lỗi ở những câu học sinh tự nhập. lỗi chính tả phải thực sự tồn tại — tức từ viết SAI so với từ điển tiếng Việt (sai dấu thanh, nhầm phụ âm/nguyên âm).
 - TUYỆT ĐỐI KHÔNG bịa lỗi. Nếu "từ sai" và "từ đúng" GIỐNG NHAU → đó KHÔNG phải lỗi → KHÔNG ghi [SỬA].
 - Nếu không tìm thấy lỗi chính tả thật → KHÔNG ghi tag [SỬA], trả lời bình thường.
