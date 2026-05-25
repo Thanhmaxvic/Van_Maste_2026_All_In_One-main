@@ -60,6 +60,10 @@ export default function TeacherDashboard() {
     useEffect(() => { loadData(); }, []);
 
     const handleSaveConfig = async () => {
+        if (!isMainAdmin) {
+            alert('Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền sửa cấu hình hệ thống.');
+            return;
+        }
         setSavingConfig(true);
         setConfigSaved(false);
         try {
@@ -104,6 +108,10 @@ export default function TeacherDashboard() {
 
     const handleDocUpload = async () => {
         if (!uploadFile) return;
+        if (!isMainAdmin) {
+            alert('Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền tải tài liệu lên.');
+            return;
+        }
         setIsUploadingDoc(true);
         try {
             const { storage } = await import('../../services/firebaseService');
@@ -225,7 +233,7 @@ export default function TeacherDashboard() {
 
             <div className="td-grid-2col">
                 {/* Config Panel */}
-                <div className="td-card">
+                <div className="td-card" style={{ position: 'relative' }}>
                     <h3 className="td-card-title">
                         <Clock size={16} /> Cấu hình hệ thống
                     </h3>
@@ -236,6 +244,7 @@ export default function TeacherDashboard() {
                             value={examDate}
                             onChange={e => setExamDate(e.target.value)}
                             className="td-input"
+                            disabled={!isMainAdmin}
                         />
                     </div>
                     <div className="td-form-group">
@@ -245,15 +254,23 @@ export default function TeacherDashboard() {
                             value={dailyExamHour}
                             onChange={e => setDailyExamHour(e.target.value)}
                             className="td-input"
+                            disabled={!isMainAdmin}
                         />
                     </div>
                     <button
                         className="td-save-btn"
                         onClick={handleSaveConfig}
-                        disabled={savingConfig}
+                        disabled={savingConfig || !isMainAdmin}
                     >
                         {savingConfig ? 'Đang lưu...' : configSaved ? '✓ Đã lưu' : 'Lưu cấu hình'}
                     </button>
+                    {!isMainAdmin && (
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl">
+                            <span className="text-xs text-white/70 font-semibold bg-gray-900/95 px-3 py-1.5 rounded border border-white/10">
+                                Chỉ admin chính (admin@vanmaster.com) mới có quyền sửa cấu hình
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Quick Stats */}
@@ -283,7 +300,7 @@ export default function TeacherDashboard() {
             </div>
 
             {/* Document Upload Panel */}
-            <div className="td-card td-full-width" style={{ marginTop: '24px', marginBottom: '24px' }}>
+            <div className="td-card td-full-width" style={{ marginTop: '24px', marginBottom: '24px', position: 'relative' }}>
                 <h3 className="td-card-title">
                     <Upload size={16} /> Quản lý tài liệu hệ thống
                 </h3>
@@ -291,7 +308,7 @@ export default function TeacherDashboard() {
                     <div style={{ flex: '1 1 300px', paddingRight: '20px', borderRight: '1px solid #f1f5f9' }}>
                         <div className="td-form-group">
                             <label>Chọn thư mục đích</label>
-                            <select className="td-input" value={uploadFolder} onChange={e => setUploadFolder(e.target.value)}>
+                            <select className="td-input" value={uploadFolder} onChange={e => setUploadFolder(e.target.value)} disabled={!isMainAdmin}>
                                 <option value="dethi">Đề thi (dethi/)</option>
                                 <option value="huongdancham">Hướng dẫn chấm (huongdancham/)</option>
                                 <option value="lythuyet">Lý thuyết (lythuyet/)</option>
@@ -305,13 +322,14 @@ export default function TeacherDashboard() {
                                 accept=".pdf,.doc,.docx"
                                 className="td-input bg-white"
                                 onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                                disabled={!isMainAdmin}
                             />
                         </div>
                         <button
                             className="td-save-btn bg-pink-500 hover:bg-pink-600 border-pink-500 text-white"
                             style={{ width: '100%' }}
                             onClick={handleDocUpload}
-                            disabled={!uploadFile || isUploadingDoc}
+                            disabled={!uploadFile || isUploadingDoc || !isMainAdmin}
                         >
                             {isUploadingDoc ? 'Đang tải lên...' : 'Tải lên cơ sở dữ liệu'}
                         </button>
@@ -326,6 +344,13 @@ export default function TeacherDashboard() {
                         </ul>
                     </div>
                 </div>
+                {!isMainAdmin && (
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl">
+                        <span className="text-xs text-white/70 font-semibold bg-gray-900/95 px-3 py-1.5 rounded border border-white/10">
+                            Chỉ admin chính (admin@vanmaster.com) mới có quyền quản lý tài liệu
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* User Management Table */}

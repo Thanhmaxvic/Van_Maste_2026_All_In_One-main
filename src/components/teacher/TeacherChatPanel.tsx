@@ -22,6 +22,7 @@ function timeAgo(ts: number): string {
 
 export default function TeacherChatPanel() {
     const { user } = useAuth();
+    const isMainAdmin = user?.email?.toLowerCase() === 'admin@vanmaster.com';
     const [conversations, setConversations] = useState<ChatConversation[]>([]);
     const [activeConvId, setActiveConvId] = useState<string | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -58,6 +59,10 @@ export default function TeacherChatPanel() {
 
     const handleSend = async () => {
         if (!input.trim() || !activeConvId || !user) return;
+        if (activeConvId === 'BROADCAST' && !isMainAdmin) {
+            alert('Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền gửi thông báo chung.');
+            return;
+        }
         setSending(true);
         try {
             if (activeConvId === 'BROADCAST') {
@@ -78,6 +83,11 @@ export default function TeacherChatPanel() {
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !activeConvId || !user) return;
+        if (activeConvId === 'BROADCAST' && !isMainAdmin) {
+            alert('Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền gửi thông báo chung.');
+            e.target.value = '';
+            return;
+        }
         setUploading(true);
         try {
             const url = await uploadChatImage(file);
@@ -100,6 +110,11 @@ export default function TeacherChatPanel() {
     const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !activeConvId || !user) return;
+        if (activeConvId === 'BROADCAST' && !isMainAdmin) {
+            alert('Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền gửi thông báo chung.');
+            e.target.value = '';
+            return;
+        }
         setUploadingDoc(true);
         try {
             const url = await uploadChatDocument(file);
@@ -161,19 +176,21 @@ export default function TeacherChatPanel() {
                 </div>
 
                 <div className="tc-conv-list">
-                    <button
-                        className={`tc-conv-item ${activeConvId === 'BROADCAST' ? 'active' : ''}`}
-                        onClick={() => setActiveConvId('BROADCAST')}
-                        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}
-                    >
-                        <div className="tc-conv-avatar" style={{ background: '#ec4899' }}>
-                            <Send size={16} color="white" />
-                        </div>
-                        <div className="tc-conv-info">
-                            <div className="tc-conv-name" style={{ color: '#ec4899', fontWeight: 600 }}>Gửi thông báo chung</div>
-                            <div className="tc-conv-last">Đến tất cả học sinh ({conversations.length})</div>
-                        </div>
-                    </button>
+                    {isMainAdmin && (
+                        <button
+                            className={`tc-conv-item ${activeConvId === 'BROADCAST' ? 'active' : ''}`}
+                            onClick={() => setActiveConvId('BROADCAST')}
+                            style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}
+                        >
+                            <div className="tc-conv-avatar" style={{ background: '#ec4899' }}>
+                                <Send size={16} color="white" />
+                            </div>
+                            <div className="tc-conv-info">
+                                <div className="tc-conv-name" style={{ color: '#ec4899', fontWeight: 600 }}>Gửi thông báo chung</div>
+                                <div className="tc-conv-last">Đến tất cả học sinh ({conversations.length})</div>
+                            </div>
+                        </button>
+                    )}
 
                     {filteredConvs.length === 0 && (
                         <div className="tc-empty">Chưa có tin nhắn nào</div>

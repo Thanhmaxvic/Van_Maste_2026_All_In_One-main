@@ -70,11 +70,17 @@ export async function registerWithEmail(email: string, password: string, display
 
 export async function directUpdatePassword(newPassword: string) {
     if (!auth.currentUser) throw new Error("Chưa đăng nhập");
+    if (auth.currentUser.email?.toLowerCase() !== 'admin@vanmaster.com') {
+        throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền đổi mật khẩu.");
+    }
     return updatePassword(auth.currentUser, newPassword);
 }
 
 export async function directUpdateEmail(newEmail: string) {
     if (!auth.currentUser) throw new Error("Chưa đăng nhập");
+    if (auth.currentUser.email?.toLowerCase() !== 'admin@vanmaster.com') {
+        throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền đổi email.");
+    }
     return updateEmail(auth.currentUser, newEmail);
 }
 
@@ -622,6 +628,9 @@ export async function getTeacherProfile(): Promise<TeacherProfile | null> {
 
 /** Update teacher display profile */
 export async function updateTeacherProfile(data: Partial<TeacherProfile>) {
+    if (auth.currentUser?.email?.toLowerCase() !== 'admin@vanmaster.com') {
+        throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền sửa thông tin hiển thị giáo viên.");
+    }
     await setDoc(doc(db, 'system', 'teacherProfile'), data, { merge: true });
 }
 
@@ -732,6 +741,9 @@ export async function getSystemConfig(): Promise<Record<string, unknown>> {
 }
 
 export async function updateSystemConfig(data: Record<string, unknown>) {
+    if (auth.currentUser?.email?.toLowerCase() !== 'admin@vanmaster.com') {
+        throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền thay đổi cấu hình hệ thống.");
+    }
     await setDoc(doc(db, 'system', 'config'), data, { merge: true });
 }
 

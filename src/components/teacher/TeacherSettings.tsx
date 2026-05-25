@@ -65,6 +65,10 @@ export default function TeacherSettings() {
 
     const handleSave = async () => {
         if (!user) return;
+        if (!isMainAdmin) {
+            alert('Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền sửa thông tin hiển thị.');
+            return;
+        }
         setSaving(true);
         setSaved(false);
         try {
@@ -91,7 +95,7 @@ export default function TeacherSettings() {
 
             <div className="ts-layout">
                 {/* Form */}
-                <div className="ts-form-card">
+                <div className="ts-form-card" style={{ position: 'relative' }}>
                     <div className="ts-form-group">
                         <label>Tên hiển thị</label>
                         <input
@@ -100,6 +104,7 @@ export default function TeacherSettings() {
                             onChange={e => setProfile({ ...profile, name: e.target.value })}
                             placeholder="VD: Thầy Nguyễn Văn A"
                             className="ts-input"
+                            disabled={!isMainAdmin}
                         />
                     </div>
 
@@ -112,12 +117,14 @@ export default function TeacherSettings() {
                                 onChange={e => setProfile({ ...profile, avatarUrl: e.target.value })}
                                 placeholder="https://example.com/avatar.jpg"
                                 className="ts-input flex-1"
+                                disabled={!isMainAdmin}
                             />
                             <input
                                 type="file"
                                 accept="image/*"
                                 className="hidden"
                                 id="avatar-upload"
+                                disabled={!isMainAdmin}
                                 onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
@@ -137,7 +144,7 @@ export default function TeacherSettings() {
                                     }
                                 }}
                             />
-                            <label htmlFor="avatar-upload" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg cursor-pointer text-sm font-medium transition-colors whitespace-nowrap">
+                            <label htmlFor={isMainAdmin ? "avatar-upload" : undefined} className={`px-4 py-2 ${isMainAdmin ? 'bg-indigo-600 hover:bg-indigo-500 cursor-pointer' : 'bg-gray-600 cursor-not-allowed opacity-50'} text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap`}>
                                 {uploadingAvatar ? 'Đang tải...' : 'Tải lên từ máy'}
                             </label>
                         </div>
@@ -152,6 +159,7 @@ export default function TeacherSettings() {
                             onChange={e => setProfile({ ...profile, specialization: e.target.value })}
                             placeholder="VD: Thạc sĩ Ngữ văn, 10 năm kinh nghiệm"
                             className="ts-input"
+                            disabled={!isMainAdmin}
                         />
                     </div>
 
@@ -163,16 +171,25 @@ export default function TeacherSettings() {
                             placeholder="Viết vài dòng giới thiệu để học sinh biết về bạn..."
                             className="ts-textarea"
                             rows={4}
+                            disabled={!isMainAdmin}
                         />
                     </div>
 
-                    <button className="ts-save-btn" onClick={handleSave} disabled={saving}>
+                    <button className="ts-save-btn" onClick={handleSave} disabled={saving || !isMainAdmin}>
                         <Save size={16} />
                         {saving ? 'Đang lưu...' : saved ? '✓ Đã lưu thành công' : 'Lưu thông tin'}
                     </button>
 
+                    {!isMainAdmin && (
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl">
+                            <span className="text-xs text-white/70 font-semibold bg-gray-900/95 px-3 py-1.5 rounded border border-white/10">
+                                Chỉ admin chính (admin@vanmaster.com) mới có quyền sửa thông tin hiển thị
+                            </span>
+                        </div>
+                    )}
+
                     <h2 className="text-xl font-bold mt-12 mb-4">Thông báo hệ thống (toàn trang)</h2>
-                    <div className="bg-white/5 rounded-xl p-6 border border-white/10 flex flex-col gap-6">
+                    <div className="bg-white/5 rounded-xl p-6 border border-white/10 flex flex-col gap-6" style={{ position: 'relative' }}>
                         <div className="ts-form-group mb-0">
                             <label className="flex items-center gap-2 cursor-pointer mb-2 w-max text-white">
                                 <input
@@ -180,6 +197,7 @@ export default function TeacherSettings() {
                                     checked={globalNotif.active}
                                     onChange={e => setGlobalNotif(prev => ({ ...prev, active: e.target.checked }))}
                                     className="w-4 h-4 rounded cursor-pointer"
+                                    disabled={!isMainAdmin}
                                 />
                                 <span className="font-medium">Bật dòng chạy thông báo trên Header</span>
                             </label>
@@ -190,11 +208,11 @@ export default function TeacherSettings() {
                                 placeholder="Nhập nội dung thông báo chung (VD: Chào mừng các em đến với hệ thống NgữVăn Master, hôm nay chúng ta sẽ ôn luyện...)"
                                 className="ts-textarea mb-4 text-white"
                                 rows={2}
-                                disabled={!globalNotif.active}
+                                disabled={!globalNotif.active || !isMainAdmin}
                             />
 
                             <button
-                                disabled={savingNotif}
+                                disabled={savingNotif || !isMainAdmin}
                                 className="px-5 py-2.5 bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors w-max"
                                 onClick={async () => {
                                     setSavingNotif(true);
@@ -215,10 +233,17 @@ export default function TeacherSettings() {
                                 {savingNotif ? 'Đang lưu...' : 'Lưu thông báo'}
                             </button>
                         </div>
+                        {!isMainAdmin && (
+                            <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl">
+                                <span className="text-xs text-white/70 font-semibold bg-gray-900/95 px-3 py-1.5 rounded border border-white/10">
+                                    Chỉ admin chính (admin@vanmaster.com) mới có quyền sửa thông báo hệ thống
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     <h2 className="text-xl font-bold mt-12 mb-4">Bảo mật tài khoản Admin</h2>
-                    <div className="bg-white/5 rounded-xl p-6 border border-white/10 flex flex-col gap-6">
+                    <div className="bg-white/5 rounded-xl p-6 border border-white/10 flex flex-col gap-6" style={{ position: 'relative' }}>
 
                         <div className="ts-form-group mb-0">
                             <label>Đổi email đăng nhập</label>
@@ -230,6 +255,7 @@ export default function TeacherSettings() {
                                     placeholder="Mật khẩu hiện tại..."
                                     className="ts-input flex-1 m-0"
                                     autoComplete="new-password"
+                                    disabled={!isMainAdmin}
                                 />
                                 <input
                                     type="email"
@@ -238,9 +264,10 @@ export default function TeacherSettings() {
                                     placeholder={user?.email || "Nhập email mới..."}
                                     className="ts-input flex-1 m-0"
                                     autoComplete="off"
+                                    disabled={!isMainAdmin}
                                 />
                                 <button
-                                    disabled={updatingSecurity || !newEmail || !oldPassword}
+                                    disabled={updatingSecurity || !newEmail || !oldPassword || !isMainAdmin}
                                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
                                     onClick={async () => {
                                         if (!newEmail || !oldPassword) return;
@@ -276,6 +303,7 @@ export default function TeacherSettings() {
                                     placeholder="Mật khẩu hiện tại..."
                                     className="ts-input m-0"
                                     autoComplete="new-password"
+                                    disabled={!isMainAdmin}
                                 />
                                 <input
                                     type="password"
@@ -284,6 +312,7 @@ export default function TeacherSettings() {
                                     placeholder="Mật khẩu mới (ít nhất 6 ký tự)..."
                                     className="ts-input m-0"
                                     autoComplete="new-password"
+                                    disabled={!isMainAdmin}
                                 />
                                 <div className="flex gap-2 items-center">
                                     <input
@@ -293,9 +322,10 @@ export default function TeacherSettings() {
                                         placeholder="Xác nhận mật khẩu mới..."
                                         className="ts-input flex-1 m-0"
                                         autoComplete="new-password"
+                                        disabled={!isMainAdmin}
                                     />
                                     <button
-                                        disabled={updatingSecurity || !oldPasswordForPw || !newPassword || newPassword.length < 6 || confirmPassword !== newPassword}
+                                        disabled={updatingSecurity || !oldPasswordForPw || !newPassword || newPassword.length < 6 || confirmPassword !== newPassword || !isMainAdmin}
                                         className="px-4 py-2 bg-red-500/10 text-red-500 disabled:opacity-50 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-sm font-semibold transition whitespace-nowrap"
                                         onClick={async () => {
                                             if (!oldPasswordForPw || newPassword.length < 6 || confirmPassword !== newPassword) return;
@@ -320,6 +350,14 @@ export default function TeacherSettings() {
                                 </div>
                             </div>
                         </div>
+
+                        {!isMainAdmin && (
+                            <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl">
+                                <span className="text-xs text-white/70 font-semibold bg-gray-900/95 px-3 py-1.5 rounded border border-white/10">
+                                    Chỉ admin chính (admin@vanmaster.com) mới có quyền sửa bảo mật và đổi mật khẩu
+                                </span>
+                            </div>
+                        )}
 
                         <div className="border-t border-white/10"></div>
 

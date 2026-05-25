@@ -138,6 +138,10 @@ export async function broadcastMessage(
     text: string,
     imageUrl?: string
 ): Promise<void> {
+    const { auth } = await import('./firebaseService');
+    if (auth.currentUser?.email?.toLowerCase() !== 'admin@vanmaster.com') {
+        throw new Error("Chỉ có tài khoản admin chính (admin@vanmaster.com) mới có quyền gửi thông báo chung.");
+    }
     const users = await getAllUsers();
     const promises = users.map(async (u) => {
         if (u.role === 'teacher') return;
