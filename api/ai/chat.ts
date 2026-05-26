@@ -5,8 +5,20 @@ const LITE_MODEL = 'gemini-2.5-flash-lite';
 const FALLBACK_MODEL = 'gemini-2.5-flash';
 const IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
 const CHAT_HISTORY_LIMIT = 8;
-const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY_MS = 1000;
+const MAX_RETRIES = 2;
+const INITIAL_RETRY_DELAY_MS = 800;
+const FETCH_TIMEOUT_MS = 25_000; // 25s per API call to prevent function timeout
+
+// ── Fetch with timeout helper ─────────────────────────────────────────────────
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 // ── Retry helper with exponential backoff + fallback model ────────────────────
 async function callGeminiWithRetry(
@@ -19,29 +31,40 @@ async function callGeminiWithRetry(
 
     for (const model of models) {
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-            const geminiRes = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const geminiRes = await fetchWithTimeout(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                }, FETCH_TIMEOUT_MS);
 
-            if (geminiRes.ok) {
-                const data = await geminiRes.json();
-                return { data, modelUsed: model };
+                if (geminiRes.ok) {
+                    const data = await geminiRes.json();
+                    return { data, modelUsed: model };
+                }
+
+                // Only retry on 503 (overloaded) or 429 (rate limit)
+                if (geminiRes.status === 503 || geminiRes.status === 429) {
+                    const delay = INITIAL_RETRY_DELAY_MS * (attempt + 1);
+                    console.warn(`[Chat] ${model} returned ${geminiRes.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+
+                // Non-retryable error — throw immediately
+                const errBody = await geminiRes.text().catch(() => '');
+                throw { status: geminiRes.status, detail: errBody };
+            } catch (err: any) {
+                // Handle AbortController timeout (fetch aborted)
+                if (err?.name === 'AbortError') {
+                    console.warn(`[Chat] ${model} timed out after ${FETCH_TIMEOUT_MS}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+                    // If last attempt on this model, fall through to next model
+                    if (attempt < MAX_RETRIES - 1) continue;
+                    break;
+                }
+                throw err;
             }
-
-            // Only retry on 503 (overloaded) or 429 (rate limit)
-            if (geminiRes.status === 503 || geminiRes.status === 429) {
-                const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
-                console.warn(`[Chat] ${model} returned ${geminiRes.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                continue;
-            }
-
-            // Non-retryable error — throw immediately
-            const errBody = await geminiRes.text().catch(() => '');
-            throw { status: geminiRes.status, detail: errBody };
         }
         console.warn(`[Chat] All ${MAX_RETRIES} retries exhausted for ${model}, trying fallback...`);
     }
@@ -100,7 +123,7 @@ KHÔNG ĐƯỢC SỬA: lỗi ngữ pháp, cách dùng từ, ý nghĩa câu, vi�
 
 CÂU HỎI LUYỆN TẬP: Chỉ hỏi khi vừa giải thích xong khái niệm. KHÔNG hỏi liên tục. KHÔNG tạo [AI_EXAM] cho quiz.`;
 
-export const config = { maxDuration: 120 };
+export const config = { maxDuration: 60 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS
@@ -190,12 +213,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         let aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Hệ thống đang bận, thử lại sau nhé!';
 
-        // Handle image generation tag
+        // Handle image generation tag (with short timeout to not block response)
         let generatedImageUrl: string | null = null;
         if (aiContent.includes('[GEN_IMAGE]')) {
             const imagePrompt = aiContent.split('[GEN_IMAGE]')[1].split('\n')[0].trim();
             try {
-                const imgRes = await fetch(
+                const imgRes = await fetchWithTimeout(
                     `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${apiKey}`,
                     {
                         method: 'POST',
@@ -204,7 +227,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             contents: [{ parts: [{ text: imagePrompt }] }],
                             generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
                         }),
-                    }
+                    },
+                    15_000 // 15s timeout for image generation
                 );
                 if (imgRes.ok) {
                     const imgData = await imgRes.json();
@@ -216,7 +240,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
                 }
-            } catch (_e) { /* ignore image errors */ }
+            } catch (_e) { /* ignore image errors — don't block the text response */ }
         }
 
         const cleanedContent = aiContent.replace(/\[GEN_IMAGE\].*/s, '').replace(/\[FETCH_DOC\].*/s, '');

@@ -4,23 +4,42 @@ export const config = { maxDuration: 30 };
 
 const LITE_MODEL = 'gemini-2.5-flash-lite';
 const FALLBACK_MODEL = 'gemini-2.5-flash';
+const FETCH_TIMEOUT_MS = 15_000; // 15s per API call
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 async function callWithRetry(apiKey: string, body: object): Promise<any> {
     const models = [LITE_MODEL, FALLBACK_MODEL];
     for (const model of models) {
         for (let attempt = 0; attempt < 2; attempt++) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-            if (res.ok) return res.json();
-            if (res.status === 503 || res.status === 429) {
-                await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
-                continue;
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const res = await fetchWithTimeout(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                }, FETCH_TIMEOUT_MS);
+                if (res.ok) return res.json();
+                if (res.status === 503 || res.status === 429) {
+                    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                    continue;
+                }
+                return null; // non-retryable
+            } catch (err: any) {
+                if (err?.name === 'AbortError') {
+                    if (attempt < 1) continue;
+                    break;
+                }
+                return null;
             }
-            return null; // non-retryable
         }
     }
     return null;

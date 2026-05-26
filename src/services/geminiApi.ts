@@ -41,19 +41,27 @@ async function callBackend(
         });
         if (res.ok) return res.json();
 
-        // Retry once on 503/429 (server overloaded / rate limit)
-        if ((res.status === 503 || res.status === 429) && attempt < maxAttempts - 1) {
-            console.warn(`[Frontend] ${endpoint} returned ${res.status}, retrying in 3s...`);
-            await new Promise(resolve => setTimeout(resolve, 3000));
+        // Retry once on 503/429/504 (server overloaded / rate limit / timeout)
+        if ((res.status === 503 || res.status === 429 || res.status === 504) && attempt < maxAttempts - 1) {
+            console.warn(`[Frontend] ${endpoint} returned ${res.status}, retrying in 2s...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
             continue;
         }
 
         let errorDetail = '';
         try { errorDetail = await res.text(); } catch { /* ignore */ }
+
+        // Friendly error messages for common issues
+        if (res.status === 504) {
+            throw new Error('Hệ thống đang xử lý lâu hơn bình thường. Em thử gửi lại nhé!');
+        }
+        if (res.status === 503) {
+            throw new Error('Hệ thống đang quá tải. Em đợi vài giây rồi thử lại nhé!');
+        }
         throw new Error(`Backend API error: ${res.status} — ${errorDetail}`);
     }
 
-    throw new Error('Backend API error: max retries exhausted');
+    throw new Error('Hệ thống đang bận. Em thử gửi lại nhé!');
 }
 
 // ================================================================

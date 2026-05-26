@@ -24,14 +24,25 @@ QUY TẮC: Chỉ trả lời về Ngữ Văn THPT. Từ chối lịch sự nếu
         const fullPrompt = `${autoPrompt}\n\nLịch sử:\n${historyText}\n\nHọc sinh: "${userMessage}"\n\nTrả lời:`;
 
         const model = 'gemini-2.5-flash-lite';
-        const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
-            }
-        );
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15_000); // 15s timeout
+        let geminiRes: Response;
+        try {
+            geminiRes = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] }),
+                    signal: controller.signal,
+                }
+            );
+        } catch (err: any) {
+            if (err?.name === 'AbortError') return res.json({ text: null });
+            throw err;
+        } finally {
+            clearTimeout(timer);
+        }
 
         if (!geminiRes.ok) return res.json({ text: null });
         const data = await geminiRes.json();

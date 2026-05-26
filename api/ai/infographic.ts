@@ -3,22 +3,41 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 export const config = { maxDuration: 60 };
 
 const IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
+const FETCH_TIMEOUT_MS = 30_000; // 30s per API call
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 async function callImageWithRetry(apiKey: string, body: object): Promise<any> {
-    for (let attempt = 0; attempt < 3; attempt++) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${apiKey}`;
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-        if (res.ok) return res.json();
-        if (res.status === 503 || res.status === 429) {
-            console.warn(`[Infographic] ${IMAGE_MODEL} returned ${res.status}, retry ${attempt + 1}/3`);
-            await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt)));
-            continue;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${apiKey}`;
+            const res = await fetchWithTimeout(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            }, FETCH_TIMEOUT_MS);
+            if (res.ok) return res.json();
+            if (res.status === 503 || res.status === 429) {
+                console.warn(`[Infographic] ${IMAGE_MODEL} returned ${res.status}, retry ${attempt + 1}/2`);
+                await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+                continue;
+            }
+            return null;
+        } catch (err: any) {
+            if (err?.name === 'AbortError') {
+                console.warn(`[Infographic] ${IMAGE_MODEL} timed out (attempt ${attempt + 1}/2)`);
+                if (attempt < 1) continue;
+            }
+            return null;
         }
-        return null;
     }
     return null;
 }
