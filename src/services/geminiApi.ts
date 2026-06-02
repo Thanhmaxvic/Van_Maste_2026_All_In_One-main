@@ -57,18 +57,23 @@ async function callBackend(
 
             if (res.ok) return res.json();
 
-            // Retry once on 503/429/504 (server overloaded / rate limit / timeout)
-            if ((res.status === 503 || res.status === 429 || res.status === 504) && attempt < maxAttempts - 1) {
-                console.warn(`[Frontend] ${endpoint} returned ${res.status}, retrying in 3s...`);
+            // Read error body to check for retryable patterns
+            let errorBody = '';
+            try { errorBody = await res.text(); } catch { /* ignore */ }
+            const isAborted = errorBody.toLowerCase().includes('aborted');
+
+            // Retry on transient errors: 503/429/504, or 500 with "aborted" (Gemini server-side abort)
+            const isRetryable = res.status === 503 || res.status === 429 || res.status === 504 ||
+                (res.status === 500 && isAborted);
+
+            if (isRetryable && attempt < maxAttempts - 1) {
+                console.warn(`[Frontend] ${endpoint} returned ${res.status}${isAborted ? ' (aborted)' : ''}, retrying in 3s...`);
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 continue;
             }
 
-            // Drain response body to prevent connection leaks
-            await res.text().catch(() => {});
-
             // Friendly error messages for common issues
-            if (res.status === 504) {
+            if (res.status === 504 || (res.status === 500 && isAborted)) {
                 throw new Error('AI đang xử lý lâu hơn bình thường — vui lòng thử lại sau vài giây.');
             }
             if (res.status === 503) {
@@ -76,6 +81,9 @@ async function callBackend(
             }
             if (res.status === 429) {
                 throw new Error('Quá nhiều yêu cầu cùng lúc. Vui lòng đợi vài giây rồi thử lại.');
+            }
+            if (res.status === 500) {
+                throw new Error('AI gặp lỗi kỹ thuật. Vui lòng thử lại sau vài giây.');
             }
             throw new Error(`Lỗi hệ thống (${res.status}). Vui lòng thử lại.`);
         } catch (err: any) {

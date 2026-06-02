@@ -102,7 +102,7 @@ export default function TeacherGrading() {
         } catch (err: any) {
             console.error('Regrade error:', err);
             const msg = err?.message || '';
-            if (msg.includes('lâu hơn') || msg.includes('quá tải') || msg.includes('timeout') || msg.includes('bận')) {
+            if (msg.includes('lâu hơn') || msg.includes('quá tải') || msg.includes('timeout') || msg.includes('bận') || msg.includes('aborted') || msg.includes('kỹ thuật') || msg.includes('500')) {
                 setErrorMsg('AI đang quá tải hoặc xử lý lâu. Vui lòng đợi 10-15 giây rồi bấm "Yêu cầu AI chấm lại" thêm lần nữa.');
             } else if (msg.includes('kết nối') || msg.includes('network') || msg.includes('fetch')) {
                 setErrorMsg('Lỗi kết nối mạng. Vui lòng kiểm tra Internet và thử lại.');

@@ -27,12 +27,19 @@ async function callWithRetry(apiKey: string, body: object): Promise<any> {
                 body: JSON.stringify(body),
             }, FETCH_TIMEOUT_MS);
             if (res.ok) return res.json();
-            if (res.status === 503 || res.status === 429) {
-                console.warn(`[Grade] ${PRIMARY_MODEL} returned ${res.status}, retry ${attempt + 1}/${maxAttempts}`);
+
+            const errBody = await res.text().catch(() => '');
+
+            // Retry on transient errors: 503, 429, or 500 with "aborted" (Gemini server-side abort)
+            const isRetryable = res.status === 503 || res.status === 429 ||
+                (res.status === 500 && errBody.toLowerCase().includes('aborted'));
+
+            if (isRetryable && attempt < maxAttempts - 1) {
+                console.warn(`[Grade] ${PRIMARY_MODEL} returned ${res.status} (retryable), retry ${attempt + 1}/${maxAttempts}`);
                 await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
                 continue;
             }
-            const errBody = await res.text().catch(() => '');
+
             lastError = { status: res.status, detail: errBody };
             throw lastError;
         } catch (err: any) {
@@ -90,8 +97,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const detail = error?.detail || error?.message || 'Unknown error';
         console.error(`[Grade] Error (status=${status}):`, detail);
 
-        // On timeout/overload, return a graceful fallback grade instead of HTTP error
-        if (status === 504 || status === 503 || error?.name === 'AbortError') {
+        // On timeout/overload/aborted, return a graceful fallback grade instead of HTTP error
+        const detailStr = typeof detail === 'string' ? detail.toLowerCase() : '';
+        if (status === 504 || status === 503 || error?.name === 'AbortError' ||
+            (status === 500 && detailStr.includes('aborted'))) {
             return res.json({ text: JSON.stringify({
                 score: 0,
                 maxScore: 10,
