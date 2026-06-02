@@ -20,7 +20,7 @@ const PRIMARY_MODEL = 'gemini-2.5-flash';
 
 export const config = { maxDuration: 60 };
 
-const FETCH_TIMEOUT_MS = 35_000; // 35s per API call
+const FETCH_TIMEOUT_MS = 50_000; // 50s per API call (within 60s Vercel limit)
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
     const controller = new AbortController();
@@ -103,6 +103,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const status = error?.status || 500;
         const detail = error?.detail || error?.message || 'Unknown error';
         console.error(`[GradeSubmission] Error (status=${status}):`, detail);
+
+        // On timeout/overload, return a graceful fallback grade instead of HTTP error
+        if (status === 504 || status === 503 || error?.name === 'AbortError') {
+            return res.json({ text: JSON.stringify({
+                score: 0,
+                maxScore: 10,
+                feedback: 'AI chưa hoàn thành chấm điểm — có thể do lỗi kết nối hoặc quá tải. Giáo viên vui lòng chấm thủ công.',
+                details: 'Bài làm của học sinh đã được lưu đầy đủ. AI không thể tạo điểm nhập do lỗi kỹ thuật.',
+                errors: [],
+                improvements: [],
+                weaknesses: [],
+                strengths: []
+            }) });
+        }
         return res.status(status).json({ error: `Gemini error: ${status}`, detail });
     }
 }

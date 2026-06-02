@@ -24,6 +24,9 @@ export function isApiKeyConfigured(): boolean {
 
 // ── Helper: gọi backend ────────────────────────────────────────────────────────
 
+/** Client-side timeout for backend calls (55s — slightly under Vercel's 60s max) */
+const BACKEND_TIMEOUT_MS = 55_000;
+
 async function callBackend(
     endpoint: string,
     body: object,
@@ -33,35 +36,76 @@ async function callBackend(
     const maxAttempts = 2; // 1 initial + 1 retry for 503/429
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const res = await fetch(`${baseUrl}${endpoint}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: opts?.signal,
-        });
-        if (res.ok) return res.json();
+        // Create a timeout controller, but respect caller's signal too
+        const timeoutController = new AbortController();
+        const timer = setTimeout(() => timeoutController.abort(), BACKEND_TIMEOUT_MS);
 
-        // Retry once on 503/429/504 (server overloaded / rate limit / timeout)
-        if ((res.status === 503 || res.status === 429 || res.status === 504) && attempt < maxAttempts - 1) {
-            console.warn(`[Frontend] ${endpoint} returned ${res.status}, retrying in 2s...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            continue;
-        }
+        // If caller provided a signal, abort our controller when it fires
+        const callerSignal = opts?.signal;
+        const onCallerAbort = () => timeoutController.abort();
+        callerSignal?.addEventListener('abort', onCallerAbort);
 
-        let errorDetail = '';
-        try { errorDetail = await res.text(); } catch { /* ignore */ }
+        try {
+            const res = await fetch(`${baseUrl}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: timeoutController.signal,
+            });
+            clearTimeout(timer);
+            callerSignal?.removeEventListener('abort', onCallerAbort);
 
-        // Friendly error messages for common issues
-        if (res.status === 504) {
-            throw new Error('Hệ thống đang xử lý lâu hơn bình thường. Em thử gửi lại nhé!');
+            if (res.ok) return res.json();
+
+            // Retry once on 503/429/504 (server overloaded / rate limit / timeout)
+            if ((res.status === 503 || res.status === 429 || res.status === 504) && attempt < maxAttempts - 1) {
+                console.warn(`[Frontend] ${endpoint} returned ${res.status}, retrying in 3s...`);
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                continue;
+            }
+
+            // Drain response body to prevent connection leaks
+            await res.text().catch(() => {});
+
+            // Friendly error messages for common issues
+            if (res.status === 504) {
+                throw new Error('AI đang xử lý lâu hơn bình thường — vui lòng thử lại sau vài giây.');
+            }
+            if (res.status === 503) {
+                throw new Error('Hệ thống AI đang quá tải. Vui lòng đợi vài giây rồi thử lại.');
+            }
+            if (res.status === 429) {
+                throw new Error('Quá nhiều yêu cầu cùng lúc. Vui lòng đợi vài giây rồi thử lại.');
+            }
+            throw new Error(`Lỗi hệ thống (${res.status}). Vui lòng thử lại.`);
+        } catch (err: any) {
+            clearTimeout(timer);
+            callerSignal?.removeEventListener('abort', onCallerAbort);
+
+            // If caller explicitly aborted, rethrow immediately
+            if (callerSignal?.aborted) {
+                throw new Error('Yêu cầu đã bị hủy.');
+            }
+
+            // Client-side timeout
+            if (err?.name === 'AbortError') {
+                if (attempt < maxAttempts - 1) {
+                    console.warn(`[Frontend] ${endpoint} timed out, retrying...`);
+                    continue;
+                }
+                throw new Error('AI đang xử lý lâu hơn bình thường — vui lòng thử lại sau vài giây.');
+            }
+
+            // Network error
+            if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
+                throw new Error('Lỗi kết nối mạng. Vui lòng kiểm tra Internet và thử lại.');
+            }
+
+            throw err;
         }
-        if (res.status === 503) {
-            throw new Error('Hệ thống đang quá tải. Em đợi vài giây rồi thử lại nhé!');
-        }
-        throw new Error(`Backend API error: ${res.status} — ${errorDetail}`);
     }
 
-    throw new Error('Hệ thống đang bận. Em thử gửi lại nhé!');
+    throw new Error('Hệ thống đang bận. Vui lòng thử lại sau.');
 }
 
 // ================================================================

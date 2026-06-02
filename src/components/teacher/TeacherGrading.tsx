@@ -101,7 +101,14 @@ export default function TeacherGrading() {
             setSelectedPending(prev => prev ? { ...prev, aiSuggestedGrade: grade } : prev);
         } catch (err: any) {
             console.error('Regrade error:', err);
-            setErrorMsg('Lỗi khi AI chấm lại: ' + (err.message || 'Không xác định'));
+            const msg = err?.message || '';
+            if (msg.includes('lâu hơn') || msg.includes('quá tải') || msg.includes('timeout') || msg.includes('bận')) {
+                setErrorMsg('AI đang quá tải hoặc xử lý lâu. Vui lòng đợi 10-15 giây rồi bấm "Yêu cầu AI chấm lại" thêm lần nữa.');
+            } else if (msg.includes('kết nối') || msg.includes('network') || msg.includes('fetch')) {
+                setErrorMsg('Lỗi kết nối mạng. Vui lòng kiểm tra Internet và thử lại.');
+            } else {
+                setErrorMsg('Lỗi khi AI chấm lại: ' + (msg || 'Không xác định. Vui lòng thử lại.'));
+            }
         } finally {
             setIsRegrading(false);
         }
