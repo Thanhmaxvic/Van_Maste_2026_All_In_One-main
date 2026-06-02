@@ -44,7 +44,7 @@ export default function ChatBubble() {
     // Create conversation on first open
     useEffect(() => {
         if (!user || !userProfile) return;
-        getOrCreateConversation(user.uid, userProfile.name || 'Học sinh').then(setConvId);
+        getOrCreateConversation(user.uid, userProfile.name || 'Học sinh', userProfile.email).then(setConvId);
     }, [user, userProfile]);
 
     // Listen to messages

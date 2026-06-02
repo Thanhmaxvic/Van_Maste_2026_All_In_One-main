@@ -130,6 +130,7 @@ export interface ChatConversation {
   id: string;
   studentUid: string;
   studentName: string;
+  studentEmail?: string;
   studentAvatar?: string;
   lastMessage: string;
   lastTimestamp: number;

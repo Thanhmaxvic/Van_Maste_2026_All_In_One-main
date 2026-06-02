@@ -153,7 +153,11 @@ export default function TeacherChatPanel() {
     };
 
     const filteredConvs = searchQuery
-        ? conversations.filter(c => c.studentName.toLowerCase().includes(searchQuery.toLowerCase()))
+        ? conversations.filter(c => {
+            const q = searchQuery.toLowerCase();
+            return c.studentName.toLowerCase().includes(q) ||
+                   (c.studentEmail || '').toLowerCase().includes(q);
+        })
         : conversations;
 
     return (
@@ -195,17 +199,28 @@ export default function TeacherChatPanel() {
                     {filteredConvs.length === 0 && (
                         <div className="tc-empty">Chưa có tin nhắn nào</div>
                     )}
-                    {filteredConvs.map(conv => (
+                    {filteredConvs.map(conv => {
+                        // If name is default 'Bạn', show email username as fallback
+                        const displayName = (!conv.studentName || conv.studentName === 'Bạn')
+                            ? (conv.studentEmail?.split('@')[0] || 'Học sinh')
+                            : conv.studentName;
+                        const showEmail = conv.studentEmail && conv.studentEmail !== '';
+                        return (
                         <button
                             key={conv.id}
                             className={`tc-conv-item ${activeConvId === conv.id ? 'active' : ''}`}
                             onClick={() => setActiveConvId(conv.id)}
                         >
                             <div className="tc-conv-avatar">
-                                {conv.studentName.charAt(0).toUpperCase()}
+                                {displayName.charAt(0).toUpperCase()}
                             </div>
                             <div className="tc-conv-info">
-                                <div className="tc-conv-name">{conv.studentName}</div>
+                                <div className="tc-conv-name">{displayName}</div>
+                                {showEmail && (
+                                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.2, marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {conv.studentEmail}
+                                    </div>
+                                )}
                                 <div className="tc-conv-last">{conv.lastMessage || 'Bắt đầu trò chuyện'}</div>
                             </div>
                             <div className="tc-conv-meta">
@@ -215,7 +230,8 @@ export default function TeacherChatPanel() {
                                 )}
                             </div>
                         </button>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
@@ -305,11 +321,23 @@ export default function TeacherChatPanel() {
                         {/* Chat Header */}
                         <div className="tc-chat-header">
                             <div className="tc-chat-header-avatar">
-                                {activeConv?.studentName.charAt(0).toUpperCase() || '?'}
+                                {(() => {
+                                    const name = activeConv?.studentName || '';
+                                    const fallback = activeConv?.studentEmail?.split('@')[0] || '?';
+                                    return (name && name !== 'Bạn') ? name.charAt(0).toUpperCase() : fallback.charAt(0).toUpperCase();
+                                })()}
                             </div>
                             <div style={{ flex: 1 }}>
-                                <div className="tc-chat-header-name">{activeConv?.studentName}</div>
-                                <div className="tc-chat-header-status">Học sinh</div>
+                                <div className="tc-chat-header-name">
+                                    {(!activeConv?.studentName || activeConv?.studentName === 'Bạn')
+                                        ? (activeConv?.studentEmail?.split('@')[0] || 'Học sinh')
+                                        : activeConv?.studentName}
+                                </div>
+                                <div className="tc-chat-header-status">
+                                    {activeConv?.studentEmail
+                                        ? <>{activeConv.studentEmail}</>
+                                        : 'Học sinh'}
+                                </div>
                             </div>
                             <button
                                 onClick={handleDeleteConversation}

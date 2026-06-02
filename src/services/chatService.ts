@@ -1,4 +1,5 @@
-import { rtdb, storage, getAllUsers } from './firebaseService';
+import { rtdb, storage, getAllUsers, db } from './firebaseService';
+import { doc, getDoc } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import {
     ref,
@@ -51,6 +52,7 @@ export async function uploadChatDocument(file: File): Promise<string> {
 export async function getOrCreateConversation(
     studentUid: string,
     studentName: string,
+    studentEmail?: string,
 ): Promise<string> {
     // Conversation ID is deterministic: student UID
     const convId = `conv_${studentUid}`;
@@ -60,12 +62,18 @@ export async function getOrCreateConversation(
         onValue(convRef, (snap) => {
             off(convRef);
             if (snap.exists()) {
+                // Update email if it was missing before
+                const existing = snap.val();
+                if (studentEmail && !existing.studentEmail) {
+                    update(convRef, { studentEmail }).catch(() => {});
+                }
                 resolve(convId);
             } else {
                 // Create new conversation
                 set(convRef, {
                     studentUid,
                     studentName,
+                    studentEmail: studentEmail || '',
                     createdAt: Date.now(),
                     lastMessage: '',
                     lastTimestamp: Date.now(),
@@ -146,7 +154,7 @@ export async function broadcastMessage(
     const promises = users.map(async (u) => {
         if (u.role === 'teacher') return;
         try {
-            const convId = await getOrCreateConversation(u.uid, u.name);
+            const convId = await getOrCreateConversation(u.uid, u.name, u.email);
             await sendMessage(convId, senderId, text, imageUrl, true);
         } catch (e) {
             console.error(`Error sending broadcast to ${u.uid}:`, e);
@@ -187,22 +195,56 @@ export function listenToConversations(
 ): () => void {
     const chatsRef = ref(rtdb, 'chats');
 
-    onValue(chatsRef, (snap) => {
+    // Cache for email lookups to avoid repeated Firestore reads
+    const emailCache = new Map<string, string>();
+
+    onValue(chatsRef, async (snap) => {
         const conversations: ChatConversation[] = [];
+        const enrichPromises: Promise<void>[] = [];
+
         snap.forEach((child) => {
             const info = child.child('info').val();
             if (info) {
-                conversations.push({
+                const conv: ChatConversation = {
                     id: child.key!,
                     studentUid: info.studentUid || '',
                     studentName: info.studentName || 'Học sinh',
+                    studentEmail: info.studentEmail || '',
                     lastMessage: info.lastMessage || '',
                     lastTimestamp: info.lastTimestamp || 0,
                     lastSenderId: info.lastSenderId || '',
                     unreadCount: info.unreadByTeacher || 0,
-                });
+                };
+                conversations.push(conv);
+
+                // If email is missing, try to enrich from Firestore
+                if (!conv.studentEmail && conv.studentUid) {
+                    if (emailCache.has(conv.studentUid)) {
+                        conv.studentEmail = emailCache.get(conv.studentUid)!;
+                    } else {
+                        enrichPromises.push(
+                            getDoc(doc(db, 'users', conv.studentUid)).then(userSnap => {
+                                if (userSnap.exists()) {
+                                    const email = userSnap.data()?.email || '';
+                                    conv.studentEmail = email;
+                                    emailCache.set(conv.studentUid, email);
+                                    // Also backfill email into RTDB for future reads
+                                    if (email) {
+                                        update(ref(rtdb, `chats/${conv.id}/info`), { studentEmail: email }).catch(() => {});
+                                    }
+                                }
+                            }).catch(() => {})
+                        );
+                    }
+                }
             }
         });
+
+        // Wait for any email enrichment, then deliver
+        if (enrichPromises.length > 0) {
+            await Promise.allSettled(enrichPromises);
+        }
+
         // Sort by last message time, newest first
         conversations.sort((a, b) => b.lastTimestamp - a.lastTimestamp);
         callback(conversations);
