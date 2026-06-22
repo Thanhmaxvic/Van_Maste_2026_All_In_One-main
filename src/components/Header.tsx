@@ -4,19 +4,21 @@ import { EXAM_DATE } from '../constants';
 import { useAuth } from '../context/AuthContext';
 import { listenToStats, listenToOnlineUsers, getRegisteredUsersCount, listenToSystemConfig } from '../services/firebaseService';
 
+/** Tính số ngày còn lại tới ngày thi */
+function calcDaysLeft(dateStr: string) {
+    return Math.max(0, Math.ceil(
+        (new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    ));
+}
+
 interface HeaderProps {
     onOpenPanel: (mode: 'settings' | 'profile') => void;
 }
 
-function daysLeft() {
-    return Math.max(0, Math.ceil(
-        (new Date(EXAM_DATE).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    ));
-}
-
 export default function Header({ onOpenPanel }: HeaderProps) {
     const { userProfile } = useAuth();
-    const diff = daysLeft();
+    const [examDate, setExamDate] = useState(EXAM_DATE);
+    const diff = calcDaysLeft(examDate);
     const pct = Math.min(100, Math.round(100 - (diff / 365) * 100));
 
     const [stats, setStats] = useState({ totalRegistered: 0, totalVisits: 0 });
@@ -42,6 +44,10 @@ export default function Header({ onOpenPanel }: HeaderProps) {
                 text: config.globalNotification || '',
                 active: !!config.globalNotificationActive
             });
+            // Đọc ngày thi từ cấu hình hệ thống (admin đặt trong trang quản trị)
+            if (config.examDate) {
+                setExamDate(config.examDate);
+            }
         });
 
         return () => {

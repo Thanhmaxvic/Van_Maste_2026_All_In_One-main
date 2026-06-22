@@ -48,7 +48,7 @@ export default function TeacherDashboard() {
             setUsers(usersData); // show all users so we can manage roles
             setTotalExams(exams);
             setRegisteredCount(registered);
-            setExamDate((sysConfig.examDate as string) || '2026-06-11');
+            setExamDate((sysConfig.examDate as string) || '2027-06-11');
             setDailyExamHour((sysConfig.dailyExamHour as string) || '08:00');
         } catch (e) {
             console.error('Dashboard load error:', e);

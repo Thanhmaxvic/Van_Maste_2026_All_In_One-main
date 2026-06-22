@@ -27,7 +27,7 @@ import type { DiagnosticQuizData } from '../services/geminiApi';
 import type { TimelineItem } from '../types';
 import { playTTS, queueTTS, stopCurrentAudio } from '../services/ttsService';
 import { useAuth } from '../context/AuthContext';
-import { saveTargetScore, saveChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson, updateUserProfile } from '../services/firebaseService';
+import { saveTargetScore, saveChatMemory, saveUserTraits, updateLessonProgress, saveActiveLesson, clearActiveLesson, updateUserProfile, getSystemConfig } from '../services/firebaseService';
 import { findLesson, getLessonKey } from '../constants/curriculum';
 import { fetchDocxAsText, estimateSectionCount, buildLessonContext } from '../services/examService';
 
@@ -400,48 +400,62 @@ export function useChat(
         if (initDoneRef.current) return;
         initDoneRef.current = true;
 
-        const examDate = new Date(EXAM_DATE);
-        const diff = Math.ceil((examDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-        const pr = PRONOUN_MAP[userProfile.voiceGender || 'male'];
-
         let timerId: ReturnType<typeof setTimeout>;
+        let cancelled = false;
 
-        // Determine onboarding state on load:
-        // a) Never set up target → full onboarding
-        // b) Has target but assessment not done → resume A/B choice
-        // c) Fully onboarded → check for active lesson to resume
-        if (!userProfile.targetScore) {
-            setAwaitingScore(true);
-            const welcome = ONBOARDING_WELCOME_TEMPLATE(userProfile.name, pr);
-            timerId = setTimeout(() => {
-                setMessages([{ role: 'assistant', content: welcome }]);
-                playNotification();
-                autoSpeak(welcome);
-            }, 800);
-        } else if (!userProfile.assessmentDone) {
-            // Resume: target saved but assessment not yet done
-            setAwaitingTestChoice(true);
-            const resumeMsg = `Chào ${userProfile.name}! Em đã đặt mục tiêu ${userProfile.targetScore}/10 rồi.
+        (async () => {
+            // Đọc ngày thi từ cấu hình hệ thống (admin đặt trong trang quản trị) thay vì hardcode
+            let examDateStr = EXAM_DATE;
+            try {
+                const sysConfig = await getSystemConfig();
+                if (sysConfig.examDate) examDateStr = sysConfig.examDate as string;
+            } catch { /* fallback to constant */ }
+            if (cancelled) return;
+
+            const examDate = new Date(examDateStr);
+            const diff = Math.ceil((examDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+            const pr = PRONOUN_MAP[userProfile.voiceGender || 'male'];
+
+            // Determine onboarding state on load:
+            // a) Never set up target → full onboarding
+            // b) Has target but assessment not done → resume A/B choice
+            // c) Fully onboarded → check for active lesson to resume
+            if (!userProfile.targetScore) {
+                setAwaitingScore(true);
+                const welcome = ONBOARDING_WELCOME_TEMPLATE(userProfile.name, pr);
+                timerId = setTimeout(() => {
+                    setMessages([{ role: 'assistant', content: welcome }]);
+                    playNotification();
+                    autoSpeak(welcome);
+                }, 800);
+            } else if (!userProfile.assessmentDone) {
+                // Resume: target saved but assessment not yet done
+                setAwaitingTestChoice(true);
+                const resumeMsg = `Chào ${userProfile.name}! Em đã đặt mục tiêu ${userProfile.targetScore}/10 rồi.
 ${pr} cần đánh giá năng lực của em trước khi bắt đầu. Em chọn:
 
 A. Làm bài kiểm tra đề thi thật (120 phút)
 B. Trả lời 10 câu trắc nghiệm nhanh`;
-            timerId = setTimeout(() => {
-                setMessages([{ role: 'assistant', content: resumeMsg, quickReplies: ['A', 'B'] }]);
-                playNotification();
-                autoSpeak(resumeMsg);
-            }, 800);
-        } else {
-            // Fully onboarded user - don't push text messages so the Welcome Screen stays visible.
-            // We just play the audio greeting if needed.
-            const returning = `Chào ${userProfile.name}! Còn ${diff} ngày nữa là thi. Hôm nay em muốn ôn gì?`;
-            timerId = setTimeout(() => {
-                playNotification();
-                autoSpeak(returning);
-            }, 800);
-        }
+                timerId = setTimeout(() => {
+                    setMessages([{ role: 'assistant', content: resumeMsg, quickReplies: ['A', 'B'] }]);
+                    playNotification();
+                    autoSpeak(resumeMsg);
+                }, 800);
+            } else {
+                // Fully onboarded user - don't push text messages so the Welcome Screen stays visible.
+                // We just play the audio greeting if needed.
+                const returning = `Chào ${userProfile.name}! Còn ${diff} ngày nữa là thi. Hôm nay em muốn ôn gì?`;
+                timerId = setTimeout(() => {
+                    playNotification();
+                    autoSpeak(returning);
+                }, 800);
+            }
+        })();
 
-        return () => clearTimeout(timerId);
+        return () => {
+            cancelled = true;
+            clearTimeout(timerId!);
+        };
     }, [userProfile?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Load chat memory from Firebase on mount ────────────────────────────

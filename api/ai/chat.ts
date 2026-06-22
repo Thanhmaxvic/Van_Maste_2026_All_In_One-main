@@ -137,7 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const apiKey = process.env.GOOGLE_API_KEY || '';
         if (!apiKey) return res.status(500).json({ error: 'API_KEY_MISSING' });
 
-        const { messages = [], userText, previewImage, userProfile, lessonContext } = req.body;
+        const { messages = [], userText, previewImage, userProfile, lessonContext, examDate: reqExamDate } = req.body;
 
         // Build datetime context
         const now = new Date();
@@ -145,9 +145,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const dayOfWeek = dayNames[now.getDay()];
         const dateStr = now.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
-        const examDate = new Date('2026-06-11');
+        const examDateStr = reqExamDate || '2027-06-11';
+        const examDate = new Date(examDateStr);
         const daysLeft = Math.max(0, Math.ceil((examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-        const datetimeBlock = `\n[THỜI GIAN HIỆN TẠI]\n- Ngày: ${dayOfWeek}, ${dateStr}\n- Giờ: ${timeStr}\n- Còn ${daysLeft} ngày đến kỳ thi tốt nghiệp THPT (11/06/2026)\n[/THỜI GIAN]`;
+        const examDateFormatted = examDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const datetimeBlock = `\n[THỜI GIAN HIỆN TẠI]\n- Ngày: ${dayOfWeek}, ${dateStr}\n- Giờ: ${timeStr}\n- Còn ${daysLeft} ngày đến kỳ thi tốt nghiệp THPT (${examDateFormatted})\n[/THỜI GIAN]`;
 
         // Build profile block
         let profileBlock = '';

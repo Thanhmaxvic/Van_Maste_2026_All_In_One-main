@@ -351,7 +351,7 @@ export const DEFAULT_USER_DATA: UserData = {
   daysLeft: 0,
 };
 
-export const EXAM_DATE = '2026-06-11';
+export const EXAM_DATE = '2027-06-11';
 
 export const MAX_TTS_LENGTH = 600;
 

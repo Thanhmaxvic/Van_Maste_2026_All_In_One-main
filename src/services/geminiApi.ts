@@ -1,5 +1,6 @@
 import { KNOWLEDGE_DOCS } from '../constants';
 import type { Message, UserProfile, AIExamData, ExamGrade } from '../types';
+import { getSystemConfig } from './firebaseService';
 
 // ================================================================
 // ██ CẤU HÌNH — GỌI QUA BACKEND SERVER ██
@@ -20,6 +21,27 @@ function getApiBaseUrl(): string {
  */
 export function isApiKeyConfigured(): boolean {
     return true; // API key giờ ở backend
+}
+
+// ── Cache examDate từ Firestore system config ─────────────────────────────────
+let _cachedExamDate: string | null = null;
+let _examDateFetchedAt = 0;
+const EXAM_DATE_CACHE_TTL = 5 * 60 * 1000; // cache 5 phút
+
+async function getCachedExamDate(): Promise<string | undefined> {
+    const now = Date.now();
+    if (_cachedExamDate && now - _examDateFetchedAt < EXAM_DATE_CACHE_TTL) {
+        return _cachedExamDate;
+    }
+    try {
+        const config = await getSystemConfig();
+        if (config.examDate) {
+            _cachedExamDate = config.examDate as string;
+            _examDateFetchedAt = now;
+            return _cachedExamDate;
+        }
+    } catch { /* ignore */ }
+    return undefined;
 }
 
 // ── Helper: gọi backend ────────────────────────────────────────────────────────
@@ -134,12 +156,15 @@ export async function sendChatMessage(
     // Frontend vẫn giữ logic FETCH_DOC (vì cần fetch từ public/) 
     // và gửi nội dung tài liệu lên backend cùng với context
 
+    const examDate = await getCachedExamDate();
+
     const data = await callBackend('/api/ai/chat', {
         messages: messages.map(m => ({ role: m.role, content: m.content })),
         userText,
         previewImage,
         userProfile: userProfile || null,
         lessonContext: lessonContext || null,
+        examDate: examDate || null,
     }, { signal });
 
     let aiContent = data.text || 'Hệ thống đang bận, thử lại sau nhé!';
@@ -181,6 +206,7 @@ export async function sendChatMessage(
                     previewImage: null,
                     userProfile: userProfile || null,
                     lessonContext: lessonContext || null,
+                    examDate: examDate || null,
                 }, { signal });
 
                 aiContent = followUpData.text || aiContent;
