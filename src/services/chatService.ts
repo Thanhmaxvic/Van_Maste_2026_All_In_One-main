@@ -14,31 +14,28 @@ import {
 } from 'firebase/database';
 import type { ChatMessage, ChatConversation } from '../types';
 
-const UPANHNHANH_API_KEY = 'upanh_sdbeChaTRMsDtXN7JCyitqeFGZJbzVRm7HSez4wirbdPdoeY';
-const UPANHNHANH_API_URL = 'https://www.upanhnhanh.com/api/v1/upload';
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_DOC_SIZE = 10 * 1024 * 1024; // 10MB
 
 // ─── Image Upload ─────────────────────────────────────────────────────────────
 
-/** Upload an image file to upanhnhanh and return the URL */
+/** Upload an image file to Firebase Storage and return the download URL */
 export async function uploadChatImage(file: File): Promise<string> {
-    const formData = new FormData();
-    formData.append('images[]', file);
-
-    const res = await fetch(UPANHNHANH_API_URL, {
-        method: 'POST',
-        headers: { 'X-API-Key': UPANHNHANH_API_KEY },
-        body: formData,
-    });
-
-    const data = await res.json();
-    if (data.success && data.urls && data.urls.length > 0) {
-        return data.urls[0];
+    if (file.size > MAX_IMAGE_SIZE) {
+        throw new Error(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Giới hạn tối đa ${MAX_IMAGE_SIZE / 1024 / 1024}MB.`);
     }
-    throw new Error(data.errors?.[0] || 'Upload ảnh thất bại');
+    const ext = file.name.split('.').pop() || 'jpg';
+    const fileName = `chat_images/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+    const fileRef = storageRef(storage, fileName);
+    await uploadBytes(fileRef, file);
+    return await getDownloadURL(fileRef);
 }
 
 /** Upload a document using Firebase Storage */
 export async function uploadChatDocument(file: File): Promise<string> {
+    if (file.size > MAX_DOC_SIZE) {
+        throw new Error(`Tài liệu quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Giới hạn tối đa ${MAX_DOC_SIZE / 1024 / 1024}MB.`);
+    }
     const ext = file.name.split('.').pop() || 'bin';
     const fileName = `chat_docs/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
     const fileRef = storageRef(storage, fileName);

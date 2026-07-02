@@ -26,6 +26,7 @@ export default function ChatBubble() {
     const [sending, setSending] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [uploadingDoc, setUploadingDoc] = useState(false);
+    const [uploadError, setUploadError] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const docInputRef = useRef<HTMLInputElement>(null);
@@ -102,11 +103,13 @@ export default function ChatBubble() {
         const file = e.target.files?.[0];
         if (!file || !convId || !user) return;
         setUploading(true);
+        setUploadError('');
         try {
             const url = await uploadChatImage(file);
             await sendMessage(convId, user.uid, '', url, false);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Upload error:', err);
+            setUploadError(err?.message || 'Không thể tải ảnh lên. Vui lòng thử lại.');
         } finally {
             setUploading(false);
             e.target.value = '';
@@ -117,11 +120,13 @@ export default function ChatBubble() {
         const file = e.target.files?.[0];
         if (!file || !convId || !user) return;
         setUploadingDoc(true);
+        setUploadError('');
         try {
             const url = await uploadChatDocument(file);
             await sendMessage(convId, user.uid, '', undefined, false, url, file.name);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Upload document error:', err);
+            setUploadError(err?.message || 'Không thể tải tài liệu lên. Vui lòng thử lại.');
         } finally {
             setUploadingDoc(false);
             e.target.value = '';
@@ -273,6 +278,14 @@ export default function ChatBubble() {
                         })}
                         <div ref={messagesEndRef} />
                     </div>
+
+                    {/* Upload Error */}
+                    {uploadError && (
+                        <div style={{ padding: '8px 16px', background: '#fef2f2', color: '#dc2626', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                            <span>⚠️ {uploadError}</span>
+                            <button onClick={() => setUploadError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 'bold', fontSize: '14px' }}>✕</button>
+                        </div>
+                    )}
 
                     {/* Input */}
                     <div className="cb-input-bar">
