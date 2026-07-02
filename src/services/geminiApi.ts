@@ -402,6 +402,67 @@ export async function generateChatAutoResponse(
 }
 
 /**
+ * Nén ảnh phía client để tránh lỗi 413 (Vercel giới hạn body 4.5MB).
+ * Ảnh được resize xuống maxDim px và nén JPEG quality.
+ * Trả về base64 string (không có prefix data:...).
+ */
+async function compressImageToBase64(file: File, maxDim = 1600, initialQuality = 0.7): Promise<string> {
+    const MAX_BASE64_SIZE = 3 * 1024 * 1024; // 3MB base64 (~2.25MB ảnh) — chừa chỗ cho prompt text
+
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+
+    // Resize nếu ảnh quá lớn
+    if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+    }
+
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    // Nén JPEG và giảm dần quality nếu vẫn quá lớn
+    let quality = initialQuality;
+    let base64 = '';
+    for (let attempt = 0; attempt < 4; attempt++) {
+        const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
+        const buffer = await blob.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        // Convert to base64
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        base64 = btoa(binary);
+
+        if (base64.length <= MAX_BASE64_SIZE) break;
+
+        // Giảm quality hoặc resize thêm
+        quality = Math.max(0.3, quality - 0.15);
+        if (attempt === 2) {
+            // Giảm kích thước ảnh thêm lần nữa
+            const smallerCanvas = new OffscreenCanvas(Math.round(width * 0.7), Math.round(height * 0.7));
+            const smallerCtx = smallerCanvas.getContext('2d')!;
+            smallerCtx.drawImage(canvas, 0, 0, smallerCanvas.width, smallerCanvas.height);
+            // Swap canvas reference for next iteration
+            width = smallerCanvas.width;
+            height = smallerCanvas.height;
+            const swapCanvas = new OffscreenCanvas(width, height);
+            const swapCtx = swapCanvas.getContext('2d')!;
+            swapCtx.drawImage(smallerCanvas, 0, 0);
+            ctx.drawImage(swapCanvas, 0, 0, width, height);
+        }
+        console.warn(`[compressImage] base64 vẫn lớn (${(base64.length / 1024 / 1024).toFixed(1)}MB), giảm quality=${quality.toFixed(2)}`);
+    }
+
+    console.log(`[compressImage] Kết quả: ${width}x${height}, quality=${quality.toFixed(2)}, base64=${(base64.length / 1024 / 1024).toFixed(2)}MB`);
+    return base64;
+}
+
+/**
  * Chấm bài nộp — gọi qua Backend (PRIMARY_MODEL).
  * Hỗ trợ: ảnh, PDF, DOCX (mammoth).
  */
@@ -411,8 +472,12 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
     let fileText: string | null = null;
 
     if (file) {
-        if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-            // Send as base64 to backend
+        if (file.type.startsWith('image/')) {
+            // Nén ảnh trước khi gửi để tránh lỗi 413 (Vercel body limit 4.5MB)
+            fileBase64 = await compressImageToBase64(file);
+            fileMimeType = 'image/jpeg'; // Luôn là JPEG sau khi nén
+        } else if (file.type === 'application/pdf') {
+            // PDF không nén được — gửi trực tiếp base64
             fileBase64 = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => {
@@ -422,7 +487,7 @@ export async function gradeStudentSubmission(prompt: string, file: File | null):
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
             });
-            fileMimeType = file.type || 'application/pdf';
+            fileMimeType = 'application/pdf';
         } else if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
             try {
                 const arrayBuffer = await file.arrayBuffer();
