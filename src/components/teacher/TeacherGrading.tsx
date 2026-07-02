@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { UploadCloud, FileText, CheckCircle, Loader2, AlertCircle, Clock, User, Check, Edit3, RefreshCw, Trash2, BookOpen, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { UploadCloud, FileText, CheckCircle, Loader2, AlertCircle, Clock, User, Check, Edit3, RefreshCw, Trash2, BookOpen, Sparkles, Eye, ZoomIn, X, Image as ImageIcon } from 'lucide-react';
 import type { ExamGrade } from '../../types';
 import { getPendingSubmissions, approveSubmission, rejectSubmission, updateSubmissionPendingGrade, type PendingSubmission } from '../../services/firebaseService';
 
@@ -12,6 +12,11 @@ export default function TeacherGrading() {
     const [gradingGuideFile, setGradingGuideFile] = useState<File | null>(null);
     const [isGrading, setIsGrading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+
+    // File preview for offline tab
+    const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+    const [filePreviewText, setFilePreviewText] = useState<string | null>(null);
+    const [lightboxOpen, setLightboxOpen] = useState(false);
 
     // Re-grade with answer key (pending tab)
     const [answerKeyText, setAnswerKeyText] = useState('');
@@ -38,6 +43,52 @@ export default function TeacherGrading() {
     useEffect(() => {
         loadPending();
     }, []);
+
+    // Generate preview when studentFile changes
+    useEffect(() => {
+        // Cleanup previous URL
+        if (filePreviewUrl) {
+            URL.revokeObjectURL(filePreviewUrl);
+            setFilePreviewUrl(null);
+        }
+        setFilePreviewText(null);
+
+        if (!studentFile) return;
+
+        if (studentFile.type.startsWith('image/')) {
+            const url = URL.createObjectURL(studentFile);
+            setFilePreviewUrl(url);
+        } else if (studentFile.type === 'application/pdf') {
+            const url = URL.createObjectURL(studentFile);
+            setFilePreviewUrl(url);
+        } else if (
+            studentFile.name.endsWith('.docx') ||
+            studentFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ) {
+            // Extract text from docx for preview
+            (async () => {
+                try {
+                    const mammoth = await import('mammoth');
+                    const arrayBuffer = await studentFile.arrayBuffer();
+                    const result = await mammoth.extractRawText({ arrayBuffer });
+                    setFilePreviewText(result.value || '(Không trích xuất được nội dung)');
+                } catch {
+                    setFilePreviewText('(Lỗi khi đọc file docx)');
+                }
+            })();
+        } else {
+            // Plain text file
+            studentFile.text().then(t => setFilePreviewText(t)).catch(() => {});
+        }
+
+        return () => {
+            // Cleanup on unmount or file change
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [studentFile]);
+
+    const isImageFile = useMemo(() => studentFile?.type.startsWith('image/'), [studentFile]);
+    const isPdfFile = useMemo(() => studentFile?.type === 'application/pdf', [studentFile]);
 
     const loadPending = async () => {
         setIsLoadingPending(true);
@@ -222,7 +273,7 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
         }
     };
 
-    return (
+    const mainContent = (
         <div className="teacher-grading p-6 max-w-7xl mx-auto h-[100dvh] overflow-y-auto w-full">
             <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <CheckCircle className="text-pink-500" /> Trung tâm chấm thi AI
@@ -377,21 +428,54 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                                     1. Bài làm (Ảnh chụp tự luận/Docx)
                                 </label>
                                 <div
-                                    className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center hover:bg-gray-50 cursor-pointer transition-colors"
+                                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center hover:bg-gray-50 cursor-pointer transition-colors"
                                     onClick={() => studentFileRef.current?.click()}
                                 >
-                                    <FileText size={32} className="text-gray-400 mb-2" />
-                                    <span className="text-sm text-gray-600 font-medium">
-                                        {studentFile ? studentFile.name : 'Nhấn để định dạng file tải lên'}
-                                    </span>
+                                    {/* Thumbnail preview in upload area */}
+                                    {studentFile && isImageFile && filePreviewUrl ? (
+                                        <div className="w-full">
+                                            <img
+                                                src={filePreviewUrl}
+                                                alt="Preview"
+                                                className="w-full max-h-40 object-contain rounded-lg mb-2"
+                                                onClick={e => { e.stopPropagation(); setLightboxOpen(true); }}
+                                            />
+                                            <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+                                                <ImageIcon size={14} className="text-green-500" />
+                                                <span className="font-medium truncate max-w-[200px]">{studentFile.name}</span>
+                                                <span className="text-gray-400 text-xs">({(studentFile.size / 1024 / 1024).toFixed(1)}MB)</span>
+                                            </div>
+                                        </div>
+                                    ) : studentFile ? (
+                                        <div className="flex items-center gap-2">
+                                            <FileText size={24} className="text-blue-500" />
+                                            <div>
+                                                <span className="text-sm text-gray-700 font-medium">{studentFile.name}</span>
+                                                <span className="text-xs text-gray-400 ml-2">({(studentFile.size / 1024 / 1024).toFixed(1)}MB)</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <FileText size={32} className="text-gray-400 mb-2" />
+                                            <span className="text-sm text-gray-600 font-medium">Nhấn để chọn file tải lên</span>
+                                        </>
+                                    )}
                                     <input
                                         ref={studentFileRef}
                                         type="file"
                                         className="hidden"
                                         accept="image/*,.pdf,.doc,.docx"
-                                        onChange={e => setStudentFile(e.target.files?.[0] || null)}
+                                        onChange={e => { setStudentFile(e.target.files?.[0] || null); setResult(null); }}
                                     />
                                 </div>
+                                {studentFile && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setStudentFile(null); setResult(null); }}
+                                        className="mt-2 text-xs text-red-400 hover:text-red-600 flex items-center gap-1 mx-auto"
+                                    >
+                                        <X size={12} /> Xóa file đã chọn
+                                    </button>
+                                )}
                             </div>
 
                             {/* Grading Guide */}
@@ -463,6 +547,56 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
 
                     {result && !isGrading && (
                         <div className="flex-1 overflow-y-auto pr-2 flex flex-col">
+                            {/* Student file preview — for offline grading verification */}
+                            {!selectedPending && studentFile && (
+                                <div className="mb-6">
+                                    <h3 className="text-sm uppercase tracking-wider font-bold text-blue-500 mb-2 flex items-center gap-2">
+                                        <Eye size={14} /> Bài làm học sinh đã tải lên
+                                    </h3>
+                                    {isImageFile && filePreviewUrl && (
+                                        <div className="relative group">
+                                            <img
+                                                src={filePreviewUrl}
+                                                alt="Bài làm học sinh"
+                                                className="w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                                                onClick={() => setLightboxOpen(true)}
+                                            />
+                                            <button
+                                                onClick={() => setLightboxOpen(true)}
+                                                className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                                title="Phóng to"
+                                            >
+                                                <ZoomIn size={16} />
+                                            </button>
+                                        </div>
+                                    )}
+                                    {isPdfFile && filePreviewUrl && (
+                                        <div className="bg-white rounded-lg border border-gray-200 p-4">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <FileText size={18} className="text-red-500" />
+                                                <span className="font-medium text-sm text-gray-700">{studentFile.name}</span>
+                                            </div>
+                                            <iframe
+                                                src={filePreviewUrl}
+                                                title="PDF Preview"
+                                                className="w-full h-80 rounded border border-gray-100"
+                                            />
+                                        </div>
+                                    )}
+                                    {filePreviewText && (
+                                        <div className="bg-white rounded-lg border border-gray-200 p-4 max-h-60 overflow-y-auto">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <FileText size={16} className="text-blue-500" />
+                                                <span className="font-medium text-sm text-gray-700">{studentFile.name}</span>
+                                            </div>
+                                            <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                                                {filePreviewText}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Score header - Editable */}
                             <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-pink-100 shadow-sm mb-6">
                                 <span className="text-gray-600 font-semibold text-sm flex items-center gap-1"><Edit3 size={14} /> Điểm Cuối Cùng:</span>
@@ -550,6 +684,34 @@ Kết quả trả về PHẢI là định dạng JSON đúng chuẩn với cấu
                 </div>
             </div>
         </div>
+    );
+
+    // Lightbox modal for full-screen image view
+    return (
+        <>
+            {mainContent}
+
+            {/* Lightbox overlay */}
+            {lightboxOpen && filePreviewUrl && isImageFile && (
+                <div
+                    className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+                    onClick={() => setLightboxOpen(false)}
+                >
+                    <button
+                        onClick={() => setLightboxOpen(false)}
+                        className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/50 hover:bg-black/70 p-2 rounded-full transition-colors z-10"
+                    >
+                        <X size={24} />
+                    </button>
+                    <img
+                        src={filePreviewUrl}
+                        alt="Bài làm học sinh - phóng to"
+                        className="max-w-full max-h-full object-contain rounded-lg"
+                        onClick={e => e.stopPropagation()}
+                    />
+                </div>
+            )}
+        </>
     );
 }
 
