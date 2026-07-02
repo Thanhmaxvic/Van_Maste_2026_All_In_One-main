@@ -1,6 +1,5 @@
-import { rtdb, storage, getAllUsers, db } from './firebaseService';
+import { rtdb, db, getAllUsers } from './firebaseService';
 import { doc, getDoc } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import {
     ref,
     push,
@@ -14,21 +13,64 @@ import {
 } from 'firebase/database';
 import type { ChatMessage, ChatConversation } from '../types';
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB (ImgBB limit: 32MB, nhưng base64 tăng ~33%)
 const MAX_DOC_SIZE = 10 * 1024 * 1024; // 10MB
 
-// ─── Image Upload ─────────────────────────────────────────────────────────────
+// ─── Image Upload (via ImgBB) ─────────────────────────────────────────────────
 
-/** Upload an image file to Firebase Storage and return the download URL */
+/**
+ * Nén ảnh phía client rồi upload lên ImgBB qua backend proxy.
+ * Trả về URL ảnh công khai.
+ */
 export async function uploadChatImage(file: File): Promise<string> {
     if (file.size > MAX_IMAGE_SIZE) {
         throw new Error(`Ảnh quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Giới hạn tối đa ${MAX_IMAGE_SIZE / 1024 / 1024}MB.`);
     }
-    const ext = file.name.split('.').pop() || 'jpg';
-    const fileName = `chat_images/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-    const fileRef = storageRef(storage, fileName);
-    await uploadBytes(fileRef, file);
-    return await getDownloadURL(fileRef);
+
+    // Nén ảnh thành JPEG để giảm kích thước trước khi gửi base64
+    const base64 = await compressAndEncodeImage(file);
+
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+    const res = await fetch(`${baseUrl}/api/upload/image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64 }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Lỗi không xác định' }));
+        throw new Error(err.error || `Lỗi tải ảnh lên (${res.status})`);
+    }
+
+    const data = await res.json();
+    if (!data.url) throw new Error('Server không trả về URL ảnh.');
+    return data.url;
+}
+
+/** Nén ảnh và chuyển sang base64 string (không có prefix data:...) */
+async function compressAndEncodeImage(file: File, maxDim = 1600, quality = 0.8): Promise<string> {
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+
+    if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+    }
+
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
+    const buffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
 }
 
 /** Upload a document using Firebase Storage */
@@ -36,12 +78,16 @@ export async function uploadChatDocument(file: File): Promise<string> {
     if (file.size > MAX_DOC_SIZE) {
         throw new Error(`Tài liệu quá lớn (${(file.size / 1024 / 1024).toFixed(1)}MB). Giới hạn tối đa ${MAX_DOC_SIZE / 1024 / 1024}MB.`);
     }
+    // Lazy import Firebase Storage only when needed (for documents)
+    const { storage } = await import('./firebaseService');
+    const { ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
     const ext = file.name.split('.').pop() || 'bin';
     const fileName = `chat_docs/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
     const fileRef = storageRef(storage, fileName);
     await uploadBytes(fileRef, file);
     return await getDownloadURL(fileRef);
 }
+
 
 // ─── Conversations ────────────────────────────────────────────────────────────
 
